@@ -625,7 +625,7 @@ body {
 
   var state = {
     entries: [],
-    collapsed: {},
+    expanded: {},   // 记录手动展开的节点，默认全部收起
     editor: null,
     pendingDelete: null,
     search: '',
@@ -892,7 +892,7 @@ body {
 
   function isOpen(key) {
     if (state.search.trim()) return true;
-    return !state.collapsed[key];
+    return !!state.expanded[key];
   }
 
   function expandPath(entry) {
@@ -900,7 +900,7 @@ body {
     var category = entry.category || UNSET_CATEGORY;
     var sub = entry.sub || UNSET_SUB;
     ['m:' + month, 'c:' + month + '|' + category, 's:' + month + '|' + category + '|' + sub]
-      .forEach(function (key) { delete state.collapsed[key]; });
+      .forEach(function (key) { state.expanded[key] = true; });
   }
 
   // ---------- 渲染 ----------
@@ -1286,8 +1286,8 @@ body {
     if (!target) return;
     var data = target.dataset;
     if (data.toggle) {
-      if (state.collapsed[data.toggle]) delete state.collapsed[data.toggle];
-      else state.collapsed[data.toggle] = true;
+      if (state.expanded[data.toggle]) delete state.expanded[data.toggle];
+      else state.expanded[data.toggle] = true;
       return render();
     }
     if (data.add) return openEditor(prefillFromKey(data.add));
