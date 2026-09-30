@@ -395,6 +395,24 @@ body {
   box-shadow: 0 1px 2px rgba(15, 15, 15, .08);
 }
 
+.seg[hidden] { display: none; }
+
+/* 分类能决定收支方向时，这里显示只读标签，不给切换 */
+.sign-lock {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sign-lock[hidden] { display: none; }
+.sign-lock.pos { color: var(--pos); }
+.sign-lock.neg { color: var(--neg); }
+
 .saved-hint {
   margin: 12px 0 0;
   padding: 6px 10px;
@@ -563,6 +581,7 @@ body {
           <button type="button" data-sign="-1" class="active">支出</button>
           <button type="button" data-sign="1">收入</button>
         </div>
+        <span class="sign-lock" id="f-sign-lock" hidden></span>
         <input id="f-amount" type="number" min="0" step="0.01" placeholder="0.00" required>
       </div>
     </div>
@@ -610,7 +629,9 @@ body {
     editor: null,
     pendingDelete: null,
     search: '',
-    savedCount: 0
+    savedCount: 0,
+    sign: -1,
+    signLocked: false
   };
 
   var treeEl = document.getElementById('tree');
@@ -1073,10 +1094,38 @@ body {
     return found ? Object.assign({}, found) : {};
   }
 
+  function signForCategory(name) {
+    if (!name) return 0;
+    if (name.indexOf('收入') !== -1) return 1;
+    if (name.indexOf('支出') !== -1) return -1;
+    return 0;
+  }
+
   function setSign(sign) {
+    state.sign = sign;
     Array.prototype.forEach.call(document.querySelectorAll('#f-sign button'), function (btn) {
       btn.classList.toggle('active', Number(btn.dataset.sign) === sign);
     });
+  }
+
+  // 分类能定收支方向时锁定符号：收入分类只能记正数，支出分类只能记负数。
+  // 只有当已有金额与分类矛盾时（历史数据）才放开切换，避免编辑时悄悄改掉原值。
+  function syncSign(categoryName, storedAmount) {
+    var derived = signForCategory(categoryName);
+    var storedSign = (storedAmount === undefined || storedAmount === null || !Math.sign(storedAmount))
+      ? 0 : Math.sign(storedAmount);
+    var locked = derived !== 0 && (storedSign === 0 || storedSign === derived);
+    var sign = locked ? derived : (storedSign || derived || -1);
+
+    state.signLocked = locked;
+    setSign(sign);
+    document.getElementById('f-sign').hidden = locked;
+    var lockEl = document.getElementById('f-sign-lock');
+    lockEl.hidden = !locked;
+    if (locked) {
+      lockEl.textContent = derived > 0 ? '收入' : '支出';
+      lockEl.className = 'sign-lock ' + (derived > 0 ? 'pos' : 'neg');
+    }
   }
 
   function toggleNewSubInput(show) {
@@ -1128,7 +1177,7 @@ body {
     document.getElementById('f-item').value = prefill.item || '';
 
     var amount = prefill.amount;
-    setSign(amount === undefined ? -1 : Math.sign(amount) || -1);
+    syncSign(prefill.category || '常规支出', amount);
     document.getElementById('f-amount').value = amount === undefined ? '' : Math.abs(amount);
 
     document.getElementById('btn-cancel').textContent = editing ? '取消' : '关闭';
@@ -1151,8 +1200,7 @@ body {
     var sub = subSel.value === NEW_SUB
       ? (document.getElementById('f-sub-new').value.trim() || null)
       : (subSel.value || null);
-    var active = document.querySelector('#f-sign button.active');
-    var sign = active ? Number(active.dataset.sign) : -1;
+    var sign = state.sign || -1;
     return {
       month: document.getElementById('f-month').value.trim(),
       category: document.getElementById('f-category').value,
@@ -1250,12 +1298,14 @@ body {
   });
 
   document.getElementById('f-sign').addEventListener('click', function (event) {
+    if (state.signLocked) return;
     var btn = event.target.closest('button[data-sign]');
     if (btn) setSign(Number(btn.dataset.sign));
   });
 
   document.getElementById('f-category').addEventListener('change', function () {
     refreshSubOptions('');
+    syncSign(this.value, undefined);
   });
 
   document.getElementById('f-sub').addEventListener('change', function () {
