@@ -19,6 +19,10 @@
   --neg: #d44c47;
   --shadow: 0 1px 2px rgba(15, 15, 15, .05), 0 6px 16px rgba(15, 15, 15, .05);
   --radius: 8px;
+  /* 金额列的层级缩进：--tail 是右侧操作位宽度，缩进线的位置由这几个值算出来 */
+  --tail: 46px;
+  --ind-sub: 12px;
+  --ind-leaf: 24px;
   /* 正文列最大宽度：屏幕再宽，标题和金额也不会被拉开 */
   --col: 960px;
   --gutter: max(14px, calc((100% - var(--col)) / 2));
@@ -246,12 +250,30 @@ body {
 
 /* 金额按层级向左收进：分类贴右边缘，子类收 12px，明细收 24px。
    同层仍然严格右对齐，跨层错开，这样层级在金额列上直接可见 */
-.row.lv3 .amt { margin-right: 12px; }
+.row.lv3 .amt { margin-right: var(--ind-sub); }
+
+/* 缩进线：在每层金额的缩进处画一条竖线，把该层的金额串起来。
+   分类层是最外层，不画线；线紧贴数字右侧，落在缩进留出的空档里 */
+.row.lv3, .leaf { position: relative; }
+
+.row.lv3::after,
+.leaf::after {
+  content: "";
+  position: absolute;
+  top: -3px;      /* 上下各探 3px，补上相邻行之间的 6px 间隙，竖线才是连续的 */
+  bottom: -3px;
+  width: 1px;
+  background: var(--line-strong);
+  pointer-events: none;
+}
+
+.row.lv3::after { right: calc(8px + var(--tail) + var(--ind-sub) - 3px); }
+.leaf::after { right: calc(8px + var(--tail) + var(--ind-leaf) - 3px); }
 
 /* 右侧操作位固定宽度：不管行里有没有按钮，金额右边缘都对齐 */
 .tail {
   flex: none;
-  min-width: 46px;
+  min-width: var(--tail);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -298,7 +320,7 @@ body {
 
 .bullet { flex: none; width: 4px; height: 4px; border-radius: 50%; background: var(--line-strong); }
 .leaf .name { flex: none; font-size: 13.5px; }
-.leaf .amt { font-size: 13px; font-weight: 400; margin-right: 24px; }
+.leaf .amt { font-size: 13px; font-weight: 400; margin-right: var(--ind-leaf); }
 
 /* 双击就地编辑：标题输入框吃掉整段空白，金额输入框占住原来的列 */
 .leaf .ie {
@@ -318,7 +340,7 @@ body {
 .leaf .ie-amt {
   flex: none;
   width: 92px;
-  margin-right: 24px;
+  margin-right: var(--ind-leaf);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -569,10 +591,8 @@ body {
   .totals { order: 4; margin-left: 0; width: 100%; }
   .amt, .row.lv1 .amt { min-width: 76px; }
   .net { min-width: 88px; }
-  .tail { min-width: 30px; }
-  /* 窄屏把缩进收窄，别把标题挤没了 */
-  .row.lv3 .amt { margin-right: 8px; }
-  .leaf .amt, .leaf .ie-amt { margin-right: 16px; }
+  /* 窄屏把操作位和缩进一起收窄，缩进线靠这几个变量跟着走 */
+  :root { --tail: 30px; --ind-sub: 8px; --ind-leaf: 16px; }
 }
 </style>
 </head>
