@@ -463,6 +463,58 @@ body {
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
+/* ---------- 子类标签管理 ---------- */
+.tag-list { margin: 2px 0 12px; max-height: 300px; overflow: auto; }
+
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.tag-row:hover { background: var(--hover); }
+.tag-row .tag-name { flex: none; font-size: 13.5px; }
+.tag-row .tag-count { flex: none; font-size: 12px; color: var(--text-3); }
+.tag-row .confirm { margin-left: auto; }
+
+.tag-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 3px 7px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  outline: none;
+}
+
+.tag-empty { margin: 0 0 12px; font-size: 12.5px; color: var(--text-3); }
+.tag-empty[hidden] { display: none; }
+
+.tag-new { display: flex; gap: 8px; }
+
+.tag-new input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 7px 9px;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  outline: none;
+}
+
+.tag-new input:focus { border-color: var(--accent); }
+
+.tag-status { margin: 10px 0 0; font-size: 12px; color: var(--text-2); }
+.tag-status[hidden] { display: none; }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;
@@ -543,6 +595,13 @@ body {
           <path d="M13.5 2.5v3h-3"/>
         </svg>
       </button>
+      <button type="button" class="icon-btn" id="btn-tags" title="子类标签">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2.5 7.2V2.5h4.7l6.3 6.3-4.7 4.7z"/>
+          <circle cx="5.4" cy="5.4" r=".9"/>
+        </svg>
+      </button>
       <button type="button" class="icon-btn" id="btn-settings" title="设置">
         <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
              stroke-width="1.5" stroke-linecap="round">
@@ -581,6 +640,27 @@ body {
     <div class="modal-actions">
       <button type="button" class="btn ghost" id="s-cancel" hidden>取消</button>
       <button type="button" class="btn primary" id="s-save">保存并加载</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="tags" hidden>
+  <div class="modal">
+    <h2>子类标签</h2>
+    <p class="hint">
+      标签在所有分类之间共享。改名会把原有条目一起迁到新名字；
+      删除会清空这些条目的子类，条目本身保留。
+    </p>
+    <div class="tag-list" id="tag-list"></div>
+    <p class="tag-empty" id="tag-empty" hidden>还没有子类标签，在下面新建一个。</p>
+    <div class="tag-new">
+      <input id="tag-new" autocomplete="off" placeholder="新标签名称">
+      <button type="button" class="btn primary" id="tag-create">新建</button>
+    </div>
+    <p class="tag-status" id="tag-status" hidden></p>
+    <p class="err" id="tag-err" hidden></p>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" id="tag-close">关闭</button>
     </div>
   </div>
 </div>
@@ -670,7 +750,11 @@ body {
     search: '',
     savedCount: 0,
     sign: -1,
-    signLocked: false
+    signLocked: false,
+    subOptions: [], // 数据源 schema 里的子类选项：[{ id, name }]
+    subDesc: '',    // 子类属性本身的描述，改 schema 时必须原样带回，否则会被清空
+    tagEditing: null,
+    tagConfirm: null
   };
 
   var treeEl = document.getElementById('tree');
@@ -679,6 +763,7 @@ body {
   var countEl = document.getElementById('count');
   var modalEl = document.getElementById('modal');
   var setupEl = document.getElementById('setup');
+  var tagsEl = document.getElementById('tags');
   var toastEl = document.getElementById('toast');
   var toastMsgEl = document.getElementById('toast-msg');
   var toastActionEl = document.getElementById('toast-action');
@@ -842,6 +927,54 @@ body {
       props[pair[0]] = { select: name ? { name: name } : null };
     });
     return props;
+  }
+
+  // ---------- 子类标签（数据源 schema） ----------
+  function applyDataSource(ds) {
+    var prop = (ds.properties || {})['子类'] || {};
+    var sel = prop.select || {};
+    state.subOptions = (sel.options || []).filter(function (o) { return o && o.name; })
+      .map(function (o) { return { id: o.id, name: o.name }; });
+    state.subDesc = prop.description || '';
+  }
+
+  function fetchSubOptions() {
+    return notion('/data_sources/' + settings.dataSourceId).then(function (ds) {
+      applyDataSource(ds);
+      return state.subOptions;
+    });
+  }
+
+  // 标签全集 = schema 选项 ∪ 条目里出现过的值（历史遗留值也要能管理）
+  function subTagNames() {
+    var names = [];
+    state.subOptions.forEach(function (o) {
+      if (names.indexOf(o.name) === -1) names.push(o.name);
+    });
+    state.entries.forEach(function (e) {
+      if (e.sub && names.indexOf(e.sub) === -1) names.push(e.sub);
+    });
+    names.sort(function (a, b) { return a.localeCompare(b, 'zh-CN'); });
+    return names;
+  }
+
+  // select 选项只能整体替换：想保留的必须原样列出来，漏掉的就等于删除
+  function putSubTagNames(names) {
+    var byName = {};
+    state.subOptions.forEach(function (o) { if (o.id) byName[o.name] = o; });
+    var prop = {
+      select: {
+        options: names.map(function (n) {
+          var hit = byName[n];
+          return hit ? { id: hit.id } : { name: n };
+        })
+      }
+    };
+    if (state.subDesc) prop.description = state.subDesc;
+    return notion('/data_sources/' + settings.dataSourceId, {
+      method: 'PATCH',
+      body: JSON.stringify({ properties: { '子类': prop } })
+    }).then(function (ds) { applyDataSource(ds); });
   }
 
   // ---------- 本地缓存 ----------
@@ -1155,6 +1288,10 @@ body {
       state.pendingDelete = null;
       render();
       writeCache();
+      // 标签列表来自 schema，读失败也不影响记账，下拉会自动退回条目里的值
+      return fetchSubOptions().catch(function () { return null; });
+    }).then(function () {
+      render();
     }).catch(function (err) {
       toast(err.message, false);
     }).then(function () {
@@ -1251,13 +1388,9 @@ body {
     }
   }
 
-  // 子类是全局共享的标签：所有出现过的子类都在同一个列表里，不按分类过滤
+  // 子类是全局共享的标签：schema 里的选项 + 历史条目里出现过的值，不按分类过滤
   function refreshSubOptions(current) {
-    var subs = [];
-    state.entries.forEach(function (e) {
-      if (e.sub && subs.indexOf(e.sub) === -1) subs.push(e.sub);
-    });
-    subs.sort(function (a, b) { return a.localeCompare(b, 'zh-CN'); });
+    var subs = subTagNames();
     if (current && subs.indexOf(current) === -1) subs.push(current);
 
     var sel = document.getElementById('f-sub');
@@ -1371,6 +1504,203 @@ body {
 
   function closeSetup() { setupEl.hidden = true; }
 
+  // ---------- 子类标签管理 ----------
+  function tagUsage() {
+    var map = {};
+    state.entries.forEach(function (e) {
+      if (e.sub) map[e.sub] = (map[e.sub] || 0) + 1;
+    });
+    return map;
+  }
+
+  function renderTags() {
+    var usage = tagUsage();
+    var names = subTagNames();
+    document.getElementById('tag-empty').hidden = names.length > 0;
+
+    document.getElementById('tag-list').innerHTML = names.map(function (name) {
+      var used = usage[name] || 0;
+      if (state.tagEditing === name) {
+        return '<div class="tag-row">' +
+          '<input class="tag-input" id="tag-rename" autocomplete="off" value="' + esc(name) + '">' +
+          '<span class="ops pinned">' +
+            '<button type="button" class="op" data-tag-save="1">保存</button>' +
+            '<button type="button" class="op" data-tag-cancel="1">取消</button>' +
+          '</span>' +
+        '</div>';
+      }
+      var ops = state.tagConfirm === name
+        ? '<span class="confirm">删除？' + (used ? used + ' 笔会清空子类' : '未在使用') + '</span>' +
+          '<button type="button" class="op danger" data-tag-del-confirm="' + esc(name) + '">是</button>' +
+          '<button type="button" class="op" data-tag-del-cancel="1">否</button>'
+        : '<button type="button" class="op" data-tag-rename="' + esc(name) + '">改名</button>' +
+          '<button type="button" class="op danger" data-tag-del="' + esc(name) + '">删除</button>';
+      return '<div class="tag-row">' +
+        '<span class="tag-name">' + esc(name) + '</span>' +
+        '<span class="tag-count">' + (used ? used + ' 笔' : '未使用') + '</span>' +
+        '<span class="spacer"></span>' +
+        '<span class="ops pinned">' + ops + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function tagError(message) {
+    var el = document.getElementById('tag-err');
+    el.hidden = !message;
+    el.textContent = message || '';
+  }
+
+  function tagStatus(message) {
+    var el = document.getElementById('tag-status');
+    el.hidden = !message;
+    el.textContent = message || '';
+  }
+
+  function openTags() {
+    state.tagEditing = null;
+    state.tagConfirm = null;
+    document.getElementById('tag-new').value = '';
+    tagError('');
+    tagStatus('');
+    renderTags();
+    tagsEl.hidden = false;
+    setTimeout(function () { document.getElementById('tag-new').focus(); }, 0);
+    setLoading(true);
+    fetchSubOptions().then(function () { renderTags(); }).catch(function () {})
+      .then(function () { setLoading(false); });
+  }
+
+  function closeTags() {
+    tagsEl.hidden = true;
+    state.tagEditing = null;
+    state.tagConfirm = null;
+  }
+
+  function startTagRename(name) {
+    state.tagEditing = name;
+    state.tagConfirm = null;
+    renderTags();
+    var input = document.getElementById('tag-rename');
+    if (!input) return;
+    input.focus();
+    input.select();
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') { event.preventDefault(); submitTagRename(); }
+      else if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();  // 别让 Esc 顺带把整个面板关掉
+        state.tagEditing = null;
+        renderTags();
+      }
+    });
+  }
+
+  // 逐个改条目，避免一次性打满 Notion 的速率限制
+  function eachPage(list, fn) {
+    var done = 0;
+    function step() {
+      if (done >= list.length) return Promise.resolve();
+      var entry = list[done++];
+      tagStatus('正在处理 ' + done + '/' + list.length + ' 笔…');
+      return fn(entry).then(step);
+    }
+    return step();
+  }
+
+  function afterTagChange(message) {
+    tagStatus('');
+    render();
+    writeCache();
+    renderTags();
+    refreshSubOptions(document.getElementById('f-sub').value);
+    toast(message);
+  }
+
+  // 条目只改了一半时，本地状态会和 Notion 对不上，重新拉一次
+  function resyncAfterTagError(err) {
+    tagStatus('');
+    tagError(err.message);
+    return fetchAll().then(function (entries) {
+      state.entries = entries;
+      render();
+      writeCache();
+      renderTags();
+    }).catch(function () {});
+  }
+
+  function createSubTag() {
+    var input = document.getElementById('tag-new');
+    var name = input.value.trim();
+    tagError('');
+    if (!name) return tagError('标签名不能为空');
+    if (name.indexOf(',') !== -1) return tagError('标签名不能包含逗号');
+    if (subTagNames().indexOf(name) !== -1) return tagError('「' + name + '」已经存在');
+
+    setLoading(true);
+    putSubTagNames(subTagNames().concat([name]))
+      .then(function () {
+        input.value = '';
+        afterTagChange('已新建标签「' + name + '」');
+      })
+      .catch(function (err) { tagError(err.message); })
+      .then(function () { setLoading(false); });
+  }
+
+  function submitTagRename() {
+    var oldName = state.tagEditing;
+    var input = document.getElementById('tag-rename');
+    if (!oldName || !input) return;
+    var newName = input.value.trim();
+    tagError('');
+    if (!newName) return tagError('新名称不能为空');
+    if (newName.indexOf(',') !== -1) return tagError('标签名不能包含逗号');
+    if (newName === oldName) {
+      state.tagEditing = null;
+      return renderTags();
+    }
+
+    // Notion 的 API 不能重命名已有选项，只能把条目迁到新名字，再把旧选项从 schema 摘掉
+    var affected = state.entries.filter(function (e) { return e.sub === oldName; });
+    state.tagEditing = null;
+    renderTags();
+    if (!affected.length) tagStatus('没有条目在用这个标签，直接改名');
+    setLoading(true);
+    eachPage(affected, function (entry) {
+      return notion('/pages/' + entry.id, {
+        method: 'PATCH',
+        body: JSON.stringify({ properties: { '子类': { select: { name: newName } } } })
+      });
+    }).then(function () {
+      affected.forEach(function (e) { e.sub = newName; });
+      var names = subTagNames().filter(function (n) { return n !== oldName; });
+      if (names.indexOf(newName) === -1) names.push(newName);
+      return putSubTagNames(names);
+    }).then(function () {
+      afterTagChange('已改名为「' + newName + '」' +
+        (affected.length ? '，' + affected.length + ' 笔已同步' : ''));
+    }).catch(resyncAfterTagError).then(function () { setLoading(false); });
+  }
+
+  // 约定：删除标签时条目保留，只清空它们的子类
+  function deleteSubTag(name) {
+    var affected = state.entries.filter(function (e) { return e.sub === name; });
+    state.tagConfirm = null;
+    renderTags();
+    setLoading(true);
+    eachPage(affected, function (entry) {
+      return notion('/pages/' + entry.id, {
+        method: 'PATCH',
+        body: JSON.stringify({ properties: { '子类': { select: null } } })
+      });
+    }).then(function () {
+      affected.forEach(function (e) { e.sub = null; });
+      return putSubTagNames(subTagNames().filter(function (n) { return n !== name; }));
+    }).then(function () {
+      afterTagChange('已删除标签「' + name + '」' +
+        (affected.length ? '，' + affected.length + ' 笔已清空子类' : ''));
+    }).catch(resyncAfterTagError).then(function () { setLoading(false); });
+  }
+
   // ---------- 事件 ----------
   treeEl.addEventListener('click', function (event) {
     var target = event.target.closest(
@@ -1441,6 +1771,27 @@ body {
   refreshBtn.addEventListener('click', function () { refresh(); });
   document.getElementById('btn-settings').addEventListener('click', function () { openSetup(); });
 
+  document.getElementById('btn-tags').addEventListener('click', openTags);
+  document.getElementById('tag-close').addEventListener('click', closeTags);
+  document.getElementById('tag-create').addEventListener('click', createSubTag);
+  document.getElementById('tag-new').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') { event.preventDefault(); createSubTag(); }
+  });
+
+  tagsEl.addEventListener('click', function (event) {
+    if (event.target === tagsEl) return closeTags();
+    var target = event.target.closest('[data-tag-rename],[data-tag-del],[data-tag-del-confirm],' +
+      '[data-tag-del-cancel],[data-tag-save],[data-tag-cancel]');
+    if (!target) return;
+    var data = target.dataset;
+    if (data.tagRename) return startTagRename(data.tagRename);
+    if (data.tagCancel) { state.tagEditing = null; return renderTags(); }
+    if (data.tagDel) { state.tagConfirm = data.tagDel; return renderTags(); }
+    if (data.tagDelCancel) { state.tagConfirm = null; return renderTags(); }
+    if (data.tagSave) return submitTagRename();
+    if (data.tagDelConfirm) return deleteSubTag(data.tagDelConfirm);
+  });
+
   document.getElementById('s-save').addEventListener('click', function () {
     var token = document.getElementById('s-token').value.trim();
     var ds = document.getElementById('s-ds').value.trim();
@@ -1461,6 +1812,7 @@ body {
       writeCache();
       closeSetup();
       toast('已连接');
+      fetchSubOptions().catch(function () { return null; });
     }).catch(function (err) {
       errEl.hidden = false;
       errEl.textContent = err.message;
@@ -1479,6 +1831,7 @@ body {
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
       if (!modalEl.hidden) closeEditor();
+      else if (!tagsEl.hidden) closeTags();
       else if (!setupEl.hidden) closeSetup();
       else if (state.search) {
         searchEl.value = '';
