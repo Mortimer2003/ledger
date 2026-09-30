@@ -14,6 +14,8 @@
   --line: rgba(55, 53, 47, .09);
   --line-strong: rgba(55, 53, 47, .16);
   --hover: rgba(55, 53, 47, .055);
+  /* 对比表里吸顶/吸左的单元格必须是实色，半透明底色会让下层内容透出来 */
+  --row-hover: #f1f1ef;
   --accent: #2383e2;
   --pos: #0f7b6c;
   --neg: #d44c47;
@@ -42,6 +44,7 @@
   --line: rgba(255, 255, 255, .094);
   --line-strong: rgba(255, 255, 255, .16);
   --hover: rgba(255, 255, 255, .055);
+  --row-hover: #262626;
   --accent: #529cca;
   --pos: #4dab9a;
   --neg: #ff7369;
@@ -445,6 +448,97 @@ body {
 .op.danger { color: var(--neg); }
 .confirm { font-size: 12px; color: var(--text-2); }
 
+/* ---------- 视图切换 ---------- */
+.view-switch { flex: none; }
+
+/* ---------- 对比视图 ---------- */
+/* 对比表要横向铺开，去掉两侧留白，让月份列尽量占满窗口 */
+.tree.compare { padding: 0 0 28px; }
+
+.cmp {
+  border-collapse: separate;   /* sticky 表头/首列必须配 separate，collapse 下会错位 */
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+  font-size: 13px;
+}
+
+.cmp th,
+.cmp td {
+  padding: 6px 10px;
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 表头吸顶 */
+.cmp thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line-strong);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* 月份表头折成两行，列宽能压到一半 */
+.cmp thead .cmp-month .yr { display: block; font-size: 10.5px; font-weight: 400; color: var(--text-3); }
+.cmp thead .cmp-month .mo { display: block; font-size: 12.5px; color: var(--text-2); }
+
+/* 首列：项目名吸左 */
+.cmp .cmp-item {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-width: 132px;
+  text-align: left;
+  border-right: 1px solid var(--line);
+}
+
+/* 合计列吸右 */
+.cmp .cmp-total {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  min-width: 92px;
+  border-left: 1px solid var(--line-strong);
+  font-weight: 500;
+}
+
+/* 四个角上的单元格同时吸两个方向，压在所有内容之上 */
+.cmp thead .cmp-item,
+.cmp thead .cmp-total { z-index: 4; }
+
+.cmp .cmp-month { min-width: 62px; }
+
+.cmp .cmp-item .cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cmp .cmp-item .name { white-space: nowrap; }
+.cmp .chev.ghost { visibility: hidden; }
+.cmp .indent { flex: none; width: 11px; }
+
+/* 吸顶/吸左的单元格必须是实色，否则滚动时下层内容会透出来 */
+.cmp tbody th,
+.cmp tbody td { background: var(--bg); }
+.cmp tbody tr.cmp-cat th,
+.cmp tbody tr.cmp-cat td { background: var(--bg-soft); }
+.cmp tbody tr.cmp-cat td { font-weight: 600; }
+.cmp tbody tr.cmp-cat .name { font-size: 13.5px; font-weight: 600; }
+.cmp tbody tr.cmp-sub td { font-size: 12.5px; font-weight: 500; }
+.cmp tbody tr.cmp-sub .name { font-size: 13px; color: var(--text-2); }
+.cmp tbody tr.cmp-net th,
+.cmp tbody tr.cmp-net td {
+  background: var(--bg-soft);
+  font-weight: 600;
+  border-top: 1px solid var(--line-strong);
+}
+.cmp tbody tr.cmp-cat.is-toggle { cursor: pointer; }
+.cmp tbody tr:hover th,
+.cmp tbody tr:hover td { background: var(--row-hover); }
+
 /* ---------- 弹窗 ---------- */
 .mask {
   position: fixed;
@@ -662,6 +756,9 @@ body {
   .net { min-width: 88px; }
   /* 窄屏把操作位和缩进一起收窄，缩进线靠这几个变量跟着走 */
   :root { --tail: 30px; --ind-sub: 8px; --ind-leaf: 16px; }
+  .view-switch button { padding: 4px 8px; }
+  .cmp .cmp-item { min-width: 104px; }
+  .cmp .cmp-total { min-width: 78px; }
 }
 </style>
 </head>
@@ -684,6 +781,10 @@ body {
     </div>
     <div class="totals" id="totals"></div>
     <div class="tools">
+      <div class="seg view-switch" id="view-switch">
+        <button type="button" data-view="tree" class="active">月份</button>
+        <button type="button" data-view="compare">对比</button>
+      </div>
       <button type="button" class="icon-btn" id="btn-refresh" title="重新加载">
         <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -833,6 +934,7 @@ body {
   var KEY_TOKEN = 'ledger.token';
   var KEY_DS = 'ledger.dataSourceId';
   var KEY_CACHE = 'ledger.cache';
+  var KEY_VIEW = 'ledger.view';
   var MAX_RETRY = 3;
 
   var settings = {
@@ -843,6 +945,8 @@ body {
   var state = {
     entries: [],
     expanded: {},   // 记录手动展开的节点，默认全部收起
+    cmpCollapsed: {}, // 对比视图里收起的分类（默认展开）
+    view: localStorage.getItem(KEY_VIEW) === 'compare' ? 'compare' : 'tree',
     pendingDelete: null,
     editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
     search: '',
@@ -1173,6 +1277,118 @@ body {
       .forEach(function (key) { state.expanded[key] = true; });
   }
 
+  // ---------- 对比视图 ----------
+  function monthKey(name) {
+    var m = /^(\d{4})年(\d{1,2})月$/.exec(name || '');
+    return m ? Number(m[1]) * 100 + Number(m[2]) : 999999;  // 未标月份排到最后
+  }
+
+  function monthHead(name) {
+    var m = /^(\d{4})年(\d{1,2})月$/.exec(name || '');
+    if (!m) return '<span class="mo">' + esc(name) + '</span>';
+    return '<span class="yr">' + m[1] + '</span><span class="mo">' + m[2] + '月</span>';
+  }
+
+  function monthValues(list, months) {
+    return months.map(function (m) {
+      return sum(list.filter(function (e) { return (e.month || UNSET_MONTH) === m; }));
+    });
+  }
+
+  function sumArr(values) {
+    return values.reduce(function (acc, v) { return acc + v; }, 0);
+  }
+
+  // 行 = 分类 + 子类两层，列 = 全部月份（时间正序）+ 合计
+  function buildComparison(entries) {
+    var seen = {}, months = [];
+    entries.forEach(function (e) {
+      var m = e.month || UNSET_MONTH;
+      if (!seen[m]) { seen[m] = true; months.push(m); }
+    });
+    months.sort(function (a, b) { return monthKey(a) - monthKey(b); });
+
+    var rows = groupByCategory(entries).map(function (cat) {
+      var subs = cat.list.some(function (e) { return e.sub; })
+        ? groupBySub(cat.list).map(function (s) {
+            return { name: s.name, values: monthValues(s.list, months) };
+          })
+        : [];
+      return { name: cat.name, values: monthValues(cat.list, months), subs: subs };
+    });
+    return { months: months, rows: rows };
+  }
+
+  function cmpCell(value) {
+    if (!value) return '<span class="zero">—</span>';
+    return '<span class="' + tone(value) + '">' + signed(value) + '</span>';
+  }
+
+  function renderCompare(entries) {
+    var data = buildComparison(entries);
+    if (!data.months.length) return '';
+
+    var head = '<tr><th class="cmp-item"><span class="cell">项目</span></th>' +
+      data.months.map(function (m) {
+        return '<th class="cmp-month">' + monthHead(m) + '</th>';
+      }).join('') +
+      '<th class="cmp-total">合计</th></tr>';
+
+    var body = data.rows.map(function (cat) {
+      var key = 'c:' + cat.name;
+      var hasSub = cat.subs.length > 0;
+      var collapsed = hasSub && !!state.cmpCollapsed[key];
+      var catRow = '<tr class="cmp-cat' + (hasSub ? ' is-toggle' : '') + '"' +
+        (hasSub ? ' data-cmp-toggle="' + esc(key) + '"' : '') + '>' +
+        '<th class="cmp-item"><span class="cell">' +
+          '<span class="chev' + (collapsed ? '' : ' open') + (hasSub ? '' : ' ghost') + '"></span>' +
+          '<span class="name">' + highlight(cat.name) + '</span>' +
+        '</span></th>' +
+        cat.values.map(function (v) { return '<td>' + cmpCell(v) + '</td>'; }).join('') +
+        '<td class="cmp-total">' + cmpCell(sumArr(cat.values)) + '</td>' +
+      '</tr>';
+
+      var subRows = collapsed ? '' : cat.subs.map(function (sub) {
+        return '<tr class="cmp-sub">' +
+          '<th class="cmp-item"><span class="cell">' +
+            '<span class="indent"></span>' +
+            '<span class="name">' + highlight(sub.name) + '</span>' +
+          '</span></th>' +
+          sub.values.map(function (v) { return '<td>' + cmpCell(v) + '</td>'; }).join('') +
+          '<td class="cmp-total">' + cmpCell(sumArr(sub.values)) + '</td>' +
+        '</tr>';
+      }).join('');
+
+      return catRow + subRows;
+    }).join('');
+
+    // 分类有收有支，纵向加起来就是当月净额
+    var netValues = data.months.map(function (m, i) {
+      return sumArr(data.rows.map(function (r) { return r.values[i]; }));
+    });
+    var netRow = '<tr class="cmp-net">' +
+      '<th class="cmp-item"><span class="cell"><span class="name">净额</span></span></th>' +
+      netValues.map(function (v) { return '<td>' + cmpCell(v) + '</td>'; }).join('') +
+      '<td class="cmp-total">' + cmpCell(sumArr(netValues)) + '</td>' +
+    '</tr>';
+
+    return '<table class="cmp"><thead>' + head + '</thead><tbody>' +
+      body + netRow + '</tbody></table>';
+  }
+
+  function syncViewButtons() {
+    Array.prototype.forEach.call(document.querySelectorAll('#view-switch button'), function (btn) {
+      btn.classList.toggle('active', btn.dataset.view === state.view);
+    });
+  }
+
+  function setView(view) {
+    state.view = view === 'compare' ? 'compare' : 'tree';
+    localStorage.setItem(KEY_VIEW, state.view);
+    syncViewButtons();
+    render();
+  }
+
   // ---------- 渲染 ----------
   function amtCell(value, cls) {
     if (!value) return '<span class="amt zero">—</span>';
@@ -1201,8 +1417,14 @@ body {
       '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
       tone(income + expense) + '">' + signed(income + expense) + '</i></span>';
 
-    var months = groupByMonth(entries);
-    treeEl.innerHTML = months.map(renderMonth).join('');
+    var comparing = state.view === 'compare';
+    treeEl.className = comparing ? 'tree compare' : 'tree';
+
+    if (comparing) {
+      treeEl.innerHTML = renderCompare(entries);
+    } else {
+      treeEl.innerHTML = groupByMonth(entries).map(renderMonth).join('');
+    }
 
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -1802,9 +2024,14 @@ body {
   // ---------- 事件 ----------
   treeEl.addEventListener('click', function (event) {
     var target = event.target.closest(
-      '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel]');
+      '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle]');
     if (!target) return;
     var data = target.dataset;
+    if (data.cmpToggle) {
+      if (state.cmpCollapsed[data.cmpToggle]) delete state.cmpCollapsed[data.cmpToggle];
+      else state.cmpCollapsed[data.cmpToggle] = true;
+      return render();
+    }
     if (data.toggle) {
       if (state.expanded[data.toggle]) delete state.expanded[data.toggle];
       else state.expanded[data.toggle] = true;
@@ -1866,6 +2093,10 @@ body {
 
   document.getElementById('btn-cancel').addEventListener('click', closeEditor);
   document.getElementById('btn-add').addEventListener('click', function () { openEditor({}); });
+  document.getElementById('view-switch').addEventListener('click', function (event) {
+    var btn = event.target.closest('button[data-view]');
+    if (btn) setView(btn.dataset.view);
+  });
   refreshBtn.addEventListener('click', function () { refresh(); });
   document.getElementById('btn-settings').addEventListener('click', function () { openSetup(); });
 
@@ -1948,6 +2179,7 @@ body {
 
   // ---------- 启动 ----------
   (function boot() {
+    syncViewButtons();
     var cached = readCache();
     if (cached) {
       state.entries = cached.entries;
