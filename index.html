@@ -24,6 +24,10 @@
   --ind-sub: 12px;
   --ind-leaf: 24px;
   --tick: 6px;   /* 缩进线横向短杠的长度 */
+  --row-half: 16px;  /* 子类行高的一半：明细竖线从这里起，接在子类的拐角上 */
+  /* 两根竖线的横向位置（从行右边缘算起）：S2 在子类层，S3 在明细层 */
+  --x2: calc(8px + var(--tail) + var(--ind-sub) - var(--tick));
+  --x3: calc(8px + var(--tail) + var(--ind-leaf) - var(--tick));
   /* 正文列最大宽度：屏幕再宽，标题和金额也不会被拉开 */
   --col: 960px;
   --gutter: max(14px, calc((100% - var(--col)) / 2));
@@ -253,20 +257,57 @@ body {
    同层仍然严格右对齐，跨层错开，这样层级在金额列上直接可见 */
 .row.lv3 .amt { margin-right: var(--ind-sub); }
 
-/* 缩进线：竖线 + 横向短杠，把每层金额连到它自己那根竖线上（分类层是最外层，不画）。
-   竖线上下各探 3px 补掉相邻行之间的 6px 间隙，所以是连续的一条 */
+/* ---------- 缩进线 ----------
+   金额列上有两根竖线：S2 在子类层，S3 在明细层；分类层是最外层，不画线。
+   关键点：子类的竖线画在「子类节点」上、纵向贯穿整块（子类行 + 它下面的明细），
+   而不是逐行画——所以内层条目不会把外层竖线切断。 */
 .row.lv3, .leaf { position: relative; }
+.node.sub { position: relative; }
 
-.row.lv3::after,
-.leaf::after {
+/* S2：子类层的竖线，贯穿整个子类节点。上下各探 3px，补掉节点之间 6px 的间距 */
+.node.sub::after {
   content: "";
   position: absolute;
+  right: var(--x2);
+  width: 1px;
   top: -3px;
   bottom: -3px;
-  width: 1px;
   background: var(--line-strong);
   pointer-events: none;
 }
+
+/* 首位子类不向上探：上面是分类行，探出去会戳进分类的金额数字里 */
+.children > .node.sub:first-child::after { top: 0; }
+
+/* 末位子类：竖线收到本行中线，收成 └─ 而不是一直戳到底 */
+.children > .node.sub:last-child::after { bottom: calc(100% - var(--row-half)); }
+
+/* S2：分类直接挂明细（中间没有子类）时，明细自己就挂在子类层这根竖线上 */
+.leaf-cat::after {
+  content: "";
+  position: absolute;
+  right: var(--x2);
+  width: 1px;
+  top: 0;
+  bottom: 0;
+  background: var(--line-strong);
+  pointer-events: none;
+}
+.leaf-cat:last-child::after { bottom: 50%; }
+
+/* S3：明细层的竖线，贯穿该子类下的明细。首条从本行顶部起——
+   不能往上探进子类行：两级竖线本来就不在同一列，探上去只会横穿子类的金额数字 */
+.leaf-sub::after {
+  content: "";
+  position: absolute;
+  right: var(--x3);
+  width: 1px;
+  top: 0;
+  bottom: 0;
+  background: var(--line-strong);
+  pointer-events: none;
+}
+.leaf-sub:last-child::after { bottom: 50%; }
 
 /* 横向短杠：从金额右缘连到竖线，构成 ─┤ 的拐角 */
 .row.lv3::before,
@@ -275,21 +316,18 @@ body {
   position: absolute;
   top: 50%;
   height: 1px;
-  width: var(--tick);
   background: var(--line-strong);
   transform: translateY(-50%);
   pointer-events: none;
 }
 
-.row.lv3::before,
-.row.lv3::after { right: calc(8px + var(--tail) + var(--ind-sub) - var(--tick)); }
-
-.leaf::before,
-.leaf::after { right: calc(8px + var(--tail) + var(--ind-leaf) - var(--tick)); }
-
-/* 末项收尾：竖线只画上半截，到横杠处停住，收成 └─ 而不是一直戳到底 */
-.children > .node:last-child > .row.lv3::after,
-.children > .leaf:last-child::after { bottom: 50%; }
+.row.lv3::before { right: var(--x2); width: var(--tick); }
+.leaf-sub::before { right: var(--x3); width: var(--tick); }
+/* 分类直接挂明细：中间少了一级，横杠要跨过整个子类层再连到金额 */
+.leaf-cat::before {
+  right: var(--x2);
+  width: calc(var(--ind-leaf) - var(--ind-sub) + var(--tick));
+}
 
 /* 右侧操作位固定宽度：不管行里有没有按钮，金额右边缘都对齐 */
 .tail {
@@ -1199,7 +1237,7 @@ body {
     var hasSub = category.list.some(function (e) { return e.sub; });
     var body = hasSub
       ? groupBySub(category.list).map(function (s) { return renderSub(monthName, category.name, s); }).join('')
-      : category.list.slice().sort(byAmount).map(renderLeaf).join('');
+      : category.list.slice().sort(byAmount).map(function (e) { return renderLeaf(e, false); }).join('');
     return '' +
       '<div class="node">' +
         '<div class="row lv2" data-toggle="' + esc(key) + '">' +
@@ -1218,7 +1256,7 @@ body {
     var open = isOpen(key);
     var total = sum(sub.list);
     return '' +
-      '<div class="node">' +
+      '<div class="node sub">' +
         '<div class="row lv3" data-toggle="' + esc(key) + '">' +
           '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
           '<span class="name">' + highlight(sub.name) + '</span>' +
@@ -1227,12 +1265,12 @@ body {
           '<span class="tail"><button type="button" class="icon" data-add="' + esc(key) + '" title="在此子类新增">＋</button></span>' +
         '</div>' +
         '<div class="children ' + (open ? '' : 'hidden') + '">' +
-          sub.list.slice().sort(byAmount).map(renderLeaf).join('') +
+          sub.list.slice().sort(byAmount).map(function (e) { return renderLeaf(e, true); }).join('') +
         '</div>' +
       '</div>';
   }
 
-  function renderLeaf(entry) {
+  function renderLeaf(entry, inSub) {
     var field = state.editing && state.editing.id === entry.id ? state.editing.field : null;
     var confirming = state.pendingDelete === entry.id;
     var ops = confirming
@@ -1251,7 +1289,7 @@ body {
       : '<span class="amt ' + tone(entry.amount) + '">' + signed(entry.amount) + '</span>';
 
     return '' +
-      '<div class="leaf" data-id="' + esc(entry.id) + '">' +
+      '<div class="leaf ' + (inSub ? 'leaf-sub' : 'leaf-cat') + '" data-id="' + esc(entry.id) + '">' +
         '<span class="bullet"></span>' +
         nameCell +
         (field === 'item' ? '' : '<span class="spacer"></span>') +
