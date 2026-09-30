@@ -23,11 +23,11 @@
   --tail: 46px;
   --ind-sub: 12px;
   --ind-leaf: 24px;
-  --tick: 6px;   /* 缩进线横向短杠的长度 */
   --row-half: 16px;  /* 子类行高的一半：明细竖线从这里起，接在子类的拐角上 */
-  /* 两根竖线的横向位置（从行右边缘算起）：S2 在子类层，S3 在明细层 */
-  --x2: calc(8px + var(--tail) + var(--ind-sub) - var(--tick));
-  --x3: calc(8px + var(--tail) + var(--ind-leaf) - var(--tick));
+  /* 金额右缘的位置（从行右边缘算起）= 行内边距 8px + 操作位 --tail + 两者的 8px 间距。
+     竖线就压在这条线上：S2（子类层）对齐分类金额的右缘，S3（明细层）对齐子类金额的右缘 */
+  --x2: calc(16px + var(--tail));
+  --x3: calc(16px + var(--tail) + var(--ind-sub));
   /* 正文列最大宽度：屏幕再宽，标题和金额也不会被拉开 */
   --col: 960px;
   --gutter: max(14px, calc((100% - var(--col)) / 2));
@@ -199,7 +199,16 @@ body {
 @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
 
 /* ---------- 树 ---------- */
-.tree { flex: 1; overflow: auto; padding: 10px var(--gutter) 28px; }
+.tree {
+  flex: 1;
+  overflow: auto;
+  padding: 10px var(--gutter) 28px;
+  /* 隐藏滚动条，但保留滚动能力 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tree::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 .empty { margin: 40px 0; text-align: center; color: var(--text-3); font-size: 13px; }
 .empty[hidden] { display: none; }
@@ -321,12 +330,13 @@ body {
   pointer-events: none;
 }
 
-.row.lv3::before { right: var(--x2); width: var(--tick); }
-.leaf-sub::before { right: var(--x3); width: var(--tick); }
+/* 横杠从竖线一直连到本行金额的右缘，长度正好是一个缩进步长 */
+.row.lv3::before { right: var(--x2); width: var(--ind-sub); }
+.leaf-sub::before { right: var(--x3); width: var(--ind-sub); }
 /* 分类直接挂明细：中间少了一级，横杠要跨过整个子类层再连到金额 */
 .leaf-cat::before {
   right: var(--x2);
-  width: calc(var(--ind-leaf) - var(--ind-sub) + var(--tick));
+  width: var(--ind-leaf);
 }
 
 /* 右侧操作位固定宽度：不管行里有没有按钮，金额右边缘都对齐 */
