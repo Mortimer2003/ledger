@@ -287,6 +287,10 @@ body {
 .leaf::before,
 .leaf::after { right: calc(8px + var(--tail) + var(--ind-leaf) - var(--tick)); }
 
+/* 末项收尾：竖线只画上半截，到横杠处停住，收成 └─ 而不是一直戳到底 */
+.children > .node:last-child > .row.lv3::after,
+.children > .leaf:last-child::after { bottom: 50%; }
+
 /* 右侧操作位固定宽度：不管行里有没有按钮，金额右边缘都对齐 */
 .tail {
   flex: none;
