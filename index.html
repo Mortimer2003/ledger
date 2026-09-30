@@ -19,6 +19,9 @@
   --neg: #d44c47;
   --shadow: 0 1px 2px rgba(15, 15, 15, .05), 0 6px 16px rgba(15, 15, 15, .05);
   --radius: 8px;
+  /* 正文列最大宽度：屏幕再宽，标题和金额也不会被拉开 */
+  --col: 960px;
+  --gutter: max(14px, calc((100% - var(--col)) / 2));
 }
 
 [data-theme="dark"] {
@@ -57,7 +60,7 @@ body {
   gap: 12px;
   flex: none;
   flex-wrap: wrap;
-  padding: 9px 14px;
+  padding: 9px var(--gutter);
   border-bottom: 1px solid var(--line);
 }
 
@@ -187,7 +190,7 @@ body {
 @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
 
 /* ---------- 树 ---------- */
-.tree { flex: 1; overflow: auto; padding: 10px 14px 28px; }
+.tree { flex: 1; overflow: auto; padding: 10px var(--gutter) 28px; }
 
 .empty { margin: 40px 0; text-align: center; color: var(--text-3); font-size: 13px; }
 .empty[hidden] { display: none; }
@@ -225,7 +228,6 @@ body {
 .chev.open { transform: rotate(90deg); }
 
 .row .name { flex: none; }
-.meta { flex: none; font-size: 11.5px; color: var(--text-3); }
 .spacer { flex: 1; }
 
 .amt {
@@ -279,6 +281,28 @@ body {
 .bullet { flex: none; width: 4px; height: 4px; border-radius: 50%; background: var(--line-strong); }
 .leaf .name { flex: none; font-size: 13.5px; }
 .leaf .amt { font-size: 13.5px; }
+
+/* 双击就地编辑：标题输入框吃掉整段空白，金额输入框占住原来的列 */
+.leaf .ie {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+
+.leaf .ie-amt {
+  flex: none;
+  width: 104px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .muted { color: var(--text-3); font-style: normal; }
 
 .leaf mark { background: rgba(35, 131, 226, .18); color: inherit; border-radius: 2px; padding: 0 1px; }
@@ -626,8 +650,8 @@ body {
   var state = {
     entries: [],
     expanded: {},   // 记录手动展开的节点，默认全部收起
-    editor: null,
     pendingDelete: null,
+    editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
     search: '',
     savedCount: 0,
     sign: -1,
@@ -958,7 +982,6 @@ body {
         '<div class="row lv1" data-toggle="' + esc(key) + '">' +
           '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
           '<span class="name">' + highlight(month.name) + '</span>' +
-          '<span class="meta">' + month.list.length + ' 笔</span>' +
           '<span class="spacer"></span>' +
           amtCell(income, 'pos') +
           amtCell(expense, 'neg') +
@@ -984,7 +1007,6 @@ body {
         '<div class="row lv2" data-toggle="' + esc(key) + '">' +
           '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
           '<span class="name">' + highlight(category.name) + '</span>' +
-          '<span class="meta">' + category.list.length + ' 笔</span>' +
           '<span class="spacer"></span>' +
           '<span class="amt ' + tone(total) + '">' + signed(total) + '</span>' +
           '<button type="button" class="icon" data-add="' + esc(key) + '" title="在此分类新增">＋</button>' +
@@ -1002,7 +1024,6 @@ body {
         '<div class="row lv3" data-toggle="' + esc(key) + '">' +
           '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
           '<span class="name">' + highlight(sub.name) + '</span>' +
-          '<span class="meta">' + sub.list.length + ' 笔</span>' +
           '<span class="spacer"></span>' +
           '<span class="amt ' + tone(total) + '">' + signed(total) + '</span>' +
           '<button type="button" class="icon" data-add="' + esc(key) + '" title="在此子类新增">＋</button>' +
@@ -1014,21 +1035,101 @@ body {
   }
 
   function renderLeaf(entry) {
+    var field = state.editing && state.editing.id === entry.id ? state.editing.field : null;
     var confirming = state.pendingDelete === entry.id;
     var ops = confirming
       ? '<span class="confirm">删除这一笔？</span>' +
         '<button type="button" class="op danger" data-del-confirm="' + esc(entry.id) + '">是</button>' +
         '<button type="button" class="op" data-del-cancel="1">否</button>'
-      : '<button type="button" class="op" data-edit="' + esc(entry.id) + '">编辑</button>' +
-        '<button type="button" class="op" data-del="' + esc(entry.id) + '">删除</button>';
+      : '<button type="button" class="op" data-del="' + esc(entry.id) + '">删除</button>';
+
+    var nameCell = field === 'item'
+      ? '<input class="ie" id="ie-item" autocomplete="off" value="' + esc(entry.item || '') + '">'
+      : '<span class="name">' + (entry.item ? highlight(entry.item) : '<i class="muted">未命名</i>') + '</span>';
+
+    var amountCell = field === 'amount'
+      ? '<input class="ie ie-amt" id="ie-amount" type="number" min="0" step="0.01" value="' +
+        Math.abs(entry.amount) + '">'
+      : '<span class="amt ' + tone(entry.amount) + '">' + signed(entry.amount) + '</span>';
+
     return '' +
-      '<div class="leaf">' +
+      '<div class="leaf" data-id="' + esc(entry.id) + '">' +
         '<span class="bullet"></span>' +
-        '<span class="name">' + (entry.item ? highlight(entry.item) : '<i class="muted">未命名</i>') + '</span>' +
-        '<span class="spacer"></span>' +
-        '<span class="amt ' + tone(entry.amount) + '">' + signed(entry.amount) + '</span>' +
+        nameCell +
+        (field === 'item' ? '' : '<span class="spacer"></span>') +
+        amountCell +
         '<span class="ops ' + (confirming ? 'pinned' : '') + '">' + ops + '</span>' +
       '</div>';
+  }
+
+  // ---------- 就地编辑 ----------
+  function startEdit(id, field) {
+    state.editing = { id: id, field: field };
+    render();
+
+    var input = document.getElementById(field === 'item' ? 'ie-item' : 'ie-amount');
+    if (!input) return;
+    input.focus();
+    input.select();
+
+    var done = false;
+    function finish(save) {
+      if (done) return;
+      done = true;
+      state.editing = null;
+      if (save) saveInline(id, field, input.value);
+      else render();
+    }
+
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') { event.preventDefault(); finish(true); }
+      else if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', function () { finish(true); });
+  }
+
+  function saveInline(id, field, raw) {
+    var entry = state.entries.filter(function (e) { return e.id === id; })[0];
+    if (!entry) { render(); return; }
+
+    var props, patch;
+    if (field === 'item') {
+      var item = String(raw).trim();
+      if (!item) { toast('明细项不能为空', false); render(); return; }
+      if (item === entry.item) { render(); return; }
+      props = { '明细项': { title: [{ text: { content: item } }] } };
+      patch = { item: item };
+    } else {
+      if (!String(raw).trim()) { render(); return; }
+      var value = Number(raw);
+      if (!Number.isFinite(value)) { render(); return; }
+      var amount = resolveSign(entry.category, entry.amount).sign * Math.abs(value);
+      if (amount === entry.amount) { render(); return; }
+      props = { '金额': { number: amount } };
+      patch = { amount: amount };
+    }
+
+    // 先改本地再发请求，免得请求往返期间又闪回旧值；失败就整体回滚
+    var previous = state.entries;
+    state.entries = state.entries.map(function (e) {
+      return e.id === id ? Object.assign({}, e, patch) : e;
+    });
+    render();
+
+    setLoading(true);
+    notion('/pages/' + id, { method: 'PATCH', body: JSON.stringify({ properties: props }) })
+      .then(function (page) {
+        var saved = normalize(page);
+        state.entries = state.entries.map(function (e) { return e.id === saved.id ? saved : e; });
+        render();
+        writeCache();
+      })
+      .catch(function (err) {
+        state.entries = previous;
+        render();
+        toast(err.message, false);
+      })
+      .then(function () { setLoading(false); });
   }
 
   // ---------- 数据操作 ----------
@@ -1089,16 +1190,21 @@ body {
     return { month: rest[0], category: rest[1], sub: rest[2] };
   }
 
-  function prefillFromEntry(id) {
-    var found = state.entries.filter(function (e) { return e.id === id; })[0];
-    return found ? Object.assign({}, found) : {};
-  }
-
   function signForCategory(name) {
     if (!name) return 0;
     if (name.indexOf('收入') !== -1) return 1;
     if (name.indexOf('支出') !== -1) return -1;
     return 0;
+  }
+
+  // 分类能定收支方向时锁定符号：收入分类只能记正数，支出分类只能记负数。
+  // 只有已有金额与分类矛盾时（历史数据）才放开，避免悄悄改掉原值。
+  function resolveSign(categoryName, storedAmount) {
+    var derived = signForCategory(categoryName);
+    var storedSign = (storedAmount === undefined || storedAmount === null || !Math.sign(storedAmount))
+      ? 0 : Math.sign(storedAmount);
+    var locked = derived !== 0 && (storedSign === 0 || storedSign === derived);
+    return { sign: locked ? derived : (storedSign || derived || -1), locked: locked, derived: derived };
   }
 
   function setSign(sign) {
@@ -1108,23 +1214,16 @@ body {
     });
   }
 
-  // 分类能定收支方向时锁定符号：收入分类只能记正数，支出分类只能记负数。
-  // 只有当已有金额与分类矛盾时（历史数据）才放开切换，避免编辑时悄悄改掉原值。
   function syncSign(categoryName, storedAmount) {
-    var derived = signForCategory(categoryName);
-    var storedSign = (storedAmount === undefined || storedAmount === null || !Math.sign(storedAmount))
-      ? 0 : Math.sign(storedAmount);
-    var locked = derived !== 0 && (storedSign === 0 || storedSign === derived);
-    var sign = locked ? derived : (storedSign || derived || -1);
-
-    state.signLocked = locked;
-    setSign(sign);
-    document.getElementById('f-sign').hidden = locked;
+    var resolved = resolveSign(categoryName, storedAmount);
+    state.signLocked = resolved.locked;
+    setSign(resolved.sign);
+    document.getElementById('f-sign').hidden = resolved.locked;
     var lockEl = document.getElementById('f-sign-lock');
-    lockEl.hidden = !locked;
-    if (locked) {
-      lockEl.textContent = derived > 0 ? '收入' : '支出';
-      lockEl.className = 'sign-lock ' + (derived > 0 ? 'pos' : 'neg');
+    lockEl.hidden = !resolved.locked;
+    if (resolved.locked) {
+      lockEl.textContent = resolved.derived > 0 ? '收入' : '支出';
+      lockEl.className = 'sign-lock ' + (resolved.derived > 0 ? 'pos' : 'neg');
     }
   }
 
@@ -1137,11 +1236,11 @@ body {
     }
   }
 
+  // 子类是全局共享的标签：所有出现过的子类都在同一个列表里，不按分类过滤
   function refreshSubOptions(current) {
-    var category = document.getElementById('f-category').value;
     var subs = [];
     state.entries.forEach(function (e) {
-      if (e.category === category && e.sub && subs.indexOf(e.sub) === -1) subs.push(e.sub);
+      if (e.sub && subs.indexOf(e.sub) === -1) subs.push(e.sub);
     });
     subs.sort(function (a, b) { return a.localeCompare(b, 'zh-CN'); });
     if (current && subs.indexOf(current) === -1) subs.push(current);
@@ -1158,7 +1257,6 @@ body {
   }
 
   function openEditor(prefill) {
-    state.editor = prefill;
     state.savedCount = 0;
 
     var categories = CATEGORY_ORDER.slice();
@@ -1169,29 +1267,26 @@ body {
       return '<option value="' + esc(c) + '">' + esc(c) + '</option>';
     }).join('');
 
-    var editing = !!prefill.id;
-    document.getElementById('modal-title').textContent = editing ? '编辑这一笔' : '新增一笔';
+    document.getElementById('modal-title').textContent = '新增一笔';
     document.getElementById('f-month').value = prefill.month || monthLabel(new Date());
     document.getElementById('f-category').value = prefill.category || '常规支出';
     refreshSubOptions(prefill.sub || '');
-    document.getElementById('f-item').value = prefill.item || '';
+    document.getElementById('f-item').value = '';
 
-    var amount = prefill.amount;
-    syncSign(prefill.category || '常规支出', amount);
-    document.getElementById('f-amount').value = amount === undefined ? '' : Math.abs(amount);
+    syncSign(prefill.category || '常规支出', undefined);
+    document.getElementById('f-amount').value = '';
 
-    document.getElementById('btn-cancel').textContent = editing ? '取消' : '关闭';
-    document.getElementById('btn-save').textContent = editing ? '保存' : '保存并继续';
+    document.getElementById('btn-cancel').textContent = '关闭';
+    document.getElementById('btn-save').textContent = '保存并继续';
     document.getElementById('saved-hint').hidden = true;
 
     modalEl.hidden = false;
     setTimeout(function () {
-      (prefill.item ? document.getElementById('f-amount') : document.getElementById('f-item')).focus();
+      document.getElementById('f-item').focus();
     }, 0);
   }
 
   function closeEditor() {
-    state.editor = null;
     modalEl.hidden = true;
   }
 
@@ -1211,7 +1306,6 @@ body {
   }
 
   function submitForm() {
-    var editor = state.editor || {};
     var payload = readForm();
     if (!payload.item) { toast('明细项不能为空', false); return; }
     if (!payload.month) { toast('请填写月份', false); return; }
@@ -1220,31 +1314,14 @@ body {
     saveBtn.disabled = true;
     setLoading(true);
 
-    var request = editor.id
-      ? notion('/pages/' + editor.id, {
-          method: 'PATCH',
-          body: JSON.stringify({ properties: buildProps(payload) })
-        })
-      : notion('/pages', {
-          method: 'POST',
-          body: JSON.stringify({
-            parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
-            properties: buildProps(payload)
-          })
-        });
-
-    request.then(function (page) {
+    notion('/pages', {
+      method: 'POST',
+      body: JSON.stringify({
+        parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
+        properties: buildProps(payload)
+      })
+    }).then(function (page) {
       var saved = normalize(page);
-
-      if (editor.id) {
-        state.entries = state.entries.map(function (e) { return e.id === saved.id ? saved : e; });
-        render();
-        writeCache();
-        toast('已保存');
-        closeEditor();
-        return;
-      }
-
       state.entries.push(saved);
       expandPath(saved);
       render();
@@ -1282,7 +1359,7 @@ body {
   // ---------- 事件 ----------
   treeEl.addEventListener('click', function (event) {
     var target = event.target.closest(
-      '[data-toggle],[data-add],[data-edit],[data-del],[data-del-confirm],[data-del-cancel]');
+      '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel]');
     if (!target) return;
     var data = target.dataset;
     if (data.toggle) {
@@ -1291,10 +1368,17 @@ body {
       return render();
     }
     if (data.add) return openEditor(prefillFromKey(data.add));
-    if (data.edit) return openEditor(prefillFromEntry(data.edit));
     if (data.del) { state.pendingDelete = data.del; return render(); }
     if (data.delCancel) { state.pendingDelete = null; return render(); }
     if (data.delConfirm) return removeEntry(data.delConfirm);
+  });
+
+  // 双击明细行的标题或金额，就地变成输入框
+  treeEl.addEventListener('dblclick', function (event) {
+    var leaf = event.target.closest('.leaf');
+    if (!leaf) return;
+    if (event.target.closest('.name')) return startEdit(leaf.dataset.id, 'item');
+    if (event.target.closest('.amt')) return startEdit(leaf.dataset.id, 'amount');
   });
 
   document.getElementById('f-sign').addEventListener('click', function (event) {
@@ -1304,7 +1388,8 @@ body {
   });
 
   document.getElementById('f-category').addEventListener('change', function () {
-    refreshSubOptions('');
+    // 子类列表跟分类无关，换分类不该把已经选好的子类清掉
+    refreshSubOptions(document.getElementById('f-sub').value);
     syncSign(this.value, undefined);
   });
 
