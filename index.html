@@ -54,13 +54,14 @@ body {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   flex: none;
-  padding: 10px 16px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
   border-bottom: 1px solid var(--line);
 }
 
-.brand { display: flex; align-items: baseline; gap: 8px; }
+.brand { display: flex; align-items: baseline; gap: 7px; flex: none; }
 
 .brand h1 {
   margin: 0;
@@ -69,7 +70,54 @@ body {
   letter-spacing: .2px;
 }
 
-.count { font-size: 12px; color: var(--text-3); }
+.count { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+
+.search { position: relative; flex: 1 1 150px; min-width: 110px; max-width: 240px; }
+
+.search input {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 24px 5px 26px;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color .12s ease;
+}
+
+.search input:focus { border-color: var(--accent); }
+.search input::placeholder { color: var(--text-3); }
+
+.search .mag {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+  display: flex;
+}
+
+.search .clear {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.search .clear:hover { background: var(--line); color: var(--text); }
+.search .clear[hidden] { display: none; }
 
 .totals { display: flex; gap: 6px; margin-left: auto; }
 
@@ -87,7 +135,7 @@ body {
 .chip b { font-weight: 500; color: var(--text-2); }
 .chip i { font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-.tools { display: flex; gap: 6px; margin-left: 4px; }
+.tools { display: flex; gap: 6px; flex: none; }
 
 .btn {
   font: inherit;
@@ -105,10 +153,44 @@ body {
 .btn.primary:hover { opacity: .88; }
 .btn:disabled { opacity: .5; cursor: default; }
 
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+
+.icon-btn:hover { background: var(--hover); color: var(--text); }
+.icon-btn.spin svg { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- 加载条 ---------- */
+.progress { position: relative; flex: none; height: 2px; overflow: hidden; }
+.progress::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background: var(--accent);
+  opacity: 0;
+  transform: translateX(-100%);
+}
+.progress.active::after { opacity: .85; animation: slide 1.1s ease-in-out infinite; }
+@keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
+
 /* ---------- 树 ---------- */
 .tree { flex: 1; overflow: auto; padding: 10px 14px 28px; }
 
 .empty { margin: 40px 0; text-align: center; color: var(--text-3); font-size: 13px; }
+.empty[hidden] { display: none; }
 
 .node { margin-bottom: 6px; }
 
@@ -199,6 +281,8 @@ body {
 .leaf .amt { font-size: 13.5px; }
 .muted { color: var(--text-3); font-style: normal; }
 
+.leaf mark { background: rgba(35, 131, 226, .18); color: inherit; border-radius: 2px; padding: 0 1px; }
+
 .ops {
   flex: none;
   display: flex;
@@ -276,6 +360,11 @@ body {
 .field input:focus,
 .field select:focus { border-color: var(--accent); }
 
+.sub-row { display: flex; gap: 8px; }
+.sub-row select { flex: 1; min-width: 0; }
+.sub-row input { flex: 1; min-width: 0; }
+.sub-row input[hidden] { display: none; }
+
 .amount-row { display: flex; gap: 8px; }
 .amount-row input { flex: 1; min-width: 0; }
 
@@ -306,6 +395,16 @@ body {
   box-shadow: 0 1px 2px rgba(15, 15, 15, .08);
 }
 
+.saved-hint {
+  margin: 12px 0 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  font-size: 12px;
+  color: var(--text-2);
+}
+.saved-hint[hidden] { display: none; }
+
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
 /* ---------- Toast ---------- */
@@ -313,7 +412,10 @@ body {
   position: fixed;
   left: 50%;
   bottom: 22px;
-  transform: translate(-50%, 10px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
   padding: 7px 14px;
   border-radius: 8px;
   background: #2f2f2e;
@@ -321,17 +423,36 @@ body {
   font-size: 13px;
   opacity: 0;
   pointer-events: none;
+  transform: translate(-50%, 10px);
   transition: opacity .18s ease, transform .18s ease;
   z-index: 40;
 }
 
-.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
 .toast.error { background: var(--neg); }
 
-@media (max-width: 560px) {
-  .topbar { flex-wrap: wrap; gap: 8px 12px; }
-  .totals { margin-left: 0; order: 3; width: 100%; }
-  .tools { margin-left: auto; }
+.toast button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .16);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toast button:hover { background: rgba(255, 255, 255, .28); }
+.toast button[hidden] { display: none; }
+
+@media (max-width: 620px) {
+  .topbar { gap: 8px 10px; }
+  .brand { order: 1; }
+  .tools { order: 2; margin-left: auto; }
+  .search { order: 3; flex: 1 1 100%; max-width: none; }
+  .totals { order: 4; margin-left: 0; width: 100%; }
   .amt, .row.lv1 .amt { min-width: 76px; }
   .net { min-width: 88px; }
 }
@@ -344,13 +465,41 @@ body {
       <h1>收支明细</h1>
       <span class="count" id="count"></span>
     </div>
+    <div class="search">
+      <span class="mag">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round">
+          <circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>
+        </svg>
+      </span>
+      <input id="search" type="search" autocomplete="off" placeholder="搜索明细 / 分类 / 金额…">
+      <button type="button" class="clear" id="search-clear" title="清除" hidden>✕</button>
+    </div>
     <div class="totals" id="totals"></div>
     <div class="tools">
-      <button type="button" class="btn ghost" id="btn-refresh">刷新</button>
-      <button type="button" class="btn ghost" id="btn-settings">设置</button>
+      <button type="button" class="icon-btn" id="btn-refresh" title="重新加载">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13.5 8a5.5 5.5 0 0 1-9.4 3.9L2.5 10.5"/>
+          <path d="M2.5 13.5v-3h3"/>
+          <path d="M2.5 8a5.5 5.5 0 0 1 9.4-3.9L13.5 5.5"/>
+          <path d="M13.5 2.5v3h-3"/>
+        </svg>
+      </button>
+      <button type="button" class="icon-btn" id="btn-settings" title="设置">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round">
+          <path d="M2 4.5h12M2 8h12M2 11.5h12"/>
+          <circle cx="5.5" cy="4.5" r="1.5" fill="var(--bg)"/>
+          <circle cx="10.5" cy="8" r="1.5" fill="var(--bg)"/>
+          <circle cx="6.5" cy="11.5" r="1.5" fill="var(--bg)"/>
+        </svg>
+      </button>
       <button type="button" class="btn primary" id="btn-add">新增</button>
     </div>
   </header>
+
+  <div class="progress" id="progress"></div>
 
   <main class="tree" id="tree"></main>
   <p class="empty" id="empty" hidden>还没有数据，点右上角「新增」记一笔。</p>
@@ -396,8 +545,10 @@ body {
 
     <div class="field">
       <label for="f-sub">子类 <span class="opt">可选</span></label>
-      <input id="f-sub" list="subs" autocomplete="off" placeholder="如 演唱会 / 穿搭">
-      <datalist id="subs"></datalist>
+      <div class="sub-row">
+        <select id="f-sub"></select>
+        <input id="f-sub-new" autocomplete="off" placeholder="新子类名称" hidden>
+      </div>
     </div>
 
     <div class="field">
@@ -416,6 +567,8 @@ body {
       </div>
     </div>
 
+    <p class="saved-hint" id="saved-hint" hidden></p>
+
     <div class="modal-actions">
       <button type="button" class="btn ghost" id="btn-cancel">取消</button>
       <button type="submit" class="btn primary" id="btn-save">保存</button>
@@ -423,7 +576,10 @@ body {
   </form>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast">
+  <span id="toast-msg"></span>
+  <button type="button" id="toast-action" hidden></button>
+</div>
 
 <script>
 (function () {
@@ -433,19 +589,29 @@ body {
   var UNSET_MONTH = '未标月份';
   var UNSET_CATEGORY = '未分类';
   var UNSET_SUB = '未分子类';
+  var NEW_SUB = '__new__';
 
   var API = 'https://api.notion.com/v1';
   var NOTION_VERSION = '2025-09-03';
   var DEFAULT_DATA_SOURCE = '3ebbd5ec-f393-8185-9009-000b90588287';
   var KEY_TOKEN = 'ledger.token';
   var KEY_DS = 'ledger.dataSourceId';
+  var KEY_CACHE = 'ledger.cache';
+  var MAX_RETRY = 3;
 
   var settings = {
     token: localStorage.getItem(KEY_TOKEN) || '',
     dataSourceId: localStorage.getItem(KEY_DS) || DEFAULT_DATA_SOURCE
   };
 
-  var state = { entries: [], collapsed: {}, editor: null, pendingDelete: null };
+  var state = {
+    entries: [],
+    collapsed: {},
+    editor: null,
+    pendingDelete: null,
+    search: '',
+    savedCount: 0
+  };
 
   var treeEl = document.getElementById('tree');
   var emptyEl = document.getElementById('empty');
@@ -454,6 +620,12 @@ body {
   var modalEl = document.getElementById('modal');
   var setupEl = document.getElementById('setup');
   var toastEl = document.getElementById('toast');
+  var toastMsgEl = document.getElementById('toast-msg');
+  var toastActionEl = document.getElementById('toast-action');
+  var searchEl = document.getElementById('search');
+  var searchClearEl = document.getElementById('search-clear');
+  var progressEl = document.getElementById('progress');
+  var refreshBtn = document.getElementById('btn-refresh');
 
   var query = new URLSearchParams(location.search);
   document.documentElement.dataset.theme =
@@ -484,17 +656,57 @@ body {
     return date.getFullYear() + '年' + String(date.getMonth() + 1).padStart(2, '0') + '月';
   }
 
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function highlight(text) {
+    var needle = state.search.trim();
+    if (!needle || !text) return esc(text);
+    var at = text.toLowerCase().indexOf(needle.toLowerCase());
+    if (at === -1) return esc(text);
+    return esc(text.slice(0, at)) + '<mark>' +
+      esc(text.slice(at, at + needle.length)) + '</mark>' + esc(text.slice(at + needle.length));
+  }
+
   var toastTimer;
-  function toast(message, ok) {
-    toastEl.textContent = message;
+  function toast(message, ok, action) {
+    toastMsgEl.textContent = message;
+    if (action) {
+      toastActionEl.hidden = false;
+      toastActionEl.textContent = action.label;
+      toastActionEl.onclick = function () {
+        toastActionEl.hidden = true;
+        toastEl.className = 'toast';
+        clearTimeout(toastTimer);
+        action.run();
+      };
+    } else {
+      toastActionEl.hidden = true;
+      toastActionEl.onclick = null;
+    }
     toastEl.className = 'toast show' + (ok === false ? ' error' : '');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.className = 'toast'; }, 2600);
+    toastTimer = setTimeout(function () { toastEl.className = 'toast'; }, action ? 7000 : 2600);
+  }
+
+  var loadingCount = 0;
+  function setLoading(on) {
+    loadingCount += on ? 1 : -1;
+    if (loadingCount < 0) loadingCount = 0;
+    progressEl.classList.toggle('active', loadingCount > 0);
+    refreshBtn.classList.toggle('spin', loadingCount > 0);
   }
 
   // ---------- Notion 直连 ----------
-  function notion(path, options) {
+  function httpMessage(status, data) {
+    if (status === 401) return '令牌无效或已失效，请点右上角设置重新填写集成令牌';
+    if (status === 404) return '找不到该数据源或记录，请检查数据源 ID，以及页面是否已授权给这个集成';
+    if (status === 429) return '请求太频繁，正在重试…';
+    return (data && data.message) || ('Notion 接口返回 ' + status);
+  }
+
+  function notion(path, options, attempt) {
     options = options || {};
+    attempt = attempt || 0;
     return fetch(API + path, {
       method: options.method || 'GET',
       headers: {
@@ -504,14 +716,23 @@ body {
       },
       body: options.body
     }).then(function (res) {
-      return res.json().catch(function () { return {}; }).then(function (data) {
-        if (!res.ok) {
-          if (res.status === 401) throw new Error('令牌无效或已失效，请重新填写集成令牌');
-          if (res.status === 404) throw new Error('找不到该数据源，请检查数据源 ID，以及页面是否已授权给这个集成');
-          throw new Error(data.message || ('Notion 接口返回 ' + res.status));
-        }
-        return data;
+      return res.text().then(function (text) {
+        var data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
+        if (res.ok) return data;
+        var err = new Error(httpMessage(res.status, data));
+        err.retryable = res.status >= 500 || res.status === 429;
+        throw err;
       });
+    }).catch(function (err) {
+      var retryable = err.retryable || err.name === 'TypeError';
+      if (retryable && attempt < MAX_RETRY) {
+        return sleep(500 * Math.pow(2, attempt)).then(function () {
+          return notion(path, options, attempt + 1);
+        });
+      }
+      if (err.name === 'TypeError') throw new Error('网络连接失败，请检查网络后重试');
+      throw err;
     });
   }
 
@@ -561,6 +782,26 @@ body {
       props[pair[0]] = { select: name ? { name: name } : null };
     });
     return props;
+  }
+
+  // ---------- 本地缓存 ----------
+  function readCache() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(KEY_CACHE) || 'null');
+      if (!parsed || !Array.isArray(parsed.entries)) return null;
+      if (parsed.ds !== settings.dataSourceId) return null;
+      return parsed;
+    } catch (e) { return null; }
+  }
+
+  function writeCache() {
+    try {
+      localStorage.setItem(KEY_CACHE, JSON.stringify({
+        ds: settings.dataSourceId,
+        ts: Date.now(),
+        entries: state.entries
+      }));
+    } catch (e) { /* 存储写满时忽略，不影响使用 */ }
   }
 
   // ---------- 分组 ----------
@@ -619,19 +860,55 @@ body {
     return Math.abs(b.amount) - Math.abs(a.amount) || a.item.localeCompare(b.item, 'zh-CN');
   }
 
+  function visibleEntries() {
+    var needle = state.search.trim().toLowerCase();
+    if (!needle) return state.entries;
+    return state.entries.filter(function (e) {
+      return [e.item, e.category, e.sub, e.month, String(e.amount)]
+        .filter(Boolean).join(' ').toLowerCase().indexOf(needle) !== -1;
+    });
+  }
+
+  function isOpen(key) {
+    if (state.search.trim()) return true;
+    return !state.collapsed[key];
+  }
+
+  function expandPath(entry) {
+    var month = entry.month || UNSET_MONTH;
+    var category = entry.category || UNSET_CATEGORY;
+    var sub = entry.sub || UNSET_SUB;
+    ['m:' + month, 'c:' + month + '|' + category, 's:' + month + '|' + category + '|' + sub]
+      .forEach(function (key) { delete state.collapsed[key]; });
+  }
+
   // ---------- 渲染 ----------
+  function amtCell(value, cls) {
+    if (!value) return '<span class="amt zero">—</span>';
+    return '<span class="amt ' + cls + '">' + signed(value) + '</span>';
+  }
+
   function render() {
-    var entries = state.entries;
+    var all = state.entries;
+    var entries = visibleEntries();
+    var searching = !!state.search.trim();
+
     emptyEl.hidden = entries.length > 0;
-    countEl.textContent = entries.length ? '共 ' + entries.length + ' 笔' : '';
+    if (searching) {
+      countEl.textContent = '匹配 ' + entries.length + ' / 共 ' + all.length + ' 笔';
+      if (!entries.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
+    } else {
+      countEl.textContent = all.length ? '共 ' + all.length + ' 笔' : '';
+      emptyEl.textContent = '还没有数据，点右上角「新增」记一笔。';
+    }
 
     var income = sum(entries.filter(function (e) { return e.amount > 0; }));
     var expense = sum(entries.filter(function (e) { return e.amount < 0; }));
     totalsEl.innerHTML =
       '<span class="chip"><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
       '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
-      '<span class="chip"><b>净额</b><i class="' + tone(income + expense) + '">' +
-      signed(income + expense) + '</i></span>';
+      '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
+      tone(income + expense) + '">' + signed(income + expense) + '</i></span>';
 
     var months = groupByMonth(entries);
     treeEl.innerHTML = months.map(renderMonth).join('');
@@ -639,7 +916,7 @@ body {
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     var options = [];
-    months.forEach(function (m) {
+    groupByMonth(all).forEach(function (m) {
       if (m.name !== UNSET_MONTH && options.indexOf(m.name) === -1) options.push(m.name);
     });
     [monthLabel(nextMonth), monthLabel(today)].forEach(function (m) {
@@ -648,31 +925,22 @@ body {
     document.getElementById('months').innerHTML = options.map(function (m) {
       return '<option value="' + esc(m) + '">';
     }).join('');
-
-    var subs = [];
-    entries.forEach(function (e) {
-      if (e.sub && subs.indexOf(e.sub) === -1) subs.push(e.sub);
-    });
-    subs.sort(function (a, b) { return a.localeCompare(b, 'zh-CN'); });
-    document.getElementById('subs').innerHTML = subs.map(function (s) {
-      return '<option value="' + esc(s) + '">';
-    }).join('');
   }
 
   function renderMonth(month) {
     var key = 'm:' + month.name;
-    var open = !state.collapsed[key];
+    var open = isOpen(key);
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
     return '' +
       '<section class="node">' +
         '<div class="row lv1" data-toggle="' + esc(key) + '">' +
           '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
-          '<span class="name">' + esc(month.name) + '</span>' +
+          '<span class="name">' + highlight(month.name) + '</span>' +
           '<span class="meta">' + month.list.length + ' 笔</span>' +
           '<span class="spacer"></span>' +
-          '<span class="amt pos">' + signed(income) + '</span>' +
-          '<span class="amt neg">' + signed(expense) + '</span>' +
+          amtCell(income, 'pos') +
+          amtCell(expense, 'neg') +
           '<span class="net ' + tone(income + expense) + '">净 ' + signed(income + expense) + '</span>' +
           '<button type="button" class="icon" data-add="' + esc(key) + '" title="在本月新增">＋</button>' +
         '</div>' +
@@ -684,7 +952,7 @@ body {
 
   function renderCategory(monthName, category) {
     var key = 'c:' + monthName + '|' + category.name;
-    var open = !state.collapsed[key];
+    var open = isOpen(key);
     var total = sum(category.list);
     var hasSub = category.list.some(function (e) { return e.sub; });
     var body = hasSub
@@ -694,7 +962,7 @@ body {
       '<div class="node">' +
         '<div class="row lv2" data-toggle="' + esc(key) + '">' +
           '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
-          '<span class="name">' + esc(category.name) + '</span>' +
+          '<span class="name">' + highlight(category.name) + '</span>' +
           '<span class="meta">' + category.list.length + ' 笔</span>' +
           '<span class="spacer"></span>' +
           '<span class="amt ' + tone(total) + '">' + signed(total) + '</span>' +
@@ -706,13 +974,13 @@ body {
 
   function renderSub(monthName, categoryName, sub) {
     var key = 's:' + monthName + '|' + categoryName + '|' + sub.name;
-    var open = !state.collapsed[key];
+    var open = isOpen(key);
     var total = sum(sub.list);
     return '' +
       '<div class="node">' +
         '<div class="row lv3" data-toggle="' + esc(key) + '">' +
           '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
-          '<span class="name">' + esc(sub.name) + '</span>' +
+          '<span class="name">' + highlight(sub.name) + '</span>' +
           '<span class="meta">' + sub.list.length + ' 笔</span>' +
           '<span class="spacer"></span>' +
           '<span class="amt ' + tone(total) + '">' + signed(total) + '</span>' +
@@ -735,7 +1003,7 @@ body {
     return '' +
       '<div class="leaf">' +
         '<span class="bullet"></span>' +
-        '<span class="name">' + (esc(entry.item) || '<i class="muted">未命名</i>') + '</span>' +
+        '<span class="name">' + (entry.item ? highlight(entry.item) : '<i class="muted">未命名</i>') + '</span>' +
         '<span class="spacer"></span>' +
         '<span class="amt ' + tone(entry.amount) + '">' + signed(entry.amount) + '</span>' +
         '<span class="ops ' + (confirming ? 'pinned' : '') + '">' + ops + '</span>' +
@@ -743,27 +1011,51 @@ body {
   }
 
   // ---------- 数据操作 ----------
-  function load() {
+  function refresh() {
+    setLoading(true);
     return fetchAll().then(function (entries) {
       state.entries = entries;
       state.pendingDelete = null;
       render();
+      writeCache();
+    }).catch(function (err) {
+      toast(err.message, false);
+    }).then(function () {
+      setLoading(false);
     });
   }
 
-  function refresh() {
-    return load().catch(function (err) { toast(err.message, false); });
+  function removeEntry(id) {
+    var entry = state.entries.filter(function (e) { return e.id === id; })[0];
+    if (!entry) return;
+    setLoading(true);
+    notion('/pages/' + id, { method: 'PATCH', body: JSON.stringify({ archived: true }) })
+      .then(function () {
+        state.entries = state.entries.filter(function (e) { return e.id !== id; });
+        state.pendingDelete = null;
+        render();
+        writeCache();
+        toast('已删除「' + (entry.item || '未命名') + '」', true, {
+          label: '撤销',
+          run: function () { restoreEntry(entry); }
+        });
+      })
+      .catch(function (err) { toast(err.message, false); })
+      .then(function () { setLoading(false); });
   }
 
-  function removeEntry(id) {
-    return notion('/pages/' + id, {
-      method: 'PATCH',
-      body: JSON.stringify({ archived: true })
-    }).then(function () {
-      state.pendingDelete = null;
-      toast('已删除');
-      return refresh();
-    }).catch(function (err) { toast(err.message, false); });
+  function restoreEntry(entry) {
+    setLoading(true);
+    notion('/pages/' + entry.id, { method: 'PATCH', body: JSON.stringify({ archived: false }) })
+      .then(function (page) {
+        state.entries.push(normalize(page));
+        expandPath(entry);
+        render();
+        writeCache();
+        toast('已恢复');
+      })
+      .catch(function (err) { toast(err.message, false); })
+      .then(function () { setLoading(false); });
   }
 
   // ---------- 编辑器 ----------
@@ -787,8 +1079,38 @@ body {
     });
   }
 
+  function toggleNewSubInput(show) {
+    var input = document.getElementById('f-sub-new');
+    input.hidden = !show;
+    if (show) {
+      input.value = '';
+      setTimeout(function () { input.focus(); }, 0);
+    }
+  }
+
+  function refreshSubOptions(current) {
+    var category = document.getElementById('f-category').value;
+    var subs = [];
+    state.entries.forEach(function (e) {
+      if (e.category === category && e.sub && subs.indexOf(e.sub) === -1) subs.push(e.sub);
+    });
+    subs.sort(function (a, b) { return a.localeCompare(b, 'zh-CN'); });
+    if (current && subs.indexOf(current) === -1) subs.push(current);
+
+    var sel = document.getElementById('f-sub');
+    sel.innerHTML =
+      '<option value="">（无子类）</option>' +
+      subs.map(function (s) {
+        return '<option value="' + esc(s) + '">' + esc(s) + '</option>';
+      }).join('') +
+      '<option value="' + NEW_SUB + '">＋ 新增子类…</option>';
+    sel.value = current && subs.indexOf(current) !== -1 ? current : '';
+    toggleNewSubInput(sel.value === NEW_SUB);
+  }
+
   function openEditor(prefill) {
     state.editor = prefill;
+    state.savedCount = 0;
 
     var categories = CATEGORY_ORDER.slice();
     state.entries.forEach(function (e) {
@@ -798,23 +1120,101 @@ body {
       return '<option value="' + esc(c) + '">' + esc(c) + '</option>';
     }).join('');
 
-    document.getElementById('modal-title').textContent = prefill.id ? '编辑这一笔' : '新增一笔';
+    var editing = !!prefill.id;
+    document.getElementById('modal-title').textContent = editing ? '编辑这一笔' : '新增一笔';
     document.getElementById('f-month').value = prefill.month || monthLabel(new Date());
     document.getElementById('f-category').value = prefill.category || '常规支出';
-    document.getElementById('f-sub').value = prefill.sub || '';
+    refreshSubOptions(prefill.sub || '');
     document.getElementById('f-item').value = prefill.item || '';
 
     var amount = prefill.amount;
     setSign(amount === undefined ? -1 : Math.sign(amount) || -1);
     document.getElementById('f-amount').value = amount === undefined ? '' : Math.abs(amount);
 
+    document.getElementById('btn-cancel').textContent = editing ? '取消' : '关闭';
+    document.getElementById('btn-save').textContent = editing ? '保存' : '保存并继续';
+    document.getElementById('saved-hint').hidden = true;
+
     modalEl.hidden = false;
-    setTimeout(function () { document.getElementById('f-item').focus(); }, 0);
+    setTimeout(function () {
+      (prefill.item ? document.getElementById('f-amount') : document.getElementById('f-item')).focus();
+    }, 0);
   }
 
   function closeEditor() {
     state.editor = null;
     modalEl.hidden = true;
+  }
+
+  function readForm() {
+    var subSel = document.getElementById('f-sub');
+    var sub = subSel.value === NEW_SUB
+      ? (document.getElementById('f-sub-new').value.trim() || null)
+      : (subSel.value || null);
+    var active = document.querySelector('#f-sign button.active');
+    var sign = active ? Number(active.dataset.sign) : -1;
+    return {
+      month: document.getElementById('f-month').value.trim(),
+      category: document.getElementById('f-category').value,
+      sub: sub,
+      item: document.getElementById('f-item').value.trim(),
+      amount: sign * Math.abs(Number(document.getElementById('f-amount').value || 0))
+    };
+  }
+
+  function submitForm() {
+    var editor = state.editor || {};
+    var payload = readForm();
+    if (!payload.item) { toast('明细项不能为空', false); return; }
+    if (!payload.month) { toast('请填写月份', false); return; }
+
+    var saveBtn = document.getElementById('btn-save');
+    saveBtn.disabled = true;
+    setLoading(true);
+
+    var request = editor.id
+      ? notion('/pages/' + editor.id, {
+          method: 'PATCH',
+          body: JSON.stringify({ properties: buildProps(payload) })
+        })
+      : notion('/pages', {
+          method: 'POST',
+          body: JSON.stringify({
+            parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
+            properties: buildProps(payload)
+          })
+        });
+
+    request.then(function (page) {
+      var saved = normalize(page);
+
+      if (editor.id) {
+        state.entries = state.entries.map(function (e) { return e.id === saved.id ? saved : e; });
+        render();
+        writeCache();
+        toast('已保存');
+        closeEditor();
+        return;
+      }
+
+      state.entries.push(saved);
+      expandPath(saved);
+      render();
+      writeCache();
+
+      state.savedCount += 1;
+      document.getElementById('f-item').value = '';
+      document.getElementById('f-amount').value = '';
+      var hint = document.getElementById('saved-hint');
+      hint.hidden = false;
+      hint.textContent = '已保存 ' + state.savedCount + ' 笔 · 月份、分类、子类已保留，可继续录入';
+      document.getElementById('f-item').focus();
+    }).catch(function (err) {
+      toast(err.message, false);
+    }).then(function () {
+      saveBtn.disabled = false;
+      setLoading(false);
+    });
   }
 
   // ---------- 设置 ----------
@@ -829,9 +1229,7 @@ body {
     setTimeout(function () { document.getElementById('s-token').focus(); }, 0);
   }
 
-  function closeSetup() {
-    setupEl.hidden = true;
-  }
+  function closeSetup() { setupEl.hidden = true; }
 
   // ---------- 事件 ----------
   treeEl.addEventListener('click', function (event) {
@@ -856,50 +1254,41 @@ body {
     if (btn) setSign(Number(btn.dataset.sign));
   });
 
+  document.getElementById('f-category').addEventListener('change', function () {
+    refreshSubOptions('');
+  });
+
+  document.getElementById('f-sub').addEventListener('change', function () {
+    toggleNewSubInput(this.value === NEW_SUB);
+  });
+
   document.getElementById('form').addEventListener('submit', function (event) {
     event.preventDefault();
-    var editor = state.editor || {};
-    var active = document.querySelector('#f-sign button.active');
-    var sign = active ? Number(active.dataset.sign) : -1;
-    var payload = {
-      month: document.getElementById('f-month').value.trim(),
-      category: document.getElementById('f-category').value,
-      sub: document.getElementById('f-sub').value.trim() || null,
-      item: document.getElementById('f-item').value.trim(),
-      amount: sign * Math.abs(Number(document.getElementById('f-amount').value || 0))
-    };
-    if (!payload.item) return toast('明细项不能为空', false);
-    if (!payload.month) return toast('请填写月份', false);
+    submitForm();
+  });
 
-    var saveBtn = document.getElementById('btn-save');
-    saveBtn.disabled = true;
-    var request = editor.id
-      ? notion('/pages/' + editor.id, {
-          method: 'PATCH',
-          body: JSON.stringify({ properties: buildProps(payload) })
-        })
-      : notion('/pages', {
-          method: 'POST',
-          body: JSON.stringify({
-            parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
-            properties: buildProps(payload)
-          })
-        });
+  var searchTimer;
+  searchEl.addEventListener('input', function () {
+    var value = this.value;
+    searchClearEl.hidden = !value;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      state.search = value;
+      render();
+    }, 160);
+  });
 
-    request.then(function () {
-      toast(editor.id ? '已保存' : '已新增');
-      closeEditor();
-      return refresh();
-    }).catch(function (err) {
-      toast(err.message, false);
-    }).then(function () {
-      saveBtn.disabled = false;
-    });
+  searchClearEl.addEventListener('click', function () {
+    searchEl.value = '';
+    searchClearEl.hidden = true;
+    state.search = '';
+    render();
+    searchEl.focus();
   });
 
   document.getElementById('btn-cancel').addEventListener('click', closeEditor);
   document.getElementById('btn-add').addEventListener('click', function () { openEditor({}); });
-  document.getElementById('btn-refresh').addEventListener('click', function () { refresh(); });
+  refreshBtn.addEventListener('click', function () { refresh(); });
   document.getElementById('btn-settings').addEventListener('click', function () { openSetup(); });
 
   document.getElementById('s-save').addEventListener('click', function () {
@@ -913,9 +1302,13 @@ body {
     settings.dataSourceId = ds;
     var saveBtn = document.getElementById('s-save');
     saveBtn.disabled = true;
-    load().then(function () {
+    setLoading(true);
+    fetchAll().then(function (entries) {
+      state.entries = entries;
       localStorage.setItem(KEY_TOKEN, token);
       localStorage.setItem(KEY_DS, ds);
+      render();
+      writeCache();
       closeSetup();
       toast('已连接');
     }).catch(function (err) {
@@ -923,6 +1316,7 @@ body {
       errEl.textContent = err.message;
     }).then(function () {
       saveBtn.disabled = false;
+      setLoading(false);
     });
   });
 
@@ -933,14 +1327,38 @@ body {
   });
 
   document.addEventListener('keydown', function (event) {
-    if (event.key !== 'Escape') return;
-    if (!modalEl.hidden) closeEditor();
-    else if (!setupEl.hidden) closeSetup();
+    if (event.key === 'Escape') {
+      if (!modalEl.hidden) closeEditor();
+      else if (!setupEl.hidden) closeSetup();
+      else if (state.search) {
+        searchEl.value = '';
+        searchClearEl.hidden = true;
+        state.search = '';
+        render();
+      }
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      searchEl.focus();
+      searchEl.select();
+    }
   });
 
   // ---------- 启动 ----------
-  if (settings.token) refresh();
-  else { render(); openSetup(); }
+  (function boot() {
+    var cached = readCache();
+    if (cached) {
+      state.entries = cached.entries;
+      render();
+    }
+    if (!settings.token) {
+      if (!cached) render();
+      openSetup();
+      return;
+    }
+    refresh();
+  })();
 })();
 </script>
 </body>
