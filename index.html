@@ -23,6 +23,7 @@
   --tail: 46px;
   --ind-sub: 12px;
   --ind-leaf: 24px;
+  --tick: 6px;   /* 缩进线横向短杠的长度 */
   /* 正文列最大宽度：屏幕再宽，标题和金额也不会被拉开 */
   --col: 960px;
   --gutter: max(14px, calc((100% - var(--col)) / 2));
@@ -252,23 +253,39 @@ body {
    同层仍然严格右对齐，跨层错开，这样层级在金额列上直接可见 */
 .row.lv3 .amt { margin-right: var(--ind-sub); }
 
-/* 缩进线：在每层金额的缩进处画一条竖线，把该层的金额串起来。
-   分类层是最外层，不画线；线紧贴数字右侧，落在缩进留出的空档里 */
+/* 缩进线：竖线 + 横向短杠，把每层金额连到它自己那根竖线上（分类层是最外层，不画）。
+   竖线上下各探 3px 补掉相邻行之间的 6px 间隙，所以是连续的一条 */
 .row.lv3, .leaf { position: relative; }
 
 .row.lv3::after,
 .leaf::after {
   content: "";
   position: absolute;
-  top: -3px;      /* 上下各探 3px，补上相邻行之间的 6px 间隙，竖线才是连续的 */
+  top: -3px;
   bottom: -3px;
   width: 1px;
   background: var(--line-strong);
   pointer-events: none;
 }
 
-.row.lv3::after { right: calc(8px + var(--tail) + var(--ind-sub) - 3px); }
-.leaf::after { right: calc(8px + var(--tail) + var(--ind-leaf) - 3px); }
+/* 横向短杠：从金额右缘连到竖线，构成 ─┤ 的拐角 */
+.row.lv3::before,
+.leaf::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  height: 1px;
+  width: var(--tick);
+  background: var(--line-strong);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.row.lv3::before,
+.row.lv3::after { right: calc(8px + var(--tail) + var(--ind-sub) - var(--tick)); }
+
+.leaf::before,
+.leaf::after { right: calc(8px + var(--tail) + var(--ind-leaf) - var(--tick)); }
 
 /* 右侧操作位固定宽度：不管行里有没有按钮，金额右边缘都对齐 */
 .tail {
