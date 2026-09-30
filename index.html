@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>收支明细</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f7f7f5;
+  --text: #37352f;
+  --text-2: #787774;
+  --text-3: #9b9a97;
+  --line: rgba(55, 53, 47, .09);
+  --line-strong: rgba(55, 53, 47, .16);
+  --hover: rgba(55, 53, 47, .055);
+  --accent: #2383e2;
+  --pos: #0f7b6c;
+  --neg: #d44c47;
+  --shadow: 0 1px 2px rgba(15, 15, 15, .05), 0 6px 16px rgba(15, 15, 15, .05);
+  --radius: 8px;
+}
+
+[data-theme="dark"] {
+  --bg: #191919;
+  --bg-soft: #202020;
+  --text: #e6e6e5;
+  --text-2: #9b9b98;
+  --text-3: #7a7a77;
+  --line: rgba(255, 255, 255, .094);
+  --line-strong: rgba(255, 255, 255, .16);
+  --hover: rgba(255, 255, 255, .055);
+  --accent: #529cca;
+  --pos: #4dab9a;
+  --neg: #ff7369;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 16px rgba(0, 0, 0, .32);
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { display: flex; flex-direction: column; height: 100%; }
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: none;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand { display: flex; align-items: baseline; gap: 8px; }
+
+.brand h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+
+.count { font-size: 12px; color: var(--text-3); }
+
+.totals { display: flex; gap: 6px; margin-left: auto; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chip b { font-weight: 500; color: var(--text-2); }
+.chip i { font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.tools { display: flex; gap: 6px; margin-left: 4px; }
+
+.btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background .12s ease, opacity .12s ease;
+}
+
+.btn.ghost { color: var(--text-2); border-color: var(--line-strong); background: transparent; }
+.btn.ghost:hover { background: var(--hover); }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover { opacity: .88; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* ---------- 树 ---------- */
+.tree { flex: 1; overflow: auto; padding: 10px 14px 28px; }
+
+.empty { margin: 40px 0; text-align: center; color: var(--text-3); font-size: 13px; }
+
+.node { margin-bottom: 6px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  user-select: none;
+}
+
+.row:hover { background: var(--hover); }
+
+.row.lv1 { background: var(--bg-soft); padding: 8px 10px; margin-top: 10px; }
+.row.lv1 .name { font-size: 14.5px; font-weight: 600; }
+.row.lv2 .name { font-size: 13.5px; font-weight: 500; }
+.row.lv3 .name { font-size: 13.5px; color: var(--text-2); }
+
+.chev {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--text-3);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transform-origin: 2px 50%;
+  transition: transform .15s ease;
+}
+
+.chev.open { transform: rotate(90deg); }
+
+.row .name { flex: none; }
+.meta { flex: none; font-size: 11.5px; color: var(--text-3); }
+.spacer { flex: 1; }
+
+.amt {
+  flex: none;
+  min-width: 92px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.row.lv1 .amt { min-width: 96px; }
+
+.net {
+  flex: none;
+  min-width: 108px;
+  text-align: right;
+  font-size: 12.5px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+.zero { color: var(--text-3); }
+
+.icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease, background .12s ease;
+}
+
+.row:hover .icon { opacity: 1; }
+.icon:hover { background: var(--line); color: var(--text); }
+
+.children { margin-left: 13px; padding-left: 9px; border-left: 1px solid var(--line); }
+.children.hidden { display: none; }
+
+/* ---------- 明细行 ---------- */
+.leaf { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; }
+.leaf:hover { background: var(--hover); }
+
+.bullet { flex: none; width: 4px; height: 4px; border-radius: 50%; background: var(--line-strong); }
+.leaf .name { flex: none; font-size: 13.5px; }
+.leaf .amt { font-size: 13.5px; }
+.muted { color: var(--text-3); font-style: normal; }
+
+.ops {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+
+.leaf:hover .ops,
+.ops.pinned { opacity: 1; }
+
+.op {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 7px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.op:hover { background: var(--line); color: var(--text); }
+.op.danger { color: var(--neg); }
+.confirm { font-size: 12px; color: var(--text-2); }
+
+/* ---------- 弹窗 ---------- */
+.mask {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 15, 15, .4);
+  z-index: 20;
+}
+
+.mask[hidden] { display: none; }
+
+.modal {
+  width: 100%;
+  max-width: 380px;
+  max-height: 100%;
+  overflow: auto;
+  padding: 18px 20px 16px;
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.modal h2 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+.hint { margin: 0 0 14px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
+.err { margin: 10px 0 0; font-size: 12px; color: var(--neg); word-break: break-all; }
+.err[hidden] { display: none; }
+
+.field { margin-bottom: 12px; }
+.field label { display: block; margin-bottom: 5px; font-size: 12px; color: var(--text-2); }
+.field .opt { margin-left: 4px; color: var(--text-3); }
+
+.field input,
+.field select {
+  width: 100%;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 7px 9px;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  outline: none;
+}
+
+.field input:focus,
+.field select:focus { border-color: var(--accent); }
+
+.amount-row { display: flex; gap: 8px; }
+.amount-row input { flex: 1; min-width: 0; }
+
+.seg {
+  display: flex;
+  flex: none;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+}
+
+.seg button {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.seg button.active {
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(15, 15, 15, .08);
+}
+
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translate(-50%, 10px);
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: #2f2f2e;
+  color: #fff;
+  font-size: 13px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+  z-index: 40;
+}
+
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.error { background: var(--neg); }
+
+@media (max-width: 560px) {
+  .topbar { flex-wrap: wrap; gap: 8px 12px; }
+  .totals { margin-left: 0; order: 3; width: 100%; }
+  .tools { margin-left: auto; }
+  .amt, .row.lv1 .amt { min-width: 76px; }
+  .net { min-width: 88px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <h1>收支明细</h1>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="totals" id="totals"></div>
+    <div class="tools">
+      <button type="button" class="btn ghost" id="btn-refresh">刷新</button>
+      <button type="button" class="btn ghost" id="btn-settings">设置</button>
+      <button type="button" class="btn primary" id="btn-add">新增</button>
+    </div>
+  </header>
+
+  <main class="tree" id="tree"></main>
+  <p class="empty" id="empty" hidden>还没有数据，点右上角「新增」记一笔。</p>
+</div>
+
+<div class="mask" id="setup" hidden>
+  <div class="modal">
+    <h2>连接 Notion</h2>
+    <p class="hint">
+      这个页面是公开的，令牌只存在你这台设备的浏览器里（localStorage），
+      直接从浏览器发给 Notion，不经过任何第三方服务器。
+    </p>
+    <div class="field">
+      <label for="s-token">集成令牌</label>
+      <input id="s-token" type="password" autocomplete="off" placeholder="ntn_ 开头">
+    </div>
+    <div class="field">
+      <label for="s-ds">数据源 ID</label>
+      <input id="s-ds" autocomplete="off" spellcheck="false">
+    </div>
+    <p class="err" id="s-err" hidden></p>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" id="s-cancel" hidden>取消</button>
+      <button type="button" class="btn primary" id="s-save">保存并加载</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="modal" hidden>
+  <form class="modal" id="form">
+    <h2 id="modal-title">新增一笔</h2>
+
+    <div class="field">
+      <label for="f-month">月份</label>
+      <input id="f-month" list="months" autocomplete="off" placeholder="2026年09月" required>
+      <datalist id="months"></datalist>
+    </div>
+
+    <div class="field">
+      <label for="f-category">分类</label>
+      <select id="f-category"></select>
+    </div>
+
+    <div class="field">
+      <label for="f-sub">子类 <span class="opt">可选</span></label>
+      <input id="f-sub" list="subs" autocomplete="off" placeholder="如 演唱会 / 穿搭">
+      <datalist id="subs"></datalist>
+    </div>
+
+    <div class="field">
+      <label for="f-item">明细项</label>
+      <input id="f-item" autocomplete="off" placeholder="如 9月工资、回家车票" required>
+    </div>
+
+    <div class="field">
+      <label for="f-amount">金额</label>
+      <div class="amount-row">
+        <div class="seg" id="f-sign">
+          <button type="button" data-sign="-1" class="active">支出</button>
+          <button type="button" data-sign="1">收入</button>
+        </div>
+        <input id="f-amount" type="number" min="0" step="0.01" placeholder="0.00" required>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" id="btn-cancel">取消</button>
+      <button type="submit" class="btn primary" id="btn-save">保存</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var CATEGORY_ORDER = ['常规收入', '特殊收入', '常规支出', '特殊支出', '娱乐支出'];
+  var UNSET_MONTH = '未标月份';
+  var UNSET_CATEGORY = '未分类';
+  var UNSET_SUB = '未分子类';
+
+  var API = 'https://api.notion.com/v1';
+  var NOTION_VERSION = '2025-09-03';
+  var DEFAULT_DATA_SOURCE = '3ebbd5ec-f393-8185-9009-000b90588287';
+  var KEY_TOKEN = 'ledger.token';
+  var KEY_DS = 'ledger.dataSourceId';
+
+  var settings = {
+    token: localStorage.getItem(KEY_TOKEN) || '',
+    dataSourceId: localStorage.getItem(KEY_DS) || DEFAULT_DATA_SOURCE
+  };
+
+  var state = { entries: [], collapsed: {}, editor: null, pendingDelete: null };
+
+  var treeEl = document.getElementById('tree');
+  var emptyEl = document.getElementById('empty');
+  var totalsEl = document.getElementById('totals');
+  var countEl = document.getElementById('count');
+  var modalEl = document.getElementById('modal');
+  var setupEl = document.getElementById('setup');
+  var toastEl = document.getElementById('toast');
+
+  var query = new URLSearchParams(location.search);
+  document.documentElement.dataset.theme =
+    query.get('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+  // ---------- 小工具 ----------
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function money(n) {
+    return Math.abs(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+  }
+
+  function signed(n) {
+    return (n > 0 ? '+' : n < 0 ? '−' : '') + money(n);
+  }
+
+  function tone(n) { return n > 0 ? 'pos' : n < 0 ? 'neg' : 'zero'; }
+
+  function sum(list) {
+    return list.reduce(function (acc, e) { return acc + e.amount; }, 0);
+  }
+
+  function monthLabel(date) {
+    return date.getFullYear() + '年' + String(date.getMonth() + 1).padStart(2, '0') + '月';
+  }
+
+  var toastTimer;
+  function toast(message, ok) {
+    toastEl.textContent = message;
+    toastEl.className = 'toast show' + (ok === false ? ' error' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.className = 'toast'; }, 2600);
+  }
+
+  // ---------- Notion 直连 ----------
+  function notion(path, options) {
+    options = options || {};
+    return fetch(API + path, {
+      method: options.method || 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + settings.token,
+        'Notion-Version': NOTION_VERSION,
+        'Content-Type': 'application/json'
+      },
+      body: options.body
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) {
+          if (res.status === 401) throw new Error('令牌无效或已失效，请重新填写集成令牌');
+          if (res.status === 404) throw new Error('找不到该数据源，请检查数据源 ID，以及页面是否已授权给这个集成');
+          throw new Error(data.message || ('Notion 接口返回 ' + res.status));
+        }
+        return data;
+      });
+    });
+  }
+
+  function selectOf(props, name) {
+    var value = props[name] && props[name].select;
+    return value ? value.name : null;
+  }
+
+  function normalize(page) {
+    var props = page.properties;
+    var title = (props['明细项'] && props['明细项'].title) || [];
+    return {
+      id: page.id,
+      item: title.map(function (t) { return t.plain_text || ''; }).join(''),
+      amount: (props['金额'] && props['金额'].number) || 0,
+      category: selectOf(props, '分类'),
+      sub: selectOf(props, '子类'),
+      month: selectOf(props, '月份')
+    };
+  }
+
+  function fetchAll() {
+    var entries = [];
+    function step(cursor) {
+      var payload = { page_size: 100 };
+      if (cursor) payload.start_cursor = cursor;
+      return notion('/data_sources/' + settings.dataSourceId + '/query', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }).then(function (page) {
+        entries = entries.concat((page.results || []).map(normalize));
+        return page.has_more ? step(page.next_cursor) : entries;
+      });
+    }
+    return step(null);
+  }
+
+  function buildProps(data) {
+    var props = {
+      '明细项': { title: [{ text: { content: String(data.item || '').trim() } }] }
+    };
+    if (data.amount !== null && data.amount !== undefined) {
+      props['金额'] = { number: data.amount };
+    }
+    [['分类', 'category'], ['子类', 'sub'], ['月份', 'month']].forEach(function (pair) {
+      var name = data[pair[1]];
+      props[pair[0]] = { select: name ? { name: name } : null };
+    });
+    return props;
+  }
+
+  // ---------- 分组 ----------
+  function groupByMonth(entries) {
+    var map = new Map();
+    entries.forEach(function (e) {
+      var key = e.month || UNSET_MONTH;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(e);
+    });
+    var named = [], rest = [];
+    map.forEach(function (list, name) {
+      (name === UNSET_MONTH ? rest : named).push({ name: name, list: list });
+    });
+    named.sort(function (a, b) { return a.name < b.name ? 1 : a.name > b.name ? -1 : 0; });
+    return named.concat(rest);
+  }
+
+  function categoryRank(name) {
+    var index = CATEGORY_ORDER.indexOf(name);
+    if (index !== -1) return index;
+    return name === UNSET_CATEGORY ? 99 : 60;
+  }
+
+  function groupByCategory(list) {
+    var map = new Map();
+    list.forEach(function (e) {
+      var key = e.category || UNSET_CATEGORY;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(e);
+    });
+    var out = [];
+    map.forEach(function (items, name) { out.push({ name: name, list: items }); });
+    out.sort(function (a, b) { return categoryRank(a.name) - categoryRank(b.name); });
+    return out;
+  }
+
+  function groupBySub(list) {
+    var map = new Map();
+    list.forEach(function (e) {
+      var key = e.sub || UNSET_SUB;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(e);
+    });
+    var out = [];
+    map.forEach(function (items, name) { out.push({ name: name, list: items }); });
+    out.sort(function (a, b) {
+      if (a.name === UNSET_SUB) return 1;
+      if (b.name === UNSET_SUB) return -1;
+      return a.name.localeCompare(b.name, 'zh-CN');
+    });
+    return out;
+  }
+
+  function byAmount(a, b) {
+    return Math.abs(b.amount) - Math.abs(a.amount) || a.item.localeCompare(b.item, 'zh-CN');
+  }
+
+  // ---------- 渲染 ----------
+  function render() {
+    var entries = state.entries;
+    emptyEl.hidden = entries.length > 0;
+    countEl.textContent = entries.length ? '共 ' + entries.length + ' 笔' : '';
+
+    var income = sum(entries.filter(function (e) { return e.amount > 0; }));
+    var expense = sum(entries.filter(function (e) { return e.amount < 0; }));
+    totalsEl.innerHTML =
+      '<span class="chip"><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
+      '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
+      '<span class="chip"><b>净额</b><i class="' + tone(income + expense) + '">' +
+      signed(income + expense) + '</i></span>';
+
+    var months = groupByMonth(entries);
+    treeEl.innerHTML = months.map(renderMonth).join('');
+
+    var today = new Date();
+    var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    var options = [];
+    months.forEach(function (m) {
+      if (m.name !== UNSET_MONTH && options.indexOf(m.name) === -1) options.push(m.name);
+    });
+    [monthLabel(nextMonth), monthLabel(today)].forEach(function (m) {
+      if (options.indexOf(m) === -1) options.push(m);
+    });
+    document.getElementById('months').innerHTML = options.map(function (m) {
+      return '<option value="' + esc(m) + '">';
+    }).join('');
+
+    var subs = [];
+    entries.forEach(function (e) {
+      if (e.sub && subs.indexOf(e.sub) === -1) subs.push(e.sub);
+    });
+    subs.sort(function (a, b) { return a.localeCompare(b, 'zh-CN'); });
+    document.getElementById('subs').innerHTML = subs.map(function (s) {
+      return '<option value="' + esc(s) + '">';
+    }).join('');
+  }
+
+  function renderMonth(month) {
+    var key = 'm:' + month.name;
+    var open = !state.collapsed[key];
+    var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
+    var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
+    return '' +
+      '<section class="node">' +
+        '<div class="row lv1" data-toggle="' + esc(key) + '">' +
+          '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
+          '<span class="name">' + esc(month.name) + '</span>' +
+          '<span class="meta">' + month.list.length + ' 笔</span>' +
+          '<span class="spacer"></span>' +
+          '<span class="amt pos">' + signed(income) + '</span>' +
+          '<span class="amt neg">' + signed(expense) + '</span>' +
+          '<span class="net ' + tone(income + expense) + '">净 ' + signed(income + expense) + '</span>' +
+          '<button type="button" class="icon" data-add="' + esc(key) + '" title="在本月新增">＋</button>' +
+        '</div>' +
+        '<div class="children ' + (open ? '' : 'hidden') + '">' +
+          groupByCategory(month.list).map(function (c) { return renderCategory(month.name, c); }).join('') +
+        '</div>' +
+      '</section>';
+  }
+
+  function renderCategory(monthName, category) {
+    var key = 'c:' + monthName + '|' + category.name;
+    var open = !state.collapsed[key];
+    var total = sum(category.list);
+    var hasSub = category.list.some(function (e) { return e.sub; });
+    var body = hasSub
+      ? groupBySub(category.list).map(function (s) { return renderSub(monthName, category.name, s); }).join('')
+      : category.list.slice().sort(byAmount).map(renderLeaf).join('');
+    return '' +
+      '<div class="node">' +
+        '<div class="row lv2" data-toggle="' + esc(key) + '">' +
+          '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
+          '<span class="name">' + esc(category.name) + '</span>' +
+          '<span class="meta">' + category.list.length + ' 笔</span>' +
+          '<span class="spacer"></span>' +
+          '<span class="amt ' + tone(total) + '">' + signed(total) + '</span>' +
+          '<button type="button" class="icon" data-add="' + esc(key) + '" title="在此分类新增">＋</button>' +
+        '</div>' +
+        '<div class="children ' + (open ? '' : 'hidden') + '">' + body + '</div>' +
+      '</div>';
+  }
+
+  function renderSub(monthName, categoryName, sub) {
+    var key = 's:' + monthName + '|' + categoryName + '|' + sub.name;
+    var open = !state.collapsed[key];
+    var total = sum(sub.list);
+    return '' +
+      '<div class="node">' +
+        '<div class="row lv3" data-toggle="' + esc(key) + '">' +
+          '<span class="chev ' + (open ? 'open' : '') + '"></span>' +
+          '<span class="name">' + esc(sub.name) + '</span>' +
+          '<span class="meta">' + sub.list.length + ' 笔</span>' +
+          '<span class="spacer"></span>' +
+          '<span class="amt ' + tone(total) + '">' + signed(total) + '</span>' +
+          '<button type="button" class="icon" data-add="' + esc(key) + '" title="在此子类新增">＋</button>' +
+        '</div>' +
+        '<div class="children ' + (open ? '' : 'hidden') + '">' +
+          sub.list.slice().sort(byAmount).map(renderLeaf).join('') +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderLeaf(entry) {
+    var confirming = state.pendingDelete === entry.id;
+    var ops = confirming
+      ? '<span class="confirm">删除这一笔？</span>' +
+        '<button type="button" class="op danger" data-del-confirm="' + esc(entry.id) + '">是</button>' +
+        '<button type="button" class="op" data-del-cancel="1">否</button>'
+      : '<button type="button" class="op" data-edit="' + esc(entry.id) + '">编辑</button>' +
+        '<button type="button" class="op" data-del="' + esc(entry.id) + '">删除</button>';
+    return '' +
+      '<div class="leaf">' +
+        '<span class="bullet"></span>' +
+        '<span class="name">' + (esc(entry.item) || '<i class="muted">未命名</i>') + '</span>' +
+        '<span class="spacer"></span>' +
+        '<span class="amt ' + tone(entry.amount) + '">' + signed(entry.amount) + '</span>' +
+        '<span class="ops ' + (confirming ? 'pinned' : '') + '">' + ops + '</span>' +
+      '</div>';
+  }
+
+  // ---------- 数据操作 ----------
+  function load() {
+    return fetchAll().then(function (entries) {
+      state.entries = entries;
+      state.pendingDelete = null;
+      render();
+    });
+  }
+
+  function refresh() {
+    return load().catch(function (err) { toast(err.message, false); });
+  }
+
+  function removeEntry(id) {
+    return notion('/pages/' + id, {
+      method: 'PATCH',
+      body: JSON.stringify({ archived: true })
+    }).then(function () {
+      state.pendingDelete = null;
+      toast('已删除');
+      return refresh();
+    }).catch(function (err) { toast(err.message, false); });
+  }
+
+  // ---------- 编辑器 ----------
+  function prefillFromKey(key) {
+    var parts = key.split(':');
+    var type = parts[0];
+    var rest = (parts[1] || '').split('|');
+    if (type === 'm') return { month: rest[0] };
+    if (type === 'c') return { month: rest[0], category: rest[1] };
+    return { month: rest[0], category: rest[1], sub: rest[2] };
+  }
+
+  function prefillFromEntry(id) {
+    var found = state.entries.filter(function (e) { return e.id === id; })[0];
+    return found ? Object.assign({}, found) : {};
+  }
+
+  function setSign(sign) {
+    Array.prototype.forEach.call(document.querySelectorAll('#f-sign button'), function (btn) {
+      btn.classList.toggle('active', Number(btn.dataset.sign) === sign);
+    });
+  }
+
+  function openEditor(prefill) {
+    state.editor = prefill;
+
+    var categories = CATEGORY_ORDER.slice();
+    state.entries.forEach(function (e) {
+      if (e.category && categories.indexOf(e.category) === -1) categories.push(e.category);
+    });
+    document.getElementById('f-category').innerHTML = categories.map(function (c) {
+      return '<option value="' + esc(c) + '">' + esc(c) + '</option>';
+    }).join('');
+
+    document.getElementById('modal-title').textContent = prefill.id ? '编辑这一笔' : '新增一笔';
+    document.getElementById('f-month').value = prefill.month || monthLabel(new Date());
+    document.getElementById('f-category').value = prefill.category || '常规支出';
+    document.getElementById('f-sub').value = prefill.sub || '';
+    document.getElementById('f-item').value = prefill.item || '';
+
+    var amount = prefill.amount;
+    setSign(amount === undefined ? -1 : Math.sign(amount) || -1);
+    document.getElementById('f-amount').value = amount === undefined ? '' : Math.abs(amount);
+
+    modalEl.hidden = false;
+    setTimeout(function () { document.getElementById('f-item').focus(); }, 0);
+  }
+
+  function closeEditor() {
+    state.editor = null;
+    modalEl.hidden = true;
+  }
+
+  // ---------- 设置 ----------
+  function openSetup(message) {
+    document.getElementById('s-token').value = settings.token;
+    document.getElementById('s-ds').value = settings.dataSourceId;
+    document.getElementById('s-cancel').hidden = !state.entries.length && !settings.token;
+    var errEl = document.getElementById('s-err');
+    errEl.hidden = !message;
+    errEl.textContent = message || '';
+    setupEl.hidden = false;
+    setTimeout(function () { document.getElementById('s-token').focus(); }, 0);
+  }
+
+  function closeSetup() {
+    setupEl.hidden = true;
+  }
+
+  // ---------- 事件 ----------
+  treeEl.addEventListener('click', function (event) {
+    var target = event.target.closest(
+      '[data-toggle],[data-add],[data-edit],[data-del],[data-del-confirm],[data-del-cancel]');
+    if (!target) return;
+    var data = target.dataset;
+    if (data.toggle) {
+      if (state.collapsed[data.toggle]) delete state.collapsed[data.toggle];
+      else state.collapsed[data.toggle] = true;
+      return render();
+    }
+    if (data.add) return openEditor(prefillFromKey(data.add));
+    if (data.edit) return openEditor(prefillFromEntry(data.edit));
+    if (data.del) { state.pendingDelete = data.del; return render(); }
+    if (data.delCancel) { state.pendingDelete = null; return render(); }
+    if (data.delConfirm) return removeEntry(data.delConfirm);
+  });
+
+  document.getElementById('f-sign').addEventListener('click', function (event) {
+    var btn = event.target.closest('button[data-sign]');
+    if (btn) setSign(Number(btn.dataset.sign));
+  });
+
+  document.getElementById('form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var editor = state.editor || {};
+    var active = document.querySelector('#f-sign button.active');
+    var sign = active ? Number(active.dataset.sign) : -1;
+    var payload = {
+      month: document.getElementById('f-month').value.trim(),
+      category: document.getElementById('f-category').value,
+      sub: document.getElementById('f-sub').value.trim() || null,
+      item: document.getElementById('f-item').value.trim(),
+      amount: sign * Math.abs(Number(document.getElementById('f-amount').value || 0))
+    };
+    if (!payload.item) return toast('明细项不能为空', false);
+    if (!payload.month) return toast('请填写月份', false);
+
+    var saveBtn = document.getElementById('btn-save');
+    saveBtn.disabled = true;
+    var request = editor.id
+      ? notion('/pages/' + editor.id, {
+          method: 'PATCH',
+          body: JSON.stringify({ properties: buildProps(payload) })
+        })
+      : notion('/pages', {
+          method: 'POST',
+          body: JSON.stringify({
+            parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
+            properties: buildProps(payload)
+          })
+        });
+
+    request.then(function () {
+      toast(editor.id ? '已保存' : '已新增');
+      closeEditor();
+      return refresh();
+    }).catch(function (err) {
+      toast(err.message, false);
+    }).then(function () {
+      saveBtn.disabled = false;
+    });
+  });
+
+  document.getElementById('btn-cancel').addEventListener('click', closeEditor);
+  document.getElementById('btn-add').addEventListener('click', function () { openEditor({}); });
+  document.getElementById('btn-refresh').addEventListener('click', function () { refresh(); });
+  document.getElementById('btn-settings').addEventListener('click', function () { openSetup(); });
+
+  document.getElementById('s-save').addEventListener('click', function () {
+    var token = document.getElementById('s-token').value.trim();
+    var ds = document.getElementById('s-ds').value.trim();
+    var errEl = document.getElementById('s-err');
+    if (!token) { errEl.hidden = false; errEl.textContent = '请填写集成令牌'; return; }
+    if (!ds) { errEl.hidden = false; errEl.textContent = '请填写数据源 ID'; return; }
+
+    settings.token = token;
+    settings.dataSourceId = ds;
+    var saveBtn = document.getElementById('s-save');
+    saveBtn.disabled = true;
+    load().then(function () {
+      localStorage.setItem(KEY_TOKEN, token);
+      localStorage.setItem(KEY_DS, ds);
+      closeSetup();
+      toast('已连接');
+    }).catch(function (err) {
+      errEl.hidden = false;
+      errEl.textContent = err.message;
+    }).then(function () {
+      saveBtn.disabled = false;
+    });
+  });
+
+  document.getElementById('s-cancel').addEventListener('click', closeSetup);
+
+  modalEl.addEventListener('click', function (event) {
+    if (event.target === modalEl) closeEditor();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape') return;
+    if (!modalEl.hidden) closeEditor();
+    else if (!setupEl.hidden) closeSetup();
+  });
+
+  // ---------- 启动 ----------
+  if (settings.token) refresh();
+  else { render(); openSetup(); }
+})();
+</script>
+</body>
+</html>
