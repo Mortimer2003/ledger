@@ -162,6 +162,7 @@ body {
   border-radius: 6px;
   border: 1px solid transparent;
   cursor: pointer;
+  white-space: nowrap;
   transition: background .12s ease, opacity .12s ease;
 }
 
@@ -837,22 +838,14 @@ body {
           <circle cx="6.5" cy="11.5" r="1.5" fill="var(--bg)"/>
         </svg>
       </button>
-      <button type="button" class="icon-btn" id="btn-month" title="新增月份账单">
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3.5" width="12" height="10.5" rx="1.6"/>
-          <path d="M2 6.6h12M5.6 2v3M10.4 2v3"/>
-          <path d="M8 8.7v3.1M6.45 10.25h3.1"/>
-        </svg>
-      </button>
-      <button type="button" class="btn primary" id="btn-add">新增</button>
+      <button type="button" class="btn primary" id="btn-month">新增月份账单</button>
     </div>
   </header>
 
   <div class="progress" id="progress"></div>
 
   <main class="tree" id="tree"></main>
-  <p class="empty" id="empty" hidden>还没有数据，点右上角「新增」记一笔。</p>
+  <p class="empty" id="empty" hidden>还没有数据，点右上角「新增月份账单」开始记录。</p>
 </div>
 
 <div class="mask" id="setup" hidden>
@@ -1562,10 +1555,10 @@ body {
       if (!scoped.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
     } else if (year !== null) {
       countEl.textContent = yearName + ' · ' + scoped.length + ' 笔';
-      emptyEl.textContent = '还没有数据，点右上角「新增」记一笔。';
+      emptyEl.textContent = '还没有数据，点右上角「新增月份账单」开始记录。';
     } else {
       countEl.textContent = '';
-      emptyEl.textContent = '还没有数据，点右上角「新增」记一笔。';
+      emptyEl.textContent = '还没有数据，点右上角「新增月份账单」开始记录。';
     }
 
     var income = sum(scoped.filter(function (e) { return e.amount > 0; }));
@@ -2408,7 +2401,6 @@ body {
   });
 
   document.getElementById('btn-cancel').addEventListener('click', closeEditor);
-  document.getElementById('btn-add').addEventListener('click', function () { openEditor({}); });
   document.getElementById('view-switch').addEventListener('click', function (event) {
     var btn = event.target.closest('button[data-view]');
     if (btn) setView(btn.dataset.view);
