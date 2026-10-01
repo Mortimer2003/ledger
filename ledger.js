@@ -101,6 +101,8 @@
   var hintWrapEl = document.getElementById('hint-wrap');
   var hintPopEl = document.getElementById('hint-pop');
   var btnHintEl = document.getElementById('btn-hint');
+  var btnTagsEl = document.getElementById('btn-tags');
+  var btnMonthEl = document.getElementById('btn-month');
   var modalEl = document.getElementById('modal');
   var setupEl = document.getElementById('setup');
   var tagsEl = document.getElementById('tags');
@@ -996,8 +998,8 @@
   }
 
   // ---------- 我的财产 ----------
-  // 每月一笔资产快照（月初 / 月末）。「公积金」那部分取不出来，看「能动的钱」时得剔掉，
-  // 所以两个总计都给：含公积金、不含公积金。
+  // 每月一笔资产快照，只记月末余额（月初就是上个月的月末，不重复存）。
+  // 「公积金」那部分取不出来，看「能动的钱」时得剔掉，所以两个总计都给：含公积金、不含公积金。
   var ASSET_APP_ORDER = ['招商银行', '支付宝', '微信', '公积金', '证券'];
   var ASSET_RESERVED = '公积金';
 
@@ -1018,7 +1020,6 @@
       name: title.map(function (t) { return t.plain_text || ''; }).join(''),
       month: sel('月份'),
       app: sel('应用'),
-      start: num('月初'),
       end: num('月末'),
       note: richText(props['备注'])
     };
@@ -1075,7 +1076,7 @@
       if (months.indexOf(a.month) === -1 || !a.name) return;
       var key = a.app + '|' + a.name;
       var item = index[key] || (index[key] = { app: a.app, name: a.name, byMonth: {} });
-      item.byMonth[a.month] = { id: a.id, start: a.start, end: a.end };
+      item.byMonth[a.month] = { id: a.id, end: a.end };
     });
 
     var items = Object.keys(index).map(function (k) {
@@ -1136,24 +1137,20 @@
     return '<span class="' + tone(d) + '">' + signed(d) + '</span>';
   }
 
-  // 明细格：平时只显月末，双击展开「月初 + 月末」两个输入框
+  // 明细格：平时只显月末，双击展开一个输入框就地改
   function assetCell(item, cell) {
     if (!cell) return '<td><span class="zero">—</span></td>';
     var shown = assetNum(cell.end);
     if (state.assetsEdit && state.assetsEdit.id === cell.id) {
-      function box(field, label, value) {
-        return '<label><span>' + label + '</span><input type="number" step="1" placeholder="0"' +
-          ' value="' + (value === null || value === undefined ? '' : esc(String(value))) + '"' +
-          ' data-asset-num="' + field + '"></label>';
-      }
       return '<td class="cmp-edit editing">' + shown +
         '<span class="editor">' +
-          box('start', '月初', cell.start) +
-          box('end', '月末', cell.end) +
+          '<label><span>月末</span><input type="number" step="1" placeholder="0"' +
+            ' value="' + (cell.end === null || cell.end === undefined ? '' : esc(String(cell.end))) + '"' +
+            ' data-asset-num="end"></label>' +
         '</span></td>';
     }
     return '<td class="cmp-edit" data-asset-open="' + esc(cell.id) + '"' +
-      ' title="双击改月初 / 月末">' + shown + '</td>';
+      ' title="双击改月末">' + shown + '</td>';
   }
 
   function assetForm(form) {
@@ -1187,7 +1184,7 @@
     return list + '<div class="assets-form">' +
       '<label><span>月份</span><input id="asset-month" list="months" autocomplete="off"' +
         ' data-asset-field="month" placeholder="2026年10月" value="' + esc(form.month) + '"></label>' +
-      '<span class="assets-form-tip">照抄 ' + esc(form.from) + ' 的全部资产项，月初自动接上月末</span>' +
+      '<span class="assets-form-tip">照抄 ' + esc(form.from) + ' 的全部资产项，金额留空待填</span>' +
       save + '</div>';
   }
 
@@ -1203,7 +1200,7 @@
 
   function assetsHintText() {
     return '<p class="assets-hint">' +
-      '每月一笔资产快照，格子里的数字是「月末」余额；双击格子能改「月初」「月末」，回车或点到别处就存下。' +
+      '每月一笔资产快照，格子里的数字就是那个月的月末余额；双击格子能改，回车或点到别处就存下。' +
       '「总资产（含公积金）」把公积金账户算进来，「总资产（不含公积金）」只看能动用的钱——' +
       '公积金取不出来，两个口径都留着。' +
       '「较上月」是含公积金总资产的环比增量，「变化」那一列是首尾两个月之间涨跌了多少。' +
@@ -1301,7 +1298,7 @@
   function startAssetEdit(id) {
     var row = state.assets.filter(function (a) { return a.id === id; })[0];
     if (!row) return;
-    state.assetsEdit = { id: id, draft: { start: row.start, end: row.end } };
+    state.assetsEdit = { id: id, draft: { end: row.end } };
     render();
     var input = typeof treeEl.querySelector === 'function'
       ? treeEl.querySelector('input[data-asset-num]') : null;
@@ -1323,10 +1320,8 @@
       var n = Number(s);
       return isFinite(n) ? n : null;
     }
-    var start = num(edit.draft.start);
     var end = num(edit.draft.end);
     var props = {};
-    if (start !== row.start) props['月初'] = { number: start };
     if (end !== row.end) props['月末'] = { number: end };
     if (!Object.keys(props).length) return render();
     saveAsset(edit.id, props);
@@ -1338,7 +1333,6 @@
     state.assets = state.assets.map(function (a) {
       if (a.id !== id) return a;
       var next = Object.assign({}, a);
-      if ('月初' in props) next.start = props['月初'].number;
       if ('月末' in props) next.end = props['月末'].number;
       return next;
     });
@@ -1433,7 +1427,6 @@
         '类型': { title: [{ text: { content: name } }] },
         '应用': { select: { name: app } },
         '月份': { select: { name: months[i] } },
-        '月初': { number: null },
         '月末': { number: null },
         '备注': { rich_text: [] }
       }).then(function (page) {
@@ -1486,8 +1479,6 @@
         '类型': { title: [{ text: { content: src[i].name } }] },
         '应用': { select: { name: src[i].app } },
         '月份': { select: { name: label } },
-        // 月初接上月末，省得再填一遍
-        '月初': { number: src[i].end },
         '月末': { number: null },
         '备注': { rich_text: [] }
       }).then(function (page) {
@@ -1505,7 +1496,7 @@
         toast('「' + label + '」建到一半失败：' + failed.message +
           (created.length ? '（已建 ' + created.length + ' 项，再点一次可补齐）' : ''), false);
       } else {
-        toast('已铺好「' + label + '」，' + created.length + ' 项，月初已接上月末');
+        toast('已铺好「' + label + '」，' + created.length + ' 项，金额待填');
       }
     });
   }
@@ -1568,6 +1559,10 @@
     var mode = state.view;
     pendingHint = '';
 
+    // 「子类标签」「新增月份账单」是账本自己的操作，对比/预算/财产里用不上，别摆在那儿添乱
+    btnTagsEl.hidden = mode !== 'tree';
+    btnMonthEl.hidden = mode !== 'tree';
+
     // 以年为界：年份切换栏、顶部总计、笔数和内容都收在同一年里，数字才不会互相打架
     var years = cmpYears(entries);
     var year = years.length
@@ -1582,6 +1577,10 @@
     var budgetData = buildBudget(yearEntries, year);
     var budgetLast = lastRealBudget(budgetData);
 
+    // 「新增月份账单」只在月度视图露面，别的视图空着时别叫用户去点看不见的按钮
+    var emptyTip = mode === 'tree'
+      ? '还没有数据，点上方「新增月份账单」开始记录。'
+      : '还没有数据，先在「月度」里记几笔。';
     emptyEl.hidden = scoped.length > 0 || mode === 'assets';
     if (mode === 'assets') {
       // 财产跟账本走的是两套数据，账本为空不代表没财产，这里不摆「还没有数据」
@@ -1591,10 +1590,10 @@
       if (!scoped.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
     } else if (year !== null) {
       countEl.textContent = scoped.length + ' 笔';
-      emptyEl.textContent = '还没有数据，点上方「新增月份账单」开始记录。';
+      emptyEl.textContent = emptyTip;
     } else {
       countEl.textContent = '';
-      emptyEl.textContent = '还没有数据，点上方「新增月份账单」开始记录。';
+      emptyEl.textContent = emptyTip;
     }
 
     var income = sum(scoped.filter(function (e) { return e.amount > 0; }));
