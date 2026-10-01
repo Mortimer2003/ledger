@@ -742,15 +742,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .cmp.assets tbody tr.assets-delta .name { font-size: 13px; color: var(--text-2); }
 
-/* 工具条：左边进度、右边两个「＋」，跟顶栏按钮一个调子 */
-.assets-bar {
+/* 工具条：左边进度、右边功能按钮，跟顶栏按钮一个调子。预算/财产两个视图共用 */
+.view-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 14px 10px;
 }
-.assets-bar-tools { display: flex; gap: 8px; margin-left: auto; }
-.assets-bar .tool {
+.view-bar-tools { display: flex; gap: 8px; margin-left: auto; }
+.view-bar .tool {
   padding: 4px 10px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
@@ -760,9 +760,14 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   font-size: 12px;
   cursor: pointer;
 }
-.assets-bar .tool:hover { background: var(--hover); color: var(--text); }
-.assets-progress { color: var(--text-3); font-size: 12px; }
-.assets-progress[hidden] { display: none; }
+.view-bar .tool:hover { background: var(--hover); color: var(--text); }
+/* 展开状态高亮，一眼看出「说明」是不是开着 */
+.view-bar .tool[aria-expanded="true"] { background: var(--hover); color: var(--text); }
+.view-progress { color: var(--text-3); font-size: 12px; }
+.view-progress[hidden] { display: none; }
+
+/* 说明面板：默认收起，点工具条上的「说明」才展开 */
+.hint-panel[hidden] { display: none; }
 
 /* 新增表单：一行摆开，回车就提交，Esc 取消 */
 .assets-form {
@@ -1141,16 +1146,18 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         <h1>收支明细</h1>
         <span class="count" id="count"></span>
       </div>
+      <!-- 视图切换贴在左侧：右侧的年份/总计宽度会随视图变，若跟它挤在一起，
+           一切视图整排控件就跟着挪位。左边固定、右边伸缩，切换才不跳 -->
+      <div class="seg view-switch" id="view-parent">
+        <button type="button" data-parent="income" class="active">收支</button>
+        <button type="button" data-parent="assets">财产</button>
+      </div>
+      <div class="seg view-switch sub" id="view-sub">
+        <button type="button" data-view="tree" class="active">月度</button>
+        <button type="button" data-view="compare">对比</button>
+        <button type="button" data-view="budget">预算</button>
+      </div>
       <div class="metrics">
-        <div class="seg view-switch" id="view-parent">
-          <button type="button" data-parent="income" class="active">收支</button>
-          <button type="button" data-parent="assets">财产</button>
-        </div>
-        <div class="seg view-switch sub" id="view-sub">
-          <button type="button" data-view="tree" class="active">月度</button>
-          <button type="button" data-view="compare">对比</button>
-          <button type="button" data-view="budget">预算</button>
-        </div>
         <div class="seg soft" id="cmp-bar" hidden></div>
         <div class="sep"></div>
         <div class="totals" id="totals"></div>
@@ -1412,6 +1419,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     assetsEdit: null,    // 正在就地编辑的财产格：{ id, draft: { start, end } }
     assetsForm: null,    // 财产的新增表单：{ kind: 'item' | 'month', ... }
     assetsYear: null,    // 财产视图当前看哪一年，新增月份时按它铺列
+    hintOpen: false,     // 预算/财产视图的「说明」面板是否展开，默认收起
     pendingDelete: null,
     editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
     search: '',
@@ -1943,6 +1951,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
   function setView(view) {
     state.view = VIEWS.indexOf(view) === -1 ? 'tree' : view;
+    state.hintOpen = false;   // 换视图就把说明收回去，默认不铺开
     localStorage.setItem(KEY_VIEW, state.view);
     if (INCOME_VIEWS.indexOf(state.view) !== -1) {
       state.incomeView = state.view;
@@ -2129,15 +2138,25 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       '>' + shown + (note ? '<span class="tip">' + tipHtml(noteLines(note)) + '</span>' : '') + '</td>';
   }
 
+  // 说明面板默认收起：一段解释压在表格上面太占地，收进「说明」按钮里，要看再点
+  function hintPanel(html) {
+    return '<div class="hint-panel"' + (state.hintOpen ? '' : ' hidden') + '>' + html + '</div>';
+  }
+
+  function hintToggle() {
+    return '<button type="button" class="tool" data-hint-toggle="1"' +
+      (state.hintOpen ? ' aria-expanded="true"' : '') + '>说明</button>';
+  }
+
   function budgetHint() {
-    return '<p class="budget-hint">' +
+    return hintPanel('<p class="budget-hint">' +
       '本月预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成；' +
       '本月结余 = 预算 − 本月花销 + 特殊收入计入。' +
       '本月花销 = 「娱乐支出」分类合计 + 「特殊支出」分类合计/2。' +
       '法定假日按国家法定节假日天数算（国庆 3 天，不是放假 7 天）。' +
       '「特殊收入计入」「偶发加成」双击可改（数字和说明一起改）；' +
       '数字下带虚线的格子，鼠标停上去能看到明细——「本月花销」那格会拆开告诉你娱乐和特殊各占多少。' +
-      '虚线那行是下月预告，仅供参考，不算记录。</p>';
+      '虚线那行是下月预告，仅供参考，不算记录。</p>');
   }
 
   function renderBudget(data, year) {
@@ -2186,8 +2205,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       '<td><span class="zero">—</span></td>' +
       '<td class="cmp-total">' + money(data.preview.budget) + '</td></tr>' : '';
 
-    return budgetHint() + '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
+    return budgetBar() + budgetHint() + '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
       openingRow + body + previewRow + '</tbody></table>';
+  }
+
+  // 预算没有别的工具，这条只有右侧一个「说明」
+  function budgetBar() {
+    return '<div class="view-bar"><span class="view-bar-tools">' + hintToggle() + '</span></div>';
   }
 
   // 顶栏读数取最后一个有数据的月份的结余
@@ -2472,35 +2496,37 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       save + '</div>';
   }
 
-  function assetTools(months) {
-    var html = '<div class="assets-bar">' +
-      '<span class="assets-progress" id="asset-progress" hidden></span>' +
-      '<span class="assets-bar-tools">' +
+  // withHint 只在有表可讲时才给「说明」按钮，空表旁边挂个点不动的按钮没意义
+  function assetBar(months, withHint) {
+    return '<div class="view-bar">' +
+      '<span class="view-progress" id="asset-progress" hidden></span>' +
+      '<span class="view-bar-tools">' +
         (months.length
           ? '<button type="button" class="tool" data-asset-tool="month">＋ 新增月份</button>' : '') +
         '<button type="button" class="tool" data-asset-tool="item">＋ 新增资产项</button>' +
+        (withHint ? hintToggle() : '') +
       '</span></div>';
-    return state.assetsForm ? html + assetForm(state.assetsForm) : html;
   }
 
   function assetsHint() {
-    return '<p class="assets-hint">' +
+    return hintPanel('<p class="assets-hint">' +
       '每月一笔资产快照，格子里的数字是「月末」余额；双击格子能改「月初」「月末」，回车或点到别处就存下。' +
       '「总资产（含公积金）」把公积金账户算进来，「总资产（不含公积金）」只看能动用的钱——' +
       '公积金取不出来，两个口径都留着。' +
       '「较上月」是含公积金总资产的环比增量，「变化」那一列是首尾两个月之间涨跌了多少。' +
       '「＋ 新增月份」照上个月的样子铺一份新月，「＋ 新增资产项」给每个已有月份各加一行；' +
-      '明细行左边的 × 会把这一项在各月的记录一起删掉，删错了能撤销。</p>';
+      '明细行左边的 × 会把这一项在各月的记录一起删掉，删错了能撤销。</p>');
   }
 
   function renderAssets(year) {
     state.assetsYear = year;
     var data = buildAssets(year);
     if (!data.months.length) {
-      return '<p class="assets-hint">' +
+      return assetBar([], false) +
+        '<p class="assets-hint">' +
         (year === null ? '还没有财产数据。' : year + ' 年还没有财产记录。') +
         '财产存在独立的「我的财产」数据源里，点「＋ 新增资产项」记第一行。</p>' +
-        assetTools([]);
+        (state.assetsForm ? assetForm(state.assetsForm) : '');
     }
 
     var head = '<tr>' +
@@ -2558,7 +2584,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       }).join('') +
       '<td class="cmp-total"><span class="zero">—</span></td></tr>';
 
-    return assetsHint() + assetTools(data.months) +
+    return assetBar(data.months, true) + assetsHint() +
+      (state.assetsForm ? assetForm(state.assetsForm) : '') +
       '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
       body + sumRows + deltaRow + '</tbody></table>';
   }
@@ -3661,9 +3688,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   treeEl.addEventListener('click', function (event) {
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
-      '[data-asset-tool],[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel]');
+      '[data-hint-toggle],[data-asset-tool],[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel]');
     if (!target) return;
     var data = target.dataset;
+    if (data.hintToggle) { state.hintOpen = !state.hintOpen; return render(); }
     if (data.cmpToggle) {
       if (state.cmpCollapsed[data.cmpToggle]) delete state.cmpCollapsed[data.cmpToggle];
       else state.cmpCollapsed[data.cmpToggle] = true;
