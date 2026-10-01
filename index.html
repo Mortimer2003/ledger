@@ -598,7 +598,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp.budget tbody tr.cmp-open .cmp-total { color: var(--text); }
 
 /* 双击才进编辑：平时是纯文本，双击后原地变成输入框 */
-.cmp.budget td.cmp-edit {
+.cmp.budget td.cmp-edit,
+.cmp.budget td.cmp-spend {
   position: relative;   /* 说明气泡和编辑面板都相对这一格定位 */
   padding: 5px 10px;
   text-align: right;
@@ -630,7 +631,14 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   cursor: help;
 }
 
-.cmp.budget td.cmp-edit .tip {
+/* 「本月花销」不可编辑，但数字下同样有虚线：悬停能看娱乐和特殊各占多少 */
+.cmp.budget td.cmp-spend .v {
+  border-bottom: 1px dotted var(--text-3);
+  cursor: help;
+}
+
+.cmp.budget td.cmp-edit .tip,
+.cmp.budget td.cmp-spend .tip {
   position: absolute;
   right: 0;
   top: calc(100% - 1px);
@@ -654,7 +662,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   pointer-events: none;
 }
 
-.cmp.budget td.cmp-edit.has-note:hover .tip { opacity: 1; visibility: visible; }
+.cmp.budget td.cmp-edit.has-note:hover .tip,
+.cmp.budget td.cmp-spend:hover .tip { opacity: 1; visibility: visible; }
 
 /* 编辑面板：数字 + 说明两行，浮在格子下方 */
 .cmp.budget td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
@@ -1801,11 +1810,25 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
   // 本月花销 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半，取正数表示这个月从娱乐池子里花掉多少。
   // 别叫「娱乐支出」：那是账本里的分类名，这一列还混进了特殊支出的一半，同名会把两件事搅在一起
+  // 两部分都带出来，悬停时拆给用户看
   function monthSpend(entries, monthName) {
     var list = entries.filter(function (e) { return e.month === monthName; });
-    var fun = sum(list.filter(function (e) { return e.category === '娱乐支出'; }));
-    var special = sum(list.filter(function (e) { return e.category === '特殊支出'; }));
-    return Math.round(-(fun + special * SPECIAL_SHARE));
+    var fun = -sum(list.filter(function (e) { return e.category === '娱乐支出'; }));
+    var special = -sum(list.filter(function (e) { return e.category === '特殊支出'; }));
+    return {
+      fun: fun,
+      special: special,
+      half: Math.round(special * SPECIAL_SHARE),
+      total: Math.round(fun + special * SPECIAL_SHARE)
+    };
+  }
+
+  // 气泡里那句话：这笔花销由哪几块凑出来
+  function spendTip(s) {
+    var parts = [];
+    if (s.fun) parts.push('娱乐支出 ' + money(s.fun));
+    if (s.special) parts.push('特殊支出 ' + money(s.special) + ' 的一半 ' + money(s.half));
+    return parts.join(' + ');
   }
 
   // 从期初往后逐月滚：
@@ -1825,7 +1848,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       var days = holidayDays(name);
       var budget = BUDGET_BASE + BUDGET_PER_HOLIDAY * days + prev + (cfg.bonus || 0);
       var spend = monthSpend(entries, name);
-      var remain = budget - spend + (cfg.specialIn || 0);
+      var remain = budget - spend.total + (cfg.specialIn || 0);
       rows.push({ month: name, days: days, cfg: cfg, budget: budget,
                   spend: spend, remain: remain });
       prev = remain;
@@ -1895,7 +1918,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       '本月花销 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半。' +
       '法定假日按国家法定节假日天数算（国庆 3 天，不是放假 7 天）。' +
       '「特殊收入计入」「偶发加成」双击可改（数字和说明一起改）；' +
-      '数字下带虚线的格子，鼠标停上去能看到明细。' +
+      '数字下带虚线的格子，鼠标停上去能看到明细——「本月花销」那格会拆开告诉你娱乐和特殊各占多少。' +
       '虚线那行是下月预告，仅供参考，不算记录。</p>';
   }
 
@@ -1925,9 +1948,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         budgetInput(row, 'specialIn') +
         budgetInput(row, 'bonus') +
         '<td>' + money(row.budget) + '</td>' +
-        // 花销走支出色（绿），跟账本里负数支出一个颜色
-        '<td>' + (row.spend
-          ? '<span class="neg">−' + money(row.spend) + '</span>'
+        // 花销走支出色（绿），跟账本里负数支出一个颜色；悬停能看娱乐和特殊各占多少
+        '<td class="cmp-spend">' + (row.spend.total
+          ? '<span class="v neg">−' + money(row.spend.total) + '</span>' +
+            '<span class="tip">' + esc(spendTip(row.spend)) + '</span>'
           : '<span class="zero">—</span>') + '</td>' +
         '<td class="cmp-total">' + budgetCell(row.remain) + '</td>' +
       '</tr>';
