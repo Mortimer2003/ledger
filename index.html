@@ -1867,7 +1867,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     var editing = state.budgetEdit &&
       state.budgetEdit.month === row.month && state.budgetEdit.field === field;
 
-    var shown = '<span class="v">' + (value ? money(value) : '<span class="zero">—</span>') + '</span>';
+    // 进项走收入色（红）：这两笔都是往池子里加钱
+    var shown = '<span class="v ' + tone(value) + '">' +
+      (value ? money(value) : '<span class="zero">—</span>') + '</span>';
 
     if (editing) {
       return '<td class="cmp-edit editing">' + shown +
@@ -1923,7 +1925,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         budgetInput(row, 'specialIn') +
         budgetInput(row, 'bonus') +
         '<td>' + money(row.budget) + '</td>' +
-        '<td>' + (row.spend ? '−' + money(row.spend) : '<span class="zero">—</span>') + '</td>' +
+        // 花销走支出色（绿），跟账本里负数支出一个颜色
+        '<td>' + (row.spend
+          ? '<span class="neg">−' + money(row.spend) + '</span>'
+          : '<span class="zero">—</span>') + '</td>' +
         '<td class="cmp-total">' + budgetCell(row.remain) + '</td>' +
       '</tr>';
     }).join('');
