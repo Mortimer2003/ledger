@@ -986,12 +986,16 @@ body {
   var NEW_SUB = '__new__';
   var CMP_OTHER = '__other__';   // 对比视图里「月份解析不出年份」的那一档
 
-  // 「新增月份账单」的模板：每月固定重复的常规项。名字里的月号按目标月份生成，
-  // 房租记的是下个月（9月账单里放「10月房租」），所以用 {下月}。
+  // 「新增月份账单」的模板：每月都要有的壳子。
+  // 常规项名字里的月号按目标月份生成，房租记的是下个月（9月账单里放「10月房租」），所以用 {下月}。
+  // 特殊收入/特殊支出/娱乐支出的明细项每月都不一样，只建空行，名字留着自己填。
   var MONTH_TEMPLATE = [
     { category: '常规收入', item: '{本月}工资' },
     { category: '常规收入', item: '{本月}公积金' },
-    { category: '常规支出', item: '{下月}房租' }
+    { category: '特殊收入' },
+    { category: '常规支出', item: '{下月}房租' },
+    { category: '特殊支出' },
+    { category: '娱乐支出' }
   ];
 
   var API = 'https://api.notion.com/v1';
@@ -1195,8 +1199,10 @@ body {
   }
 
   function buildProps(data) {
+    // 明细项留空时传空数组，而不是空字符串的富文本
+    var title = String(data.item || '').trim();
     var props = {
-      '明细项': { title: [{ text: { content: String(data.item || '').trim() } }] }
+      '明细项': { title: title ? [{ text: { content: title } }] : [] }
     };
     if (data.amount !== null && data.amount !== undefined) {
       props['金额'] = { number: data.amount };
@@ -1957,7 +1963,9 @@ body {
   }
 
   // 明细项名字里的月号：{本月} 用目标月，{下月} 用目标月的下一个月；月份认不出时留个问号
+  // 模板里没写名字的（特殊收入/特殊支出/娱乐支出）就是空行，返回空串
   function billItemName(tpl, label) {
+    if (!tpl) return '';
     var at = billMonth(label);
     if (!at) return tpl.replace(/\{本月\}|\{下月\}/g, '?月');
     var next = at.mo === 12 ? { y: at.y + 1, mo: 1 } : { y: at.y, mo: at.mo + 1 };
@@ -1970,15 +1978,20 @@ body {
     });
   }
 
-  function monthItemNames(label) {
+  // 空行之间只有分类不同，所以「已存在」要按分类+名字认，不能只按名字
+  function monthItemKeys(label) {
     var set = {};
-    state.entries.forEach(function (e) { if (e.month === label) set[e.item] = true; });
+    state.entries.forEach(function (e) {
+      if (e.month === label) set[(e.category || '') + '\u0000' + (e.item || '')] = true;
+    });
     return set;
   }
 
   function billTodo(label) {
-    var exist = monthItemNames(label);
-    return billItems(label).filter(function (it) { return !exist[it.item]; });
+    var exist = monthItemKeys(label);
+    return billItems(label).filter(function (it) {
+      return !exist[it.category + '\u0000' + it.item];
+    });
   }
 
   // 默认建「最新月份的下一个月」
@@ -1998,13 +2011,13 @@ body {
 
   function renderBillPreview() {
     var label = monthInputEl.value.trim();
-    var exist = monthItemNames(label);
+    var exist = monthItemKeys(label);
 
     tplListEl.innerHTML = billItems(label).map(function (it) {
-      var done = !!exist[it.item];
+      var done = !!exist[it.category + '\u0000' + it.item];
       return '<li' + (done ? ' class="done"' : '') + '>' +
         '<span class="cat">' + esc(it.category) + '</span>' +
-        '<span class="name">' + esc(it.item) + '</span>' +
+        '<span class="name">' + (it.item ? esc(it.item) : '<i class="muted">未命名</i>') + '</span>' +
         '<span class="tag">' + (done ? '已存在' : '待创建') + '</span>' +
       '</li>';
     }).join('');
