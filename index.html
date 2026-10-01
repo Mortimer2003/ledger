@@ -91,7 +91,8 @@ body {
 
 .count { font-size: 12px; color: var(--text-3); white-space: nowrap; }
 
-.search { position: relative; flex: 1 1 150px; min-width: 110px; max-width: 240px; }
+/* 搜索框吃掉第二行的剩余宽度，否则左侧输入框和右侧按钮之间会空出一大片 */
+.search { position: relative; flex: 1 1 150px; min-width: 110px; max-width: 640px; }
 
 .search input {
   width: 100%;
@@ -142,6 +143,19 @@ body {
 
 /* 顶栏右侧一组：年份切换 + 总计。年份排在数字前面，读起来才是「先选年、再看数字」 */
 .metrics { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; }
+
+/* 「范围」（视图/年份）和「汇总」（收入/支出/净额）是两类东西，
+   用一条竖线隔开，免得一堆同款胶囊糊成一片 */
+.metrics > .sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--line-strong);
+}
+
+/* 没有年份可切时 cmp-bar 会隐藏，分隔线得跟着走，否则剩一根孤零零的竖线 */
+.metrics > .seg[hidden] + .sep { display: none; }
 
 .chip {
   display: inline-flex;
@@ -634,6 +648,10 @@ body {
 
 .seg[hidden] { display: none; }
 
+/* 年份切换降一档：只留浅底不描边。否则它和视图切换长得一模一样，
+   两个分段控件挨在一起会被读成一个「月份 / 对比 / 2026」的三段控件 */
+.seg.soft { border-color: transparent; }
+
 /* 分类能决定收支方向时，这里显示只读标签，不给切换 */
 .sign-lock {
   flex: none;
@@ -807,7 +825,8 @@ body {
           <button type="button" data-view="tree" class="active">月份</button>
           <button type="button" data-view="compare">对比</button>
         </div>
-        <div class="seg" id="cmp-bar" hidden></div>
+        <div class="seg soft" id="cmp-bar" hidden></div>
+        <div class="sep"></div>
         <div class="totals" id="totals"></div>
       </div>
     </div>
@@ -857,7 +876,7 @@ body {
   <div class="progress" id="progress"></div>
 
   <main class="tree" id="tree"></main>
-  <p class="empty" id="empty" hidden>还没有数据，点右上角「新增月份账单」开始记录。</p>
+  <p class="empty" id="empty" hidden>还没有数据，点上方「新增月份账单」开始记录。</p>
 </div>
 
 <div class="mask" id="setup" hidden>
@@ -1572,10 +1591,10 @@ body {
       if (!scoped.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
     } else if (year !== null) {
       countEl.textContent = yearName + ' · ' + scoped.length + ' 笔';
-      emptyEl.textContent = '还没有数据，点右上角「新增月份账单」开始记录。';
+      emptyEl.textContent = '还没有数据，点上方「新增月份账单」开始记录。';
     } else {
       countEl.textContent = '';
-      emptyEl.textContent = '还没有数据，点右上角「新增月份账单」开始记录。';
+      emptyEl.textContent = '还没有数据，点上方「新增月份账单」开始记录。';
     }
 
     var income = sum(scoped.filter(function (e) { return e.amount > 0; }));
