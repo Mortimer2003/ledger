@@ -176,6 +176,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .chip i { font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .tools { display: flex; gap: 6px; flex: none; }
+/* 工具区里的按钮各自设了 display，hidden 属性会被盖掉，这里统一兜住 */
+.tools > [hidden] { display: none; }
 
 .btn {
   font: inherit;
@@ -823,7 +825,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .assets-form button:hover { opacity: .88; }
 
-/* 删除按钮：贴着名字，平时淡一点，指到行上才显眼 */
+/* 删除按钮：贴着名字，平时藏起来，鼠标落到行上才浮出来 */
 .asset-del {
   flex: none;
   margin-left: 2px;
@@ -836,12 +838,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  opacity: .45;
+  opacity: 0;
+  transition: opacity .12s ease, background .12s ease, color .12s ease;
 }
+/* 平时不显，鼠标落到这一行才浮出来，别一排 × 明晃晃地杵着 */
 .cmp.assets tbody tr:hover .asset-del { opacity: 1; }
+.asset-del:focus-visible { opacity: 1; }
 .asset-del:hover { color: var(--danger); background: var(--hover); }
 
-/* 财产格：平时只显月末，双击展开「月初 + 月末」，跟预算格一个规矩 */
+/* 财产格：平时只显月末，双击展开一个输入框，跟预算格一个规矩 */
 .cmp.assets td.cmp-edit {
   position: relative;
   padding: 5px 10px;
