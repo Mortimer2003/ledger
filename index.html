@@ -622,6 +622,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .cmp.budget td.cmp-edit input::placeholder { color: var(--text-3); }
 
+/* 下月预告：只是参考、不是记录，用虚线加灰字跟真实月份分开 */
+.cmp.budget tbody tr.preview > * {
+  color: var(--text-3);
+  font-weight: 400;
+  border-top: 1px dashed var(--line-strong);
+}
+.cmp.budget tbody tr.preview .name { font-style: italic; }
+.cmp.budget tbody tr.preview:hover > * { background: var(--bg); }
+
 /* ---------- 弹窗 ---------- */
 .mask {
   position: fixed;
@@ -1740,15 +1749,20 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       prev = remain;
     }
 
-    // 只铺到最后一个「有账或有手动值」的月份，还没发生的月份不铺
+    // 只铺到最后一个「有账或有手动值」的月份；再往后一个月单独当预告
     var lastReal = -1;
     rows.forEach(function (row, i) {
       var hasEntry = entries.some(function (e) { return e.month === row.month; });
       var hasCfg = (row.cfg.specialIn || 0) !== 0 || (row.cfg.bonus || 0) !== 0;
       if (hasEntry || hasCfg) lastReal = i;
     });
-    if (lastReal === -1) return { rows: [] };
-    return { rows: rows.slice(0, lastReal + 1) };
+    if (lastReal === -1) return { rows: [], preview: null };
+    return { rows: rows.slice(0, lastReal + 1), preview: rows[lastReal + 1] || null };
+  }
+
+  function monthLabel(name) {
+    var m = /^\d{4}年(\d{1,2})月$/.exec(name);
+    return m ? Number(m[1]) + ' 月' : name;
   }
 
   function budgetCell(value) {
@@ -1778,7 +1792,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       '本月结余 = 预算 − 娱乐支出 + 特殊收入计入。' +
       '娱乐支出 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半。' +
       '法定假日按国家法定节假日天数算（国庆 3 天，不是放假 7 天）。' +
-      '「特殊收入计入」「偶发加成」双击可改。</p>';
+      '「特殊收入计入」「偶发加成」双击可改。虚线那行是下月预告，仅供参考，不算记录。</p>';
   }
 
   function renderBudget(data, year) {
@@ -1801,10 +1815,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       '<td class="cmp-total">' + budgetCell(state.budgetOpening.amount) + '</td></tr>';
 
     var body = data.rows.map(function (row) {
-      var m = /^\d{4}年(\d{1,2})月$/.exec(row.month);
-      var label = m ? Number(m[1]) + ' 月' : row.month;
       return '<tr>' +
-        '<th class="cmp-item"><span class="cell"><span class="name">' + esc(label) + '</span></span></th>' +
+        '<th class="cmp-item"><span class="cell"><span class="name">' + esc(monthLabel(row.month)) + '</span></span></th>' +
         '<td>' + (row.days ? row.days + ' 天' : '<span class="zero">—</span>') + '</td>' +
         budgetInput(row, 'specialIn') +
         budgetInput(row, 'bonus') +
@@ -1814,8 +1826,19 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       '</tr>';
     }).join('');
 
+    // 下月预告：只有预算能算出来，还没花没记，所以只填「本月预算」和结余
+    var previewRow = data.preview ? '<tr class="preview">' +
+      '<th class="cmp-item"><span class="cell"><span class="name">' +
+        esc(monthLabel(data.preview.month)) + ' 预告</span></span></th>' +
+      '<td>' + (data.preview.days ? data.preview.days + ' 天' : '<span class="zero">—</span>') + '</td>' +
+      '<td><span class="zero">—</span></td>' +
+      '<td><span class="zero">—</span></td>' +
+      '<td>' + money(data.preview.budget) + '</td>' +
+      '<td><span class="zero">—</span></td>' +
+      '<td class="cmp-total">' + money(data.preview.budget) + '</td></tr>' : '';
+
     return budgetHint() + '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
-      openingRow + body + '</tbody></table>';
+      openingRow + body + previewRow + '</tbody></table>';
   }
 
   // 顶栏读数取最后一个有数据的月份的结余
