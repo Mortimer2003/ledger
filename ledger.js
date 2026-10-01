@@ -1,6 +1,8 @@
 (function () {
   'use strict';
 
+
+  // ===== 常量 =====
   var CATEGORY_ORDER = ['常规收入', '特殊收入', '常规支出', '特殊支出', '娱乐支出'];
   var UNSET_MONTH = '未标月份';
   var UNSET_CATEGORY = '未分类';
@@ -55,6 +57,8 @@
     2026: { 1: 1, 2: 4, 4: 1, 5: 2, 6: 1, 9: 1, 10: 3 }
   };
 
+
+  // ===== 全局状态与 DOM 引用 =====
   var settings = {
     token: localStorage.getItem(KEY_TOKEN) || '',
     dataSourceId: localStorage.getItem(KEY_DS) || DEFAULT_DATA_SOURCE,
@@ -118,6 +122,8 @@
     query.get('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
   // ---------- 小工具 ----------
+
+  // ===== 工具函数 =====
   function esc(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -143,7 +149,8 @@
     return list.reduce(function (acc, e) { return acc + e.amount; }, 0);
   }
 
-  function monthLabel(date) {
+  // 传 Date，得到「2026年10月」这种规范月名；别和下面的 monthLabel（月名 → 「10 月」）混用
+  function monthName(date) {
     return date.getFullYear() + '年' + String(date.getMonth() + 1).padStart(2, '0') + '月';
   }
 
@@ -195,6 +202,8 @@
     return (data && data.message) || ('Notion 接口返回 ' + status);
   }
 
+
+  // ===== Notion API =====
   function notion(path, options, attempt) {
     options = options || {};
     attempt = attempt || 0;
@@ -326,6 +335,8 @@
   }
 
   // ---------- 本地缓存 ----------
+
+  // ===== 本地缓存 =====
   function readCache() {
     try {
       var parsed = JSON.parse(localStorage.getItem(KEY_CACHE) || 'null');
@@ -346,6 +357,8 @@
   }
 
   // ---------- 分组 ----------
+
+  // ===== 分组与筛选 =====
   function groupByMonth(entries) {
     var map = new Map();
     entries.forEach(function (e) {
@@ -471,6 +484,8 @@
     return INCOME_VIEWS.indexOf(raw) === -1 ? 'tree' : raw;
   }
 
+
+  // ===== 对比视图 =====
   function cmpYears(entries) {
     var seen = {}, years = [], other = false;
     entries.forEach(function (e) {
@@ -595,6 +610,8 @@
   }
 
   // 父级只标「收支 / 财产」，子级只标当前那一个；看财产时子级整条收起
+
+  // ===== 视图切换 =====
   function syncViewButtons() {
     var parent = state.view === 'assets' ? 'assets' : 'income';
     Array.prototype.forEach.call(document.querySelectorAll('#view-parent button'), function (btn) {
@@ -620,6 +637,8 @@
 
   // ---------- 娱乐预算 ----------
   // 数字后面跟着的那句说明，悬停时显示，双击时能改
+
+  // ===== 预算视图 =====
   function richText(value) {
     return ((value && value.rich_text) || [])
       .map(function (t) { return t.plain_text || (t.text && t.text.content) || ''; }).join('');
@@ -965,6 +984,8 @@
   var ASSET_APP_ORDER = ['招商银行', '支付宝', '微信', '公积金', '证券'];
   var ASSET_RESERVED = '公积金';
 
+
+  // ===== 财产视图 =====
   function normalizeAsset(page) {
     var props = page.properties || {};
     var title = (props['类型'] && props['类型'].title) || [];
@@ -1513,6 +1534,8 @@
   }
 
   // ---------- 渲染 ----------
+
+  // ===== 月度视图渲染 =====
   function amtCell(value, cls) {
     if (!value) return '<span class="amt zero">—</span>';
     return '<span class="amt ' + cls + '">' + signed(value) + '</span>';
@@ -1591,7 +1614,7 @@
     groupByMonth(all).forEach(function (m) {
       if (m.name !== UNSET_MONTH && options.indexOf(m.name) === -1) options.push(m.name);
     });
-    [monthLabel(nextMonth), monthLabel(today)].forEach(function (m) {
+    [monthName(nextMonth), monthName(today)].forEach(function (m) {
       if (options.indexOf(m) === -1) options.push(m);
     });
     document.getElementById('months').innerHTML = options.map(function (m) {
@@ -1690,6 +1713,8 @@
   }
 
   // ---------- 就地编辑 ----------
+
+  // ===== 就地编辑 =====
   function startEdit(id, field) {
     state.editing = { id: id, field: field };
     render();
@@ -1760,6 +1785,8 @@
   }
 
   // ---------- 数据操作 ----------
+
+  // ===== 刷新与增删 =====
   function refresh() {
     setLoading(true);
     return Promise.all([
@@ -1864,6 +1891,8 @@
     }
   }
 
+
+  // ===== 新增/编辑弹窗 =====
   function toggleNewSubInput(show) {
     var input = document.getElementById('f-sub-new');
     input.hidden = !show;
@@ -1901,7 +1930,7 @@
     }).join('');
 
     document.getElementById('modal-title').textContent = '新增一笔';
-    document.getElementById('f-month').value = prefill.month || monthLabel(new Date());
+    document.getElementById('f-month').value = prefill.month || monthName(new Date());
     document.getElementById('f-category').value = prefill.category || '常规支出';
     refreshSubOptions(prefill.sub || '');
     document.getElementById('f-item').value = '';
@@ -1976,6 +2005,8 @@
   }
 
   // ---------- 新增月份账单 ----------
+
+  // ===== 月份账单 =====
   function billMonth(label) {
     var m = /^(\d{4})年(\d{1,2})月$/.exec(label || '');
     if (!m) return null;
@@ -2022,7 +2053,7 @@
       if (monthKey(e.month) === 999999) return;
       if (latest === null || monthKey(e.month) > monthKey(latest)) latest = e.month;
     });
-    if (latest === null) return monthLabel(new Date());
+    if (latest === null) return monthName(new Date());
     var at = billMonth(latest);
     var y = at.y;
     var mo = at.mo + 1;
@@ -2129,6 +2160,8 @@
   }
 
   // ---------- 设置 ----------
+
+  // ===== 设置 =====
   function openSetup(message) {
     document.getElementById('s-token').value = settings.token;
     document.getElementById('s-ds').value = settings.dataSourceId;
@@ -2145,6 +2178,8 @@
   function closeSetup() { setupEl.hidden = true; }
 
   // ---------- 子类标签管理 ----------
+
+  // ===== 子类标签管理 =====
   function tagUsage() {
     var map = {};
     state.entries.forEach(function (e) {
