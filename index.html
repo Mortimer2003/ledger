@@ -68,13 +68,17 @@ body {
 /* ---------- 顶栏 ---------- */
 .topbar {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 7px;
   flex: none;
-  flex-wrap: wrap;
   padding: 9px var(--gutter);
   border-bottom: 1px solid var(--line);
 }
+
+/* 显式两行：第一行「看什么」，第二行「怎么操作」 */
+.bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.bar > .metrics,
+.bar > .tools { margin-left: auto; }
 
 .brand { display: flex; align-items: baseline; gap: 7px; flex: none; }
 
@@ -772,11 +776,13 @@ body {
 .toast button[hidden] { display: none; }
 
 @media (max-width: 620px) {
-  .topbar { gap: 8px 10px; }
-  .brand { order: 1; }
-  .tools { order: 2; margin-left: auto; }
-  .search { order: 3; flex: 1 1 100%; max-width: none; }
-  .metrics { order: 4; margin-left: 0; width: 100%; flex-wrap: wrap; }
+  .topbar { gap: 6px; }
+  .bar { gap: 8px 10px; }
+  .bar > .metrics,
+  .bar > .tools { margin-left: 0; }
+  .bar-tools > .tools { order: 1; }
+  .bar-tools > .search { order: 2; flex: 1 1 100%; max-width: none; }
+  .bar-info > .metrics { width: 100%; flex-wrap: wrap; }
   .amt, .row.lv1 .amt { min-width: 76px; }
   .net { min-width: 88px; }
   /* 窄屏把操作位和缩进一起收窄，缩进线靠这几个变量跟着走 */
@@ -790,55 +796,61 @@ body {
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand">
-      <h1>收支明细</h1>
-      <span class="count" id="count"></span>
-    </div>
-    <div class="search">
-      <span class="mag">
-        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor"
-             stroke-width="1.6" stroke-linecap="round">
-          <circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>
-        </svg>
-      </span>
-      <input id="search" type="search" autocomplete="off" placeholder="搜索明细 / 分类 / 金额…">
-      <button type="button" class="clear" id="search-clear" title="清除" hidden>✕</button>
-    </div>
-    <div class="metrics">
-      <div class="seg" id="cmp-bar" hidden></div>
-      <div class="totals" id="totals"></div>
-    </div>
-    <div class="tools">
-      <div class="seg view-switch" id="view-switch">
-        <button type="button" data-view="tree" class="active">月份</button>
-        <button type="button" data-view="compare">对比</button>
+    <!-- 第一行：看什么（标题/笔数 + 视图切换 + 年份 + 收入支出净额） -->
+    <div class="bar bar-info">
+      <div class="brand">
+        <h1>收支明细</h1>
+        <span class="count" id="count"></span>
       </div>
-      <button type="button" class="icon-btn" id="btn-refresh" title="重新加载">
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M13.5 8a5.5 5.5 0 0 1-9.4 3.9L2.5 10.5"/>
-          <path d="M2.5 13.5v-3h3"/>
-          <path d="M2.5 8a5.5 5.5 0 0 1 9.4-3.9L13.5 5.5"/>
-          <path d="M13.5 2.5v3h-3"/>
-        </svg>
-      </button>
-      <button type="button" class="icon-btn" id="btn-tags" title="子类标签">
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M2.5 7.2V2.5h4.7l6.3 6.3-4.7 4.7z"/>
-          <circle cx="5.4" cy="5.4" r=".9"/>
-        </svg>
-      </button>
-      <button type="button" class="icon-btn" id="btn-settings" title="设置">
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-             stroke-width="1.5" stroke-linecap="round">
-          <path d="M2 4.5h12M2 8h12M2 11.5h12"/>
-          <circle cx="5.5" cy="4.5" r="1.5" fill="var(--bg)"/>
-          <circle cx="10.5" cy="8" r="1.5" fill="var(--bg)"/>
-          <circle cx="6.5" cy="11.5" r="1.5" fill="var(--bg)"/>
-        </svg>
-      </button>
-      <button type="button" class="btn primary" id="btn-month">新增月份账单</button>
+      <div class="metrics">
+        <div class="seg view-switch" id="view-switch">
+          <button type="button" data-view="tree" class="active">月份</button>
+          <button type="button" data-view="compare">对比</button>
+        </div>
+        <div class="seg" id="cmp-bar" hidden></div>
+        <div class="totals" id="totals"></div>
+      </div>
+    </div>
+    <!-- 第二行：怎么找 / 怎么操作（搜索 + 工具 + 新增月份账单） -->
+    <div class="bar bar-tools">
+      <div class="search">
+        <span class="mag">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor"
+               stroke-width="1.6" stroke-linecap="round">
+            <circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>
+          </svg>
+        </span>
+        <input id="search" type="search" autocomplete="off" placeholder="搜索明细 / 分类 / 金额…">
+        <button type="button" class="clear" id="search-clear" title="清除" hidden>✕</button>
+      </div>
+      <div class="tools">
+        <button type="button" class="icon-btn" id="btn-refresh" title="重新加载">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13.5 8a5.5 5.5 0 0 1-9.4 3.9L2.5 10.5"/>
+            <path d="M2.5 13.5v-3h3"/>
+            <path d="M2.5 8a5.5 5.5 0 0 1 9.4-3.9L13.5 5.5"/>
+            <path d="M13.5 2.5v3h-3"/>
+          </svg>
+        </button>
+        <button type="button" class="icon-btn" id="btn-tags" title="子类标签">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2.5 7.2V2.5h4.7l6.3 6.3-4.7 4.7z"/>
+            <circle cx="5.4" cy="5.4" r=".9"/>
+          </svg>
+        </button>
+        <button type="button" class="icon-btn" id="btn-settings" title="设置">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round">
+            <path d="M2 4.5h12M2 8h12M2 11.5h12"/>
+            <circle cx="5.5" cy="4.5" r="1.5" fill="var(--bg)"/>
+            <circle cx="10.5" cy="8" r="1.5" fill="var(--bg)"/>
+            <circle cx="6.5" cy="11.5" r="1.5" fill="var(--bg)"/>
+          </svg>
+        </button>
+        <button type="button" class="btn primary" id="btn-month">新增月份账单</button>
+      </div>
     </div>
   </header>
 
@@ -1059,8 +1071,13 @@ body {
     });
   }
 
+  // 万分位：每 4 位一个逗号（52,168 写成 5,2168），一眼能读出「5万2168」
   function money(n) {
-    return Math.abs(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+    var parts = Math.abs(n)
+      .toLocaleString('zh-CN', { maximumFractionDigits: 2, useGrouping: false })
+      .split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{4})+(?!\d))/g, ',');
+    return parts.join('.');
   }
 
   function signed(n) {
