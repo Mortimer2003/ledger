@@ -657,6 +657,27 @@ body {
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
+/* ---------- 新增月份账单 ---------- */
+.tpl-list { margin: 2px 0 12px; padding: 0; list-style: none; }
+.tpl-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.tpl-list li:last-child { margin-bottom: 0; }
+.tpl-list .cat { flex: none; font-size: 12px; color: var(--text-3); }
+.tpl-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-list .tag { flex: none; font-size: 11px; color: var(--text-3); }
+.tpl-list li.done { opacity: .5; }
+.tpl-list li.done .name { text-decoration: line-through; }
+.tpl-note { margin: 0 0 10px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
+.tpl-note[hidden] { display: none; }
+
 /* ---------- 子类标签管理 ---------- */
 .tag-list { margin: 2px 0 12px; max-height: 300px; overflow: auto; }
 
@@ -816,6 +837,14 @@ body {
           <circle cx="6.5" cy="11.5" r="1.5" fill="var(--bg)"/>
         </svg>
       </button>
+      <button type="button" class="icon-btn" id="btn-month" title="新增月份账单">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3.5" width="12" height="10.5" rx="1.6"/>
+          <path d="M2 6.6h12M5.6 2v3M10.4 2v3"/>
+          <path d="M8 8.7v3.1M6.45 10.25h3.1"/>
+        </svg>
+      </button>
       <button type="button" class="btn primary" id="btn-add">新增</button>
     </div>
   </header>
@@ -919,6 +948,28 @@ body {
   </form>
 </div>
 
+<div class="mask" id="month-mask" hidden>
+  <form class="modal" id="month-form">
+    <h2>新增月份账单</h2>
+    <p class="hint">按模板一次建好该月的常规项，金额留空，之后再逐条填。</p>
+
+    <div class="field">
+      <label for="m-month">月份</label>
+      <input id="m-month" list="months" autocomplete="off" placeholder="2026年10月" required>
+    </div>
+
+    <ul class="tpl-list" id="tpl-list"></ul>
+    <p class="tpl-note" id="tpl-note" hidden></p>
+    <p class="saved-hint" id="tpl-progress" hidden></p>
+    <p class="err" id="month-err" hidden></p>
+
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" id="month-cancel">取消</button>
+      <button type="submit" class="btn primary" id="month-create">创建</button>
+    </div>
+  </form>
+</div>
+
 <div class="toast" id="toast">
   <span id="toast-msg"></span>
   <button type="button" id="toast-action" hidden></button>
@@ -934,6 +985,14 @@ body {
   var UNSET_SUB = '未分子类';
   var NEW_SUB = '__new__';
   var CMP_OTHER = '__other__';   // 对比视图里「月份解析不出年份」的那一档
+
+  // 「新增月份账单」的模板：每月固定重复的常规项。名字里的月号按目标月份生成，
+  // 房租记的是下个月（9月账单里放「10月房租」），所以用 {下月}。
+  var MONTH_TEMPLATE = [
+    { category: '常规收入', item: '{本月}工资' },
+    { category: '常规收入', item: '{本月}公积金' },
+    { category: '常规支出', item: '{下月}房租' }
+  ];
 
   var API = 'https://api.notion.com/v1';
   var NOTION_VERSION = '2025-09-03';
@@ -983,6 +1042,14 @@ body {
   var searchClearEl = document.getElementById('search-clear');
   var progressEl = document.getElementById('progress');
   var refreshBtn = document.getElementById('btn-refresh');
+  var monthMaskEl = document.getElementById('month-mask');
+  var monthInputEl = document.getElementById('m-month');
+  var tplListEl = document.getElementById('tpl-list');
+  var tplNoteEl = document.getElementById('tpl-note');
+  var tplProgressEl = document.getElementById('tpl-progress');
+  var monthErrEl = document.getElementById('month-err');
+  var monthCreateBtn = document.getElementById('month-create');
+  var monthCancelBtn = document.getElementById('month-cancel');
 
   var query = new URLSearchParams(location.search);
   document.documentElement.dataset.theme =
@@ -1881,6 +1948,152 @@ body {
     });
   }
 
+  // ---------- 新增月份账单 ----------
+  function billMonth(label) {
+    var m = /^(\d{4})年(\d{1,2})月$/.exec(label || '');
+    if (!m) return null;
+    var mo = Number(m[2]);
+    return mo >= 1 && mo <= 12 ? { y: Number(m[1]), mo: mo } : null;
+  }
+
+  // 明细项名字里的月号：{本月} 用目标月，{下月} 用目标月的下一个月；月份认不出时留个问号
+  function billItemName(tpl, label) {
+    var at = billMonth(label);
+    if (!at) return tpl.replace(/\{本月\}|\{下月\}/g, '?月');
+    var next = at.mo === 12 ? { y: at.y + 1, mo: 1 } : { y: at.y, mo: at.mo + 1 };
+    return tpl.replace(/\{本月\}/g, at.mo + '月').replace(/\{下月\}/g, next.mo + '月');
+  }
+
+  function billItems(label) {
+    return MONTH_TEMPLATE.map(function (t) {
+      return { category: t.category, item: billItemName(t.item, label) };
+    });
+  }
+
+  function monthItemNames(label) {
+    var set = {};
+    state.entries.forEach(function (e) { if (e.month === label) set[e.item] = true; });
+    return set;
+  }
+
+  function billTodo(label) {
+    var exist = monthItemNames(label);
+    return billItems(label).filter(function (it) { return !exist[it.item]; });
+  }
+
+  // 默认建「最新月份的下一个月」
+  function nextBillMonth() {
+    var latest = null;
+    state.entries.forEach(function (e) {
+      if (monthKey(e.month) === 999999) return;
+      if (latest === null || monthKey(e.month) > monthKey(latest)) latest = e.month;
+    });
+    if (latest === null) return monthLabel(new Date());
+    var at = billMonth(latest);
+    var y = at.y;
+    var mo = at.mo + 1;
+    if (mo > 12) { mo = 1; y += 1; }
+    return y + '年' + String(mo).padStart(2, '0') + '月';
+  }
+
+  function renderBillPreview() {
+    var label = monthInputEl.value.trim();
+    var exist = monthItemNames(label);
+
+    tplListEl.innerHTML = billItems(label).map(function (it) {
+      var done = !!exist[it.item];
+      return '<li' + (done ? ' class="done"' : '') + '>' +
+        '<span class="cat">' + esc(it.category) + '</span>' +
+        '<span class="name">' + esc(it.item) + '</span>' +
+        '<span class="tag">' + (done ? '已存在' : '待创建') + '</span>' +
+      '</li>';
+    }).join('');
+
+    var total = state.entries.filter(function (e) { return e.month === label; }).length;
+    tplNoteEl.hidden = !total;
+    tplNoteEl.textContent = total
+      ? '该月已有 ' + total + ' 条记录，模板里同名的项会自动跳过。'
+      : '';
+
+    if (!billMonth(label)) {
+      monthErrEl.hidden = false;
+      monthErrEl.textContent = '月份要能认出年月，才能生成「10月工资」这样的名字。请按 2026年10月 的格式填写。';
+      monthCreateBtn.textContent = '创建';
+      monthCreateBtn.disabled = true;
+      return;
+    }
+
+    monthErrEl.hidden = true;
+    var todo = billTodo(label);
+    monthCreateBtn.textContent = todo.length ? '创建 ' + todo.length + ' 项' : '无需创建';
+    monthCreateBtn.disabled = !todo.length;
+  }
+
+  function openMonthBill() {
+    monthInputEl.value = nextBillMonth();
+    tplProgressEl.hidden = true;
+    monthCreateBtn.disabled = false;
+    renderBillPreview();
+    monthMaskEl.hidden = false;
+    setTimeout(function () { monthInputEl.focus(); }, 0);
+  }
+
+  function closeMonthBill() { monthMaskEl.hidden = true; }
+
+  function createMonthBill() {
+    var label = monthInputEl.value.trim();
+    if (!billMonth(label)) return renderBillPreview();
+    var todo = billTodo(label);
+    if (!todo.length) { toast('该月的模板项都已存在'); return; }
+
+    monthErrEl.hidden = true;
+    monthCreateBtn.disabled = true;
+    monthCancelBtn.disabled = true;
+    setLoading(true);
+
+    var created = [];
+    var failed = null;
+
+    function step(i) {
+      if (i >= todo.length) return Promise.resolve();
+      tplProgressEl.hidden = false;
+      tplProgressEl.textContent = '正在创建 ' + (i + 1) + '/' + todo.length + ' 项…';
+      return notion('/pages', {
+        method: 'POST',
+        body: JSON.stringify({
+          parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
+          // 金额留空：不传 number，之后自己填
+          properties: buildProps({
+            item: todo[i].item, amount: null, category: todo[i].category, sub: null, month: label
+          })
+        })
+      }).then(function (page) {
+        created.push(normalize(page));
+        return step(i + 1);
+      }).catch(function (err) { failed = err; });
+    }
+
+    step(0).then(function () {
+      created.forEach(function (entry) { state.entries.push(entry); expandPath(entry); });
+      if (created.length) { writeCache(); render(); }
+      setLoading(false);
+      monthCancelBtn.disabled = false;
+      tplProgressEl.hidden = true;
+
+      if (failed) {
+        // 先重画预览（它会清掉错误行），再写失败提示
+        // 已建好的会按名字被认成「已存在」，所以再点一次只会补剩下的，不会重复
+        renderBillPreview();
+        monthErrEl.hidden = false;
+        monthErrEl.textContent = '创建失败：' + failed.message +
+          (created.length ? '（已成功 ' + created.length + ' 项，再点一次「创建」可补齐剩下的）' : '');
+        return;
+      }
+      closeMonthBill();
+      toast('已建好 ' + label + ' 的账单，共 ' + created.length + ' 项，金额留空待填');
+    });
+  }
+
   // ---------- 设置 ----------
   function openSetup(message) {
     document.getElementById('s-token').value = settings.token;
@@ -2236,9 +2449,21 @@ body {
     if (event.target === modalEl) closeEditor();
   });
 
+  document.getElementById('btn-month').addEventListener('click', openMonthBill);
+  monthCancelBtn.addEventListener('click', closeMonthBill);
+  monthInputEl.addEventListener('input', renderBillPreview);
+  monthMaskEl.addEventListener('click', function (event) {
+    if (event.target === monthMaskEl) closeMonthBill();
+  });
+  document.getElementById('month-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    createMonthBill();
+  });
+
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
       if (!modalEl.hidden) closeEditor();
+      else if (!monthMaskEl.hidden) closeMonthBill();
       else if (!tagsEl.hidden) closeTags();
       else if (!setupEl.hidden) closeSetup();
       else if (state.search) {
