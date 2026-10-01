@@ -1,0 +1,1130 @@
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f7f7f5;
+  --text: #37352f;
+  --text-2: #787774;
+  --text-3: #9b9a97;
+  --line: rgba(55, 53, 47, .09);
+  --line-strong: rgba(55, 53, 47, .16);
+  --hover: rgba(55, 53, 47, .055);
+  /* 对比表里吸顶/吸左的单元格必须是实色，半透明底色会让下层内容透出来 */
+  --row-hover: #f1f1ef;
+  --accent: #2383e2;
+  /* 金额配色按国内习惯「红涨绿跌」：收入红、支出绿。
+     与「危险操作」的红分开命名，避免删按钮、报错提示跟着一起变绿 */
+  --gain: #d44c47;
+  --loss: #0f7b6c;
+  --danger: #d44c47;
+  --shadow: 0 1px 2px rgba(15, 15, 15, .05), 0 6px 16px rgba(15, 15, 15, .05);
+  --radius: 8px;
+  /* 金额列的层级缩进：--tail 是右侧操作位宽度，缩进线的位置由这几个值算出来 */
+  --tail: 46px;
+  --ind-sub: 12px;
+  --ind-leaf: 24px;
+  --row-half: 16px;  /* 子类行高的一半：明细竖线从这里起，接在子类的拐角上 */
+  /* 金额右缘的位置（从行右边缘算起）= 行内边距 8px + 操作位 --tail + 两者的 8px 间距。
+     竖线就压在这条线上：S2（子类层）对齐分类金额的右缘，S3（明细层）对齐子类金额的右缘 */
+  --x2: calc(16px + var(--tail));
+  --x3: calc(16px + var(--tail) + var(--ind-sub));
+  /* 正文列最大宽度：屏幕再宽，标题和金额也不会被拉开 */
+  --col: 960px;
+  --gutter: max(14px, calc((100% - var(--col)) / 2));
+}
+
+[data-theme="dark"] {
+  --bg: #191919;
+  --bg-soft: #202020;
+  --text: #e6e6e5;
+  --text-2: #9b9b98;
+  --text-3: #7a7a77;
+  --line: rgba(255, 255, 255, .094);
+  --line-strong: rgba(255, 255, 255, .16);
+  --hover: rgba(255, 255, 255, .055);
+  --row-hover: #262626;
+  --accent: #529cca;
+  --gain: #ff7369;
+  --loss: #4dab9a;
+  --danger: #ff7369;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 16px rgba(0, 0, 0, .32);
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { display: flex; flex-direction: column; height: 100%; }
+
+/* 数字输入框不要浏览器自带的上下步进按钮 */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: none;
+  padding: 9px var(--gutter);
+  border-bottom: 1px solid var(--line);
+}
+
+/* 显式两行：第一行「看什么」，第二行「怎么操作」 */
+.bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.bar > .metrics,
+.bar > .tools { margin-left: auto; }
+
+.brand { display: flex; align-items: baseline; gap: 7px; flex: none; }
+
+.brand h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+
+.count { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+
+/* 搜索框吃掉第二行的剩余宽度，否则左侧输入框和右侧按钮之间会空出一大片 */
+.search { position: relative; flex: 1 1 150px; min-width: 110px; max-width: 640px; }
+
+.search input {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 24px 5px 26px;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color .12s ease;
+}
+
+.search input:focus { border-color: var(--accent); }
+.search input::placeholder { color: var(--text-3); }
+
+.search .mag {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+  display: flex;
+}
+
+.search .clear {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.search .clear:hover { background: var(--line); color: var(--text); }
+.search .clear[hidden] { display: none; }
+
+.totals { display: flex; gap: 6px; }
+
+/* 顶栏右侧一组：年份切换 + 总计。年份排在数字前面，读起来才是「先选年、再看数字」 */
+.metrics { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; }
+
+/* 「范围」（视图/年份）和「汇总」（收入/支出/净额）是两类东西，
+   用一条竖线隔开，免得一堆同款胶囊糊成一片 */
+.metrics > .sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--line-strong);
+}
+
+/* 没有年份可切时 cmp-bar 会隐藏，分隔线得跟着走，否则剩一根孤零零的竖线 */
+.metrics > .seg[hidden] + .sep { display: none; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chip b { font-weight: 500; color: var(--text-2); }
+.chip i { font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.tools { display: flex; gap: 6px; flex: none; }
+
+.btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s ease, opacity .12s ease;
+}
+
+.btn.ghost { color: var(--text-2); border-color: var(--line-strong); background: transparent; }
+.btn.ghost:hover { background: var(--hover); }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover { opacity: .88; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+
+.icon-btn:hover { background: var(--hover); color: var(--text); }
+.icon-btn.spin svg { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- 加载条 ---------- */
+.progress { position: relative; flex: none; height: 2px; overflow: hidden; }
+.progress::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background: var(--accent);
+  opacity: 0;
+  transform: translateX(-100%);
+}
+.progress.active::after { opacity: .85; animation: slide 1.1s ease-in-out infinite; }
+@keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
+
+/* ---------- 树 ---------- */
+.tree {
+  flex: 1;
+  overflow: auto;
+  padding: 10px var(--gutter) 28px;
+  /* 隐藏滚动条，但保留滚动能力 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tree::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+.empty { margin: 40px 0; text-align: center; color: var(--text-3); font-size: 13px; }
+.empty[hidden] { display: none; }
+
+.node { margin-bottom: 6px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  user-select: none;
+}
+
+.row:hover { background: var(--hover); }
+
+.row.lv1 { background: var(--bg-soft); padding: 8px 10px; margin-top: 10px; }
+.row.lv1 .name { font-size: 14.5px; font-weight: 600; }
+.row.lv2 .name { font-size: 13.5px; font-weight: 500; }
+.row.lv3 .name { font-size: 13.5px; color: var(--text-2); }
+
+.chev {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--text-3);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transform-origin: 2px 50%;
+  transition: transform .15s ease;
+}
+
+.chev.open { transform: rotate(90deg); }
+
+.row .name { flex: none; }
+.spacer { flex: 1; }
+
+.amt {
+  flex: none;
+  min-width: 92px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.row.lv1 .amt { min-width: 96px; font-weight: 500; }
+
+/* 金额分三级：分类(汇总) > 子类(小计) > 明细，字号和字重逐级递减 */
+.row.lv2 .amt { font-size: 14.5px; font-weight: 600; }
+.row.lv3 .amt { font-size: 13.5px; font-weight: 500; }
+
+/* 金额按层级向左收进：分类贴右边缘，子类收 12px，明细收 24px。
+   同层仍然严格右对齐，跨层错开，这样层级在金额列上直接可见 */
+.row.lv3 .amt { margin-right: var(--ind-sub); }
+
+/* ---------- 缩进线 ----------
+   金额列上有两根竖线：S2 在子类层，S3 在明细层；分类层是最外层，不画线。
+   关键点：子类的竖线画在「子类节点」上、纵向贯穿整块（子类行 + 它下面的明细），
+   而不是逐行画——所以内层条目不会把外层竖线切断。 */
+.row.lv3, .leaf { position: relative; }
+.node.sub { position: relative; }
+
+/* S2：子类层的竖线，贯穿整个子类节点。上下各探 3px，补掉节点之间 6px 的间距 */
+.node.sub::after {
+  content: "";
+  position: absolute;
+  right: var(--x2);
+  width: 1px;
+  top: -3px;
+  bottom: -3px;
+  background: var(--line-strong);
+  pointer-events: none;
+}
+
+/* 首位子类不向上探：上面是分类行，探出去会戳进分类的金额数字里 */
+.children > .node.sub:first-child::after { top: 0; }
+
+/* 末位子类：竖线收到本行中线，收成 └─ 而不是一直戳到底 */
+.children > .node.sub:last-child::after { bottom: calc(100% - var(--row-half)); }
+
+/* S2：分类直接挂明细（中间没有子类）时，明细自己就挂在子类层这根竖线上 */
+.leaf-cat::after {
+  content: "";
+  position: absolute;
+  right: var(--x2);
+  width: 1px;
+  top: 0;
+  bottom: 0;
+  background: var(--line-strong);
+  pointer-events: none;
+}
+.leaf-cat:last-child::after { bottom: 50%; }
+
+/* S3：明细层的竖线，贯穿该子类下的明细。首条从本行顶部起——
+   不能往上探进子类行：两级竖线本来就不在同一列，探上去只会横穿子类的金额数字 */
+.leaf-sub::after {
+  content: "";
+  position: absolute;
+  right: var(--x3);
+  width: 1px;
+  top: 0;
+  bottom: 0;
+  background: var(--line-strong);
+  pointer-events: none;
+}
+.leaf-sub:last-child::after { bottom: 50%; }
+
+/* 横向短杠：从金额右缘连到竖线，构成 ─┤ 的拐角 */
+.row.lv3::before,
+.leaf::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  height: 1px;
+  background: var(--line-strong);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/* 横杠从竖线一直连到本行金额的右缘，长度正好是一个缩进步长 */
+.row.lv3::before { right: var(--x2); width: var(--ind-sub); }
+.leaf-sub::before { right: var(--x3); width: var(--ind-sub); }
+/* 分类直接挂明细：中间少了一级，横杠要跨过整个子类层再连到金额 */
+.leaf-cat::before {
+  right: var(--x2);
+  width: var(--ind-leaf);
+}
+
+/* 右侧操作位固定宽度：不管行里有没有按钮，金额右边缘都对齐 */
+.tail {
+  flex: none;
+  min-width: var(--tail);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.net {
+  flex: none;
+  min-width: 108px;
+  text-align: right;
+  font-size: 12.5px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.pos { color: var(--gain); }
+.neg { color: var(--loss); }
+.zero { color: var(--text-3); }
+
+.icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease, background .12s ease;
+}
+
+.row:hover .icon { opacity: 1; }
+.icon:hover { background: var(--line); color: var(--text); }
+
+.children { margin-left: 13px; padding-left: 9px; border-left: 1px solid var(--line); }
+.children.hidden { display: none; }
+
+/* ---------- 明细行 ---------- */
+.leaf { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; }
+.leaf:hover { background: var(--hover); }
+
+.bullet { flex: none; width: 4px; height: 4px; border-radius: 50%; background: var(--line-strong); }
+.leaf .name { flex: none; font-size: 13.5px; }
+.leaf .amt { font-size: 13px; font-weight: 400; margin-right: var(--ind-leaf); }
+
+/* 双击就地编辑：标题输入框吃掉整段空白，金额输入框占住原来的列 */
+.leaf .ie {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+
+/* 就地编辑时金额也要保持在同一条缩进线上，否则双击的瞬间数字会跳位 */
+.leaf .ie-amt {
+  flex: none;
+  width: 92px;
+  margin-right: var(--ind-leaf);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.muted { color: var(--text-3); font-style: normal; }
+
+.leaf mark { background: rgba(35, 131, 226, .18); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+.ops {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+
+.leaf:hover .ops,
+.ops.pinned { opacity: 1; }
+
+.op {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 7px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.op:hover { background: var(--line); color: var(--text); }
+.op.danger { color: var(--danger); }
+.confirm { font-size: 12px; color: var(--text-2); }
+
+/* ---------- 视图切换 ---------- */
+.view-switch { flex: none; }
+
+/* ---------- 对比视图 ---------- */
+/* 对比表要横向铺开，去掉两侧留白，让月份列尽量占满窗口 */
+.tree.compare { padding: 0 0 28px; }
+
+.cmp {
+  border-collapse: separate;   /* sticky 表头/首列必须配 separate，collapse 下会错位 */
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+  font-size: 13px;
+}
+
+.cmp th,
+.cmp td {
+  padding: 6px 10px;
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 表头吸顶 */
+.cmp thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line-strong);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* 月份表头折成两行，列宽能压到一半 */
+.cmp thead .cmp-month .yr { display: block; font-size: 10.5px; font-weight: 400; color: var(--text-3); }
+.cmp thead .cmp-month .mo { display: block; font-size: 12.5px; color: var(--text-2); }
+
+/* 首列：项目名吸左 */
+.cmp .cmp-item {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-width: 132px;
+  text-align: left;
+  border-right: 1px solid var(--line);
+}
+
+/* 合计列吸右 */
+.cmp .cmp-total {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  min-width: 92px;
+  border-left: 1px solid var(--line-strong);
+  font-weight: 500;
+}
+
+/* 四个角上的单元格同时吸两个方向，压在所有内容之上 */
+.cmp thead .cmp-item,
+.cmp thead .cmp-total { z-index: 4; }
+
+.cmp .cmp-month { min-width: 62px; }
+
+.cmp .cmp-item .cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cmp .cmp-item .name { white-space: nowrap; }
+.cmp .chev.ghost { visibility: hidden; }
+.cmp .indent { flex: none; width: 11px; }
+
+/* 吸顶/吸左的单元格必须是实色，否则滚动时下层内容会透出来 */
+.cmp tbody th,
+.cmp tbody td { background: var(--bg); }
+.cmp tbody tr.cmp-cat th,
+.cmp tbody tr.cmp-cat td { background: var(--bg-soft); }
+.cmp tbody tr.cmp-cat td { font-weight: 600; }
+.cmp tbody tr.cmp-cat .name { font-size: 13.5px; font-weight: 600; }
+.cmp tbody tr.cmp-sub td { font-size: 12.5px; font-weight: 500; }
+.cmp tbody tr.cmp-sub .name { font-size: 13px; color: var(--text-2); }
+.cmp tbody tr.cmp-net th,
+.cmp tbody tr.cmp-net td {
+  background: var(--bg-soft);
+  font-weight: 600;
+  border-top: 1px solid var(--line-strong);
+}
+.cmp tbody tr.cmp-cat.is-toggle { cursor: pointer; }
+.cmp tbody tr:hover th,
+.cmp tbody tr:hover td { background: var(--row-hover); }
+
+/* ---------- 预算视图 ---------- */
+/* 顶栏那颗读数跟收入/支出/净额不是一类东西（前者是预算状态，后者是年度合计），描个边区分开 */
+.chip.budget { border: 1px solid var(--line); }
+
+/* 底部多留一块：说明气泡和编辑面板都挂在格子下方，留白不够会被裁掉 */
+.tree.budget { padding: 0 0 110px; }
+
+.budget-hint {
+  margin: 0;
+  padding: 10px 14px 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.cmp.budget th,
+.cmp.budget td { padding: 5px 10px; }
+
+.cmp.budget tbody tr.cmp-open th,
+.cmp.budget tbody tr.cmp-open td {
+  background: var(--bg-soft);
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.cmp.budget tbody tr.cmp-open .cmp-total { color: var(--text); }
+
+/* 双击才进编辑：平时是纯文本，双击后原地变成输入框 */
+.cmp.budget td.cmp-edit,
+.cmp.budget td.cmp-spend {
+  position: relative;   /* 说明气泡和编辑面板都相对这一格定位 */
+  padding: 5px 10px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cmp.budget td.cmp-edit[data-budget-open] { cursor: text; }
+
+.cmp.budget td.cmp-edit[data-budget-open]:hover { box-shadow: inset 0 0 0 1px var(--line); }
+
+.cmp.budget td.cmp-edit input {
+  width: 84px;
+  padding: 3px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+}
+
+.cmp.budget td.cmp-edit input::placeholder { color: var(--text-3); }
+
+/* 有说明的格子：数字下加一道虚线，提示这里能悬停看明细 */
+.cmp.budget td.cmp-edit.has-note .v {
+  border-bottom: 1px dotted var(--text-3);
+  cursor: help;
+}
+
+/* 「本月花销」不可编辑，但数字下同样有虚线：悬停能看娱乐和特殊各占多少 */
+.cmp.budget td.cmp-spend .v {
+  border-bottom: 1px dotted var(--text-3);
+  cursor: help;
+}
+
+.cmp.budget td.cmp-edit .tip,
+.cmp.budget td.cmp-spend .tip {
+  position: absolute;
+  right: 0;
+  top: calc(100% - 1px);
+  z-index: 5;
+  width: max-content;
+  max-width: 240px;
+  padding: 6px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-soft);
+  box-shadow: var(--shadow);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .12s ease;
+  pointer-events: none;
+}
+
+.cmp.budget td.cmp-edit.has-note:hover .tip,
+.cmp.budget td.cmp-spend:hover .tip { opacity: 1; visibility: visible; }
+
+/* 编辑面板：数字 + 说明两行，浮在格子下方 */
+.cmp.budget td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
+
+.cmp.budget td.cmp-edit .editor {
+  position: absolute;
+  right: 0;
+  top: calc(100% - 1px);
+  z-index: 6;
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.cmp.budget td.cmp-edit .editor label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.cmp.budget td.cmp-edit .editor label:last-child { margin-bottom: 0; }
+
+.cmp.budget td.cmp-edit .editor label > span {
+  flex: none;
+  width: 26px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.cmp.budget td.cmp-edit .editor input[data-budget-note] {
+  width: 190px;
+  text-align: left;
+}
+
+/* 下月预告：只是参考、不是记录，用虚线加灰字跟真实月份分开 */
+.cmp.budget tbody tr.preview > * {
+  color: var(--text-3);
+  font-weight: 400;
+  border-top: 1px dashed var(--line-strong);
+}
+.cmp.budget tbody tr.preview .name { font-style: italic; }
+.cmp.budget tbody tr.preview:hover > * { background: var(--bg); }
+
+/* ---------- 财产视图 ---------- */
+/* 跟对比视图一样要横向铺开，两侧留白去掉 */
+.tree.assets { padding: 0 0 28px; }
+
+.assets-hint {
+  margin: 0;
+  padding: 10px 14px 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* 总计行：跟分类行一样压深一档，再往上收一条实线，跟明细断开 */
+.cmp.assets tbody tr.assets-sum th,
+.cmp.assets tbody tr.assets-sum td {
+  background: var(--bg-soft);
+  font-weight: 600;
+  border-top: 1px solid var(--line-strong);
+}
+.cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
+
+/* 环比行：派生数，不是资产本身，压灰一档 */
+.cmp.assets tbody tr.assets-delta th,
+.cmp.assets tbody tr.assets-delta td {
+  color: var(--text-2);
+  font-weight: 500;
+}
+.cmp.assets tbody tr.assets-delta .name { font-size: 13px; color: var(--text-2); }
+
+/* 工具条：左边进度、右边功能按钮，跟顶栏按钮一个调子。预算/财产两个视图共用 */
+.view-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 10px;
+}
+.view-bar-tools { display: flex; gap: 8px; margin-left: auto; }
+.view-bar .tool {
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.view-bar .tool:hover { background: var(--hover); color: var(--text); }
+/* 展开状态高亮，一眼看出「说明」是不是开着 */
+.view-bar .tool[aria-expanded="true"] { background: var(--hover); color: var(--text); }
+.view-progress { color: var(--text-3); font-size: 12px; }
+.view-progress[hidden] { display: none; }
+
+/* 说明面板：默认收起，点工具条上的「说明」才展开 */
+.hint-panel[hidden] { display: none; }
+
+/* 新增表单：一行摆开，回车就提交，Esc 取消 */
+.assets-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 14px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+.assets-form label { display: flex; align-items: center; gap: 6px; }
+.assets-form label > span { color: var(--text-3); font-size: 12px; }
+.assets-form input {
+  width: 112px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.assets-form input:focus { border-color: var(--accent); }
+.assets-form-tip { color: var(--text-3); font-size: 12px; }
+.assets-form button {
+  padding: 4px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.assets-form button[data-asset-form-save] {
+  border-color: transparent;
+  background: var(--accent);
+  color: #fff;
+}
+.assets-form button:hover { opacity: .88; }
+
+/* 删除按钮：贴着名字，平时淡一点，指到行上才显眼 */
+.asset-del {
+  flex: none;
+  margin-left: 2px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: .45;
+}
+.cmp.assets tbody tr:hover .asset-del { opacity: 1; }
+.asset-del:hover { color: var(--danger); background: var(--hover); }
+
+/* 财产格：平时只显月末，双击展开「月初 + 月末」，跟预算格一个规矩 */
+.cmp.assets td.cmp-edit {
+  position: relative;
+  padding: 5px 10px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cmp.assets td.cmp-edit[data-asset-open] { cursor: text; }
+.cmp.assets td.cmp-edit[data-asset-open]:hover { box-shadow: inset 0 0 0 1px var(--line); }
+.cmp.assets td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
+.cmp.assets td.cmp-edit input {
+  width: 84px;
+  padding: 3px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+}
+.cmp.assets td.cmp-edit input::placeholder { color: var(--text-3); }
+.cmp.assets td.cmp-edit .editor {
+  position: absolute;
+  right: 0;
+  top: calc(100% - 1px);
+  z-index: 6;
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+.cmp.assets td.cmp-edit .editor label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.cmp.assets td.cmp-edit .editor label:last-child { margin-bottom: 0; }
+.cmp.assets td.cmp-edit .editor label > span {
+  flex: none;
+  width: 26px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* ---------- 弹窗 ---------- */
+.mask {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 15, 15, .4);
+  z-index: 20;
+}
+
+.mask[hidden] { display: none; }
+
+.modal {
+  width: 100%;
+  max-width: 380px;
+  max-height: 100%;
+  overflow: auto;
+  padding: 18px 20px 16px;
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.modal h2 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+.hint { margin: 0 0 14px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
+.err { margin: 10px 0 0; font-size: 12px; color: var(--danger); word-break: break-all; }
+.err[hidden] { display: none; }
+
+.field { margin-bottom: 12px; }
+.field label { display: block; margin-bottom: 5px; font-size: 12px; color: var(--text-2); }
+.field .opt { margin-left: 4px; color: var(--text-3); }
+
+.field input,
+.field select {
+  width: 100%;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 7px 9px;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  outline: none;
+}
+
+.field input:focus,
+.field select:focus { border-color: var(--accent); }
+
+.sub-row { display: flex; gap: 8px; }
+.sub-row select { flex: 1; min-width: 0; }
+.sub-row input { flex: 1; min-width: 0; }
+.sub-row input[hidden] { display: none; }
+
+.amount-row { display: flex; gap: 8px; }
+.amount-row input { flex: 1; min-width: 0; }
+
+.seg {
+  display: flex;
+  flex: none;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+}
+
+.seg button {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.seg button.active {
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(15, 15, 15, .08);
+}
+
+.seg[hidden] { display: none; }
+
+/* 两级视图：父级「收支 / 财产」是标准胶囊；子级「月度 / 对比 / 预算」小一号、边框更浅，
+   一眼看出是下一层，也不跟后面无边框的年份胶囊混成一条 */
+.seg.sub { border-color: var(--line); }
+.seg.sub button { font-size: 12.5px; padding: 3px 10px; }
+
+/* 年份切换降一档：只留浅底不描边。否则它和视图切换长得一模一样，
+   两个分段控件挨在一起会被读成一个「月份 / 对比 / 2026」的三段控件 */
+.seg.soft { border-color: transparent; }
+
+/* 分类能决定收支方向时，这里显示只读标签，不给切换 */
+.sign-lock {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sign-lock[hidden] { display: none; }
+.sign-lock.pos { color: var(--gain); }
+.sign-lock.neg { color: var(--loss); }
+
+.saved-hint {
+  margin: 12px 0 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  font-size: 12px;
+  color: var(--text-2);
+}
+.saved-hint[hidden] { display: none; }
+
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* ---------- 新增月份账单 ---------- */
+.tpl-list { margin: 2px 0 12px; padding: 0; list-style: none; }
+.tpl-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.tpl-list li:last-child { margin-bottom: 0; }
+.tpl-list .cat { flex: none; font-size: 12px; color: var(--text-3); }
+.tpl-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-list .tag { flex: none; font-size: 11px; color: var(--text-3); }
+.tpl-list li.done { opacity: .5; }
+.tpl-list li.done .name { text-decoration: line-through; }
+.tpl-note { margin: 0 0 10px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
+.tpl-note[hidden] { display: none; }
+
+/* ---------- 子类标签管理 ---------- */
+.tag-list { margin: 2px 0 12px; max-height: 300px; overflow: auto; }
+
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.tag-row:hover { background: var(--hover); }
+.tag-row .tag-name { flex: none; font-size: 13.5px; }
+.tag-row .tag-count { flex: none; font-size: 12px; color: var(--text-3); }
+.tag-row .confirm { margin-left: auto; }
+
+.tag-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 3px 7px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  outline: none;
+}
+
+.tag-empty { margin: 0 0 12px; font-size: 12.5px; color: var(--text-3); }
+.tag-empty[hidden] { display: none; }
+
+.tag-new { display: flex; gap: 8px; }
+
+.tag-new input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 7px 9px;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  outline: none;
+}
+
+.tag-new input:focus { border-color: var(--accent); }
+
+.tag-status { margin: 10px 0 0; font-size: 12px; color: var(--text-2); }
+.tag-status[hidden] { display: none; }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: #2f2f2e;
+  color: #fff;
+  font-size: 13px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 10px);
+  transition: opacity .18s ease, transform .18s ease;
+  z-index: 40;
+}
+
+.toast.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.toast.error { background: var(--danger); }
+
+.toast button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .16);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toast button:hover { background: rgba(255, 255, 255, .28); }
+.toast button[hidden] { display: none; }
+
+@media (max-width: 620px) {
+  .topbar { gap: 6px; }
+  .bar { gap: 8px 10px; }
+  .bar > .metrics,
+  .bar > .tools { margin-left: 0; }
+  .bar-tools > .tools { order: 1; }
+  .bar-tools > .search { order: 2; flex: 1 1 100%; max-width: none; }
+  .bar-info > .metrics { width: 100%; flex-wrap: wrap; }
+  .amt, .row.lv1 .amt { min-width: 76px; }
+  .net { min-width: 88px; }
+  /* 窄屏把操作位和缩进一起收窄，缩进线靠这几个变量跟着走 */
+  :root { --tail: 30px; --ind-sub: 8px; --ind-leaf: 16px; }
+  .view-switch button { padding: 4px 8px; }
+  .cmp .cmp-item { min-width: 104px; }
+  .cmp .cmp-total { min-width: 78px; }
+}
