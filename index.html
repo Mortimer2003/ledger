@@ -565,6 +565,61 @@ body {
 .cmp tbody tr:hover th,
 .cmp tbody tr:hover td { background: var(--row-hover); }
 
+/* ---------- 预算视图 ---------- */
+/* 顶栏那颗读数跟收入/支出/净额不是一类东西（前者是预算状态，后者是年度合计），描个边区分开 */
+.chip.budget { border: 1px solid var(--line); }
+
+.tree.budget { padding: 0 0 28px; }
+
+.budget-hint {
+  margin: 0;
+  padding: 10px 14px 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.cmp.budget th,
+.cmp.budget td { padding: 5px 10px; }
+
+.cmp.budget tbody tr.cmp-open th,
+.cmp.budget tbody tr.cmp-open td {
+  background: var(--bg-soft);
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.cmp.budget tbody tr.cmp-open .cmp-total { color: var(--text); }
+
+.cmp.budget tbody tr.forecast th,
+.cmp.budget tbody tr.forecast td,
+.cmp.budget tbody tr.forecast .cmp-total { color: var(--text-3); }
+
+/* 可编辑格平时跟普通单元格一样，悬停浮出边框，聚焦才显形 */
+.cmp.budget td.cmp-edit { padding: 2px 5px; }
+
+.cmp.budget td.cmp-edit input {
+  width: 84px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.cmp.budget td.cmp-edit input:hover { border-color: var(--line); }
+
+.cmp.budget td.cmp-edit input:focus {
+  border-color: var(--accent);
+  background: var(--bg);
+  outline: none;
+}
+
+.cmp.budget td.cmp-edit input::placeholder { color: var(--text-3); }
+
 /* ---------- 弹窗 ---------- */
 .mask {
   position: fixed;
@@ -828,6 +883,7 @@ body {
         <div class="seg view-switch" id="view-switch">
           <button type="button" data-view="tree" class="active">月份</button>
           <button type="button" data-view="compare">对比</button>
+          <button type="button" data-view="budget">预算</button>
         </div>
         <div class="seg soft" id="cmp-bar" hidden></div>
         <div class="sep"></div>
@@ -897,6 +953,10 @@ body {
     <div class="field">
       <label for="s-ds">数据源 ID</label>
       <input id="s-ds" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="s-budget">娱乐预算数据源 ID <span class="opt">可选</span></label>
+      <input id="s-budget" autocomplete="off" spellcheck="false">
     </div>
     <p class="err" id="s-err" hidden></p>
     <div class="modal-actions">
@@ -1034,11 +1094,29 @@ body {
   var KEY_CACHE = 'ledger.cache';
   var KEY_VIEW = 'ledger.view';
   var KEY_CMP_YEAR = 'ledger.cmpYear';
+  var KEY_BUDGET_DS = 'ledger.budgetSourceId';
+  var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
   var MAX_RETRY = 3;
+
+  // ---------- 娱乐预算 ----------
+  // 每月 1500 打底，每个法定节假日再加 100，结余（含超支）逐月往后累加。
+  // 「法定假日」记的是国家法定节假日天数，不是放假调休天数——国庆记 3 天不是 7 天。
+  var BUDGET_BASE = 1500;
+  var BUDGET_PER_HOLIDAY = 100;
+  // 特殊支出本来就是为娱乐花的，一半计入娱乐预算，沿用原来的手算口径
+  var SPECIAL_SHARE = 0.5;
+  // 链条起点：2026年6月末的结余，值存在「娱乐预算」数据源的「期初」行
+  var OPENING_MONTH = '2026年06月';
+  var OPENING_TITLE = '期初';
+  // 每年国务院公布次年放假安排后补一行。只记法定节假日天数。
+  var HOLIDAY_DAYS = {
+    2026: { 1: 1, 2: 4, 4: 1, 5: 2, 6: 1, 9: 1, 10: 3 }
+  };
 
   var settings = {
     token: localStorage.getItem(KEY_TOKEN) || '',
-    dataSourceId: localStorage.getItem(KEY_DS) || DEFAULT_DATA_SOURCE
+    dataSourceId: localStorage.getItem(KEY_DS) || DEFAULT_DATA_SOURCE,
+    budgetSourceId: localStorage.getItem(KEY_BUDGET_DS) || DEFAULT_BUDGET_DS
   };
 
   var state = {
@@ -1046,7 +1124,9 @@ body {
     expanded: {},   // 记录手动展开的节点，默认全部收起
     cmpCollapsed: {}, // 对比视图里收起的分类（默认展开）
     cmpYear: readCmpYear(), // 对比视图当前看哪一年；null = 跟随最新年份
-    view: localStorage.getItem(KEY_VIEW) === 'compare' ? 'compare' : 'tree',
+    view: readView(),
+    budget: {},          // 月份 -> { id, specialIn, bonus }
+    budgetOpening: { id: null, amount: 0 },
     pendingDelete: null,
     editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
     search: '',
@@ -1431,6 +1511,11 @@ body {
     return raw && isFinite(n) ? n : null;   // null = 跟随最新年份
   }
 
+  function readView() {
+    var raw = localStorage.getItem(KEY_VIEW);
+    return raw === 'compare' || raw === 'budget' ? raw : 'tree';
+  }
+
   function cmpYears(entries) {
     var seen = {}, years = [], other = false;
     entries.forEach(function (e) {
@@ -1561,10 +1646,204 @@ body {
   }
 
   function setView(view) {
-    state.view = view === 'compare' ? 'compare' : 'tree';
+    state.view = view === 'compare' || view === 'budget' ? view : 'tree';
     localStorage.setItem(KEY_VIEW, state.view);
     syncViewButtons();
     render();
+  }
+
+  // ---------- 娱乐预算 ----------
+  function normalizeBudget(page) {
+    var props = page.properties || {};
+    var title = (props['月份'] && props['月份'].title) || [];
+    var opening = props['期初结余'] && props['期初结余'].number;
+    return {
+      id: page.id,
+      month: title.map(function (t) { return t.plain_text || ''; }).join(''),
+      specialIn: (props['特殊收入计入'] && props['特殊收入计入'].number) || 0,
+      bonus: (props['偶发加成'] && props['偶发加成'].number) || 0,
+      opening: opening === undefined ? null : opening
+    };
+  }
+
+  function applyBudget(list) {
+    var map = {};
+    var opening = { id: null, amount: 0 };
+    list.forEach(function (row) {
+      // 带「期初结余」的那行是链条起点，不参与逐月滚动
+      if (row.opening !== null) { opening = { id: row.id, amount: row.opening }; return; }
+      if (row.month) map[row.month] = row;
+    });
+    state.budget = map;
+    state.budgetOpening = opening;
+  }
+
+  function fetchBudget() {
+    var rows = [];
+    function step(cursor) {
+      var payload = { page_size: 100 };
+      if (cursor) payload.start_cursor = cursor;
+      return notion('/data_sources/' + settings.budgetSourceId + '/query', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }).then(function (page) {
+        rows = rows.concat((page.results || []).map(normalizeBudget));
+        return page.has_more ? step(page.next_cursor) : rows;
+      });
+    }
+    return step(null).then(function (list) { applyBudget(list); return list; });
+  }
+
+  function monthAt(name) {
+    var m = /^(\d{4})年(\d{1,2})月$/.exec(name || '');
+    return m ? Number(m[1]) * 100 + Number(m[2]) : null;
+  }
+
+  function holidayDays(monthName) {
+    var m = /^(\d{4})年(\d{1,2})月$/.exec(monthName || '');
+    if (!m) return 0;
+    var table = HOLIDAY_DAYS[Number(m[1])];
+    return (table && table[Number(m[2])]) || 0;
+  }
+
+  // 娱乐支出 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半，取正数表示花掉多少
+  function funSpend(entries, monthName) {
+    var list = entries.filter(function (e) { return e.month === monthName; });
+    var fun = sum(list.filter(function (e) { return e.category === '娱乐支出'; }));
+    var special = sum(list.filter(function (e) { return e.category === '特殊支出'; }));
+    return Math.round(-(fun + special * SPECIAL_SHARE));
+  }
+
+  // 从期初往后逐月滚：
+  //   预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成
+  //   结余 = 预算 − 娱乐支出 + 特殊收入计入
+  function buildBudget(entries, year) {
+    if (year === null || year === CMP_OTHER) return null;
+    var startKey = monthAt(OPENING_MONTH);
+    if (startKey === null) return null;
+
+    var prev = state.budgetOpening.amount;
+    var rows = [];
+    for (var m = 1; m <= 12; m++) {
+      if (year * 100 + m <= startKey) continue;
+      var name = year + '年' + String(m).padStart(2, '0') + '月';
+      var cfg = state.budget[name] || { id: null, specialIn: 0, bonus: 0 };
+      var days = holidayDays(name);
+      var budget = BUDGET_BASE + BUDGET_PER_HOLIDAY * days + prev + (cfg.bonus || 0);
+      var spend = funSpend(entries, name);
+      var remain = budget - spend + (cfg.specialIn || 0);
+      rows.push({ month: name, days: days, cfg: cfg, budget: budget,
+                  spend: spend, remain: remain, forecast: false });
+      prev = remain;
+    }
+
+    // 只铺到最后一个「有账或有手动值」的月份，再往后留一行当参考
+    var lastReal = -1;
+    rows.forEach(function (row, i) {
+      var hasEntry = entries.some(function (e) { return e.month === row.month; });
+      var hasCfg = (row.cfg.specialIn || 0) !== 0 || (row.cfg.bonus || 0) !== 0;
+      if (hasEntry || hasCfg) lastReal = i;
+    });
+    if (lastReal === -1) return { rows: [] };
+    var shown = rows.slice(0, Math.min(rows.length, lastReal + 2));
+    shown.forEach(function (row, i) { row.forecast = i > lastReal; });
+    return { rows: shown };
+  }
+
+  function budgetCell(value) {
+    if (!value) return '<span class="zero">—</span>';
+    return '<span class="' + tone(value) + '">' + signed(value) + '</span>';
+  }
+
+  function budgetInput(row, field) {
+    var value = row.cfg[field] || 0;
+    return '<td class="cmp-edit">' +
+      '<input type="number" step="1" placeholder="0" value="' + (value ? esc(String(value)) : '') + '"' +
+      ' data-budget="' + esc(row.month) + '" data-field="' + field + '">' +
+      '</td>';
+  }
+
+  function budgetHint() {
+    return '<p class="budget-hint">' +
+      '本月预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成；' +
+      '本月结余 = 预算 − 娱乐支出 + 特殊收入计入。' +
+      '娱乐支出 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半。' +
+      '法定假日按国家法定节假日天数算（国庆 3 天，不是放假 7 天）。' +
+      '灰字那行是下月预算，供参考。</p>';
+  }
+
+  function renderBudget(data, year) {
+    if (!data || !data.rows.length) {
+      return '<p class="budget-hint">' +
+        (year === null ? '还没有数据。' : year + ' 年还没有可推算的月份。') +
+        '娱乐预算从 ' + esc(OPENING_MONTH) + ' 的结余往后滚，先在月份视图记几笔就有了。</p>';
+    }
+
+    var head = '<tr>' +
+      '<th class="cmp-item"><span class="cell"><span class="name">月份</span></span></th>' +
+      '<th>法定假日</th><th>特殊收入计入</th><th>偶发加成</th>' +
+      '<th>本月预算</th><th>娱乐支出</th>' +
+      '<th class="cmp-total">本月结余</th></tr>';
+
+    var openingRow = '<tr class="cmp-open">' +
+      '<th class="cmp-item"><span class="cell"><span class="name">' +
+        esc(OPENING_MONTH.slice(5)) + ' 期初</span></span></th>' +
+      '<td colspan="5">链条起点，之后每月往后累加</td>' +
+      '<td class="cmp-total">' + budgetCell(state.budgetOpening.amount) + '</td></tr>';
+
+    var body = data.rows.map(function (row) {
+      var m = /^\d{4}年(\d{1,2})月$/.exec(row.month);
+      var label = m ? Number(m[1]) + ' 月' : row.month;
+      return '<tr' + (row.forecast ? ' class="forecast"' : '') + '>' +
+        '<th class="cmp-item"><span class="cell"><span class="name">' + esc(label) + '</span></span></th>' +
+        '<td>' + (row.days ? row.days + ' 天' : '<span class="zero">—</span>') + '</td>' +
+        budgetInput(row, 'specialIn') +
+        budgetInput(row, 'bonus') +
+        '<td>' + money(row.budget) + '</td>' +
+        '<td>' + (row.spend ? '−' + money(row.spend) : '<span class="zero">—</span>') + '</td>' +
+        '<td class="cmp-total">' + budgetCell(row.remain) + '</td>' +
+      '</tr>';
+    }).join('');
+
+    return budgetHint() + '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
+      openingRow + body + '</tbody></table>';
+  }
+
+  // 顶栏读数取最后一个真实月份的结余，不含预测行
+  function lastRealBudget(data) {
+    if (!data || !data.rows.length) return null;
+    for (var i = data.rows.length - 1; i >= 0; i--) {
+      if (!data.rows[i].forecast) return data.rows[i];
+    }
+    return null;
+  }
+
+  function saveBudgetField(month, field, value) {
+    var row = state.budget[month];
+    var props = {};
+    props[field === 'bonus' ? '偶发加成' : '特殊收入计入'] = { number: value };
+    var request = row && row.id
+      ? notion('/pages/' + row.id, { method: 'PATCH', body: JSON.stringify({ properties: props }) })
+      : notion('/pages', {
+          method: 'POST',
+          body: JSON.stringify({
+            parent: { type: 'data_source_id', data_source_id: settings.budgetSourceId },
+            properties: (function () {
+              var full = { '月份': { title: [{ text: { content: month } }] } };
+              for (var key in props) full[key] = props[key];
+              return full;
+            })()
+          })
+        });
+
+    return request.then(function (page) {
+      var saved = normalizeBudget(page);
+      if (saved.opening === null) state.budget[month] = saved;
+      render();
+    }).catch(function (err) {
+      render();
+      toast(err.message, false);
+    });
   }
 
   // ---------- 渲染 ----------
@@ -1577,7 +1856,7 @@ body {
     var all = state.entries;
     var entries = visibleEntries();
     var searching = !!state.search.trim();
-    var comparing = state.view === 'compare';
+    var mode = state.view;
 
     // 以年为界：年份切换栏、顶部总计、笔数和内容都收在同一年里，数字才不会互相打架
     var years = cmpYears(entries);
@@ -1588,6 +1867,11 @@ body {
 
     var scoped = year !== null ? scopeToYear(entries, year) : entries;
     var yearName = year === null ? '' : (year === CMP_OTHER ? '未标月份' : year + ' 年');
+
+    // 预算只按年份过滤，不受搜索影响
+    var yearEntries = year !== null ? scopeToYear(all, year) : all;
+    var budgetData = buildBudget(yearEntries, year);
+    var budgetLast = lastRealBudget(budgetData);
 
     emptyEl.hidden = scoped.length > 0;
     if (searching) {
@@ -1607,12 +1891,18 @@ body {
       '<span class="chip"><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
       '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
       '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
-      tone(income + expense) + '">' + signed(income + expense) + '</i></span>';
+      tone(income + expense) + '">' + signed(income + expense) + '</i></span>' +
+      (budgetLast
+        ? '<span class="chip budget"><b>娱乐结余</b><i class="' + tone(budgetLast.remain) + '">' +
+          signed(budgetLast.remain) + '</i></span>'
+        : '');
 
-    treeEl.className = comparing ? 'tree compare' : 'tree';
-    treeEl.innerHTML = comparing
+    treeEl.className = 'tree' + (mode === 'compare' ? ' compare' : mode === 'budget' ? ' budget' : '');
+    treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped)
-      : groupByMonth(scoped).map(renderMonth).join('');
+      : mode === 'budget'
+        ? renderBudget(budgetData, year)
+        : groupByMonth(scoped).map(renderMonth).join('');
 
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -1791,8 +2081,12 @@ body {
   // ---------- 数据操作 ----------
   function refresh() {
     setLoading(true);
-    return fetchAll().then(function (entries) {
-      state.entries = entries;
+    return Promise.all([
+      fetchAll(),
+      // 预算读不到不影响记账，顶栏那颗读数会自己消失
+      fetchBudget().catch(function () { return null; })
+    ]).then(function (results) {
+      state.entries = results[0];
       state.pendingDelete = null;
       render();
       writeCache();
@@ -2155,6 +2449,7 @@ body {
   function openSetup(message) {
     document.getElementById('s-token').value = settings.token;
     document.getElementById('s-ds').value = settings.dataSourceId;
+    document.getElementById('s-budget').value = settings.budgetSourceId;
     document.getElementById('s-cancel').hidden = !state.entries.length && !settings.token;
     var errEl = document.getElementById('s-err');
     errEl.hidden = !message;
@@ -2392,6 +2687,20 @@ body {
     if (event.target.closest('.amt')) return startEdit(leaf.dataset.id, 'amount');
   });
 
+  // 预算视图：改完「特殊收入计入」「偶发加成」，失焦或回车即写回
+  treeEl.addEventListener('change', function (event) {
+    var input = event.target.closest('input[data-budget]');
+    if (!input) return;
+    var month = input.dataset.budget;
+    var field = input.dataset.field;
+    var raw = input.value.trim();
+    var value = raw === '' ? 0 : Number(raw);
+    if (!isFinite(value)) return render();
+    var row = state.budget[month];
+    if (row && (row[field] || 0) === value) return;
+    saveBudgetField(month, field, value);
+  });
+
   // 对比视图的年份切换
   cmpBarEl.addEventListener('click', function (event) {
     var btn = event.target.closest('button[data-cmp-year]');
@@ -2472,12 +2781,14 @@ body {
   document.getElementById('s-save').addEventListener('click', function () {
     var token = document.getElementById('s-token').value.trim();
     var ds = document.getElementById('s-ds').value.trim();
+    var budgetDs = document.getElementById('s-budget').value.trim();
     var errEl = document.getElementById('s-err');
     if (!token) { errEl.hidden = false; errEl.textContent = '请填写集成令牌'; return; }
     if (!ds) { errEl.hidden = false; errEl.textContent = '请填写数据源 ID'; return; }
 
     settings.token = token;
     settings.dataSourceId = ds;
+    settings.budgetSourceId = budgetDs;
     var saveBtn = document.getElementById('s-save');
     saveBtn.disabled = true;
     setLoading(true);
@@ -2485,11 +2796,13 @@ body {
       state.entries = entries;
       localStorage.setItem(KEY_TOKEN, token);
       localStorage.setItem(KEY_DS, ds);
+      localStorage.setItem(KEY_BUDGET_DS, budgetDs);
       render();
       writeCache();
       closeSetup();
       toast('已连接');
       fetchSubOptions().catch(function () { return null; });
+      fetchBudget().catch(function () { return null; }).then(render);
     }).catch(function (err) {
       errEl.hidden = false;
       errEl.textContent = err.message;
