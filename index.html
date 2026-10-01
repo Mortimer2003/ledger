@@ -1352,12 +1352,25 @@ body {
     return !!state.expanded[key];
   }
 
+  // 让某条记录在当前视图里看得见：展开它所在的路径，年份不在范围内就把年份切过去
   function expandPath(entry) {
     var month = entry.month || UNSET_MONTH;
     var category = entry.category || UNSET_CATEGORY;
     var sub = entry.sub || UNSET_SUB;
     ['m:' + month, 'c:' + month + '|' + category, 's:' + month + '|' + category + '|' + sub]
       .forEach(function (key) { state.expanded[key] = true; });
+    focusYearOf(entry);
+  }
+
+  function focusYearOf(entry) {
+    var y = yearOf(entry.month);
+    var target = y === null ? CMP_OTHER : y;
+    var years = cmpYears(state.entries);
+    if (years.indexOf(target) === -1) return;
+    var active = years.indexOf(state.cmpYear) !== -1 ? state.cmpYear : years[0];
+    if (active === target) return;
+    state.cmpYear = target;
+    localStorage.setItem(KEY_CMP_YEAR, String(target));
   }
 
   // ---------- 对比视图 ----------
@@ -1533,27 +1546,25 @@ body {
     var searching = !!state.search.trim();
     var comparing = state.view === 'compare';
 
-    // 对比视图以年为界：顶部总计、笔数和表格都收在同一年里，数字才不会互相打架
-    var years = comparing ? cmpYears(entries) : [];
+    // 以年为界：年份切换栏、顶部总计、笔数和内容都收在同一年里，数字才不会互相打架
+    var years = cmpYears(entries);
     var year = years.length
       ? (years.indexOf(state.cmpYear) !== -1 ? state.cmpYear : years[0])
       : null;
     renderCmpBar(years, year);
 
-    var scoped = comparing && year !== null ? scopeToYear(entries, year) : entries;
+    var scoped = year !== null ? scopeToYear(entries, year) : entries;
     var yearName = year === null ? '' : (year === CMP_OTHER ? '未标月份' : year + ' 年');
 
-    emptyEl.hidden = entries.length > 0;
+    emptyEl.hidden = scoped.length > 0;
     if (searching) {
-      countEl.textContent = comparing
-        ? '匹配 ' + scoped.length + ' 笔'
-        : '匹配 ' + entries.length + ' / 共 ' + all.length + ' 笔';
-      if (!entries.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
-    } else if (comparing) {
-      countEl.textContent = year === null ? '' : yearName + ' · ' + scoped.length + ' 笔';
+      countEl.textContent = '匹配 ' + scoped.length + ' 笔';
+      if (!scoped.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
+    } else if (year !== null) {
+      countEl.textContent = yearName + ' · ' + scoped.length + ' 笔';
       emptyEl.textContent = '还没有数据，点右上角「新增」记一笔。';
     } else {
-      countEl.textContent = all.length ? '共 ' + all.length + ' 笔' : '';
+      countEl.textContent = '';
       emptyEl.textContent = '还没有数据，点右上角「新增」记一笔。';
     }
 
@@ -1568,7 +1579,7 @@ body {
     treeEl.className = comparing ? 'tree compare' : 'tree';
     treeEl.innerHTML = comparing
       ? renderCompare(scoped)
-      : groupByMonth(entries).map(renderMonth).join('');
+      : groupByMonth(scoped).map(renderMonth).join('');
 
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
