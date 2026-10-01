@@ -574,7 +574,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* 顶栏那颗读数跟收入/支出/净额不是一类东西（前者是预算状态，后者是年度合计），描个边区分开 */
 .chip.budget { border: 1px solid var(--line); }
 
-.tree.budget { padding: 0 0 28px; }
+/* 底部多留一块：说明气泡和编辑面板都挂在格子下方，留白不够会被裁掉 */
+.tree.budget { padding: 0 0 110px; }
 
 .budget-hint {
   margin: 0;
@@ -598,6 +599,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 /* 双击才进编辑：平时是纯文本，双击后原地变成输入框 */
 .cmp.budget td.cmp-edit {
+  position: relative;   /* 说明气泡和编辑面板都相对这一格定位 */
   padding: 5px 10px;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -621,6 +623,77 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 
 .cmp.budget td.cmp-edit input::placeholder { color: var(--text-3); }
+
+/* 有说明的格子：数字下加一道虚线，提示这里能悬停看明细 */
+.cmp.budget td.cmp-edit.has-note .v {
+  border-bottom: 1px dotted var(--text-3);
+  cursor: help;
+}
+
+.cmp.budget td.cmp-edit .tip {
+  position: absolute;
+  right: 0;
+  top: calc(100% - 1px);
+  z-index: 5;
+  width: max-content;
+  max-width: 240px;
+  padding: 6px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-soft);
+  box-shadow: var(--shadow);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .12s ease;
+  pointer-events: none;
+}
+
+.cmp.budget td.cmp-edit.has-note:hover .tip { opacity: 1; visibility: visible; }
+
+/* 编辑面板：数字 + 说明两行，浮在格子下方 */
+.cmp.budget td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
+
+.cmp.budget td.cmp-edit .editor {
+  position: absolute;
+  right: 0;
+  top: calc(100% - 1px);
+  z-index: 6;
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.cmp.budget td.cmp-edit .editor label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.cmp.budget td.cmp-edit .editor label:last-child { margin-bottom: 0; }
+
+.cmp.budget td.cmp-edit .editor label > span {
+  flex: none;
+  width: 26px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.cmp.budget td.cmp-edit .editor input[data-budget-note] {
+  width: 190px;
+  text-align: left;
+}
 
 /* 下月预告：只是参考、不是记录，用虚线加灰字跟真实月份分开 */
 .cmp.budget tbody tr.preview > * {
@@ -1665,6 +1738,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   }
 
   // ---------- 娱乐预算 ----------
+  // 数字后面跟着的那句说明，悬停时显示，双击时能改
+  function richText(value) {
+    return ((value && value.rich_text) || [])
+      .map(function (t) { return t.plain_text || (t.text && t.text.content) || ''; }).join('');
+  }
+
   function normalizeBudget(page) {
     var props = page.properties || {};
     var title = (props['月份'] && props['月份'].title) || [];
@@ -1673,7 +1752,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       id: page.id,
       month: title.map(function (t) { return t.plain_text || ''; }).join(''),
       specialIn: (props['特殊收入计入'] && props['特殊收入计入'].number) || 0,
+      noteSpecialIn: richText(props['特殊收入计入说明']),
       bonus: (props['偶发加成'] && props['偶发加成'].number) || 0,
+      noteBonus: richText(props['偶发加成说明']),
       opening: opening === undefined ? null : opening
     };
   }
@@ -1770,20 +1851,38 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     return '<span class="' + tone(value) + '">' + signed(value) + '</span>';
   }
 
-  // 平时是纯文本，双击后才换成输入框
+  // 一个预算格里有两个字段：数字 + 说明
+  function budgetFieldNames(field) {
+    return field === 'bonus'
+      ? { num: '偶发加成', note: '偶发加成说明', noteKey: 'noteBonus' }
+      : { num: '特殊收入计入', note: '特殊收入计入说明', noteKey: 'noteSpecialIn' };
+  }
+
+  // 平时是纯文本，有说明就带虚线下划线（悬停出气泡）；双击展开「数字 + 说明」小面板
   function budgetInput(row, field) {
+    var names = budgetFieldNames(field);
     var value = row.cfg[field] || 0;
+    var note = row.cfg[names.noteKey] || '';
     var editing = state.budgetEdit &&
       state.budgetEdit.month === row.month && state.budgetEdit.field === field;
+
+    var shown = '<span class="v">' + (value ? money(value) : '<span class="zero">—</span>') + '</span>';
+
     if (editing) {
-      return '<td class="cmp-edit">' +
-        '<input type="number" step="1" placeholder="0" value="' + (value ? esc(String(value)) : '') + '"' +
-        ' data-budget="' + esc(row.month) + '" data-field="' + field + '">' +
-        '</td>';
+      return '<td class="cmp-edit editing">' + shown +
+        '<span class="editor">' +
+          '<label><span>数字</span><input type="number" step="1" placeholder="0"' +
+            ' value="' + (value ? esc(String(value)) : '') + '"' +
+            ' data-budget="' + esc(row.month) + '" data-field="' + field + '"></label>' +
+          '<label><span>说明</span><input type="text" placeholder="这笔钱由什么组成"' +
+            ' value="' + esc(note) + '"' +
+            ' data-budget-note="' + esc(row.month) + '" data-field="' + field + '"></label>' +
+        '</span></td>';
     }
-    return '<td class="cmp-edit" data-budget-open="' + esc(row.month) +
-      '" data-field="' + field + '">' +
-      (value ? money(value) : '<span class="zero">—</span>') + '</td>';
+
+    return '<td class="cmp-edit' + (note ? ' has-note' : '') + '"' +
+      ' data-budget-open="' + esc(row.month) + '" data-field="' + field + '"' +
+      '>' + shown + (note ? '<span class="tip">' + esc(note) + '</span>' : '') + '</td>';
   }
 
   function budgetHint() {
@@ -1792,7 +1891,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       '本月结余 = 预算 − 娱乐支出 + 特殊收入计入。' +
       '娱乐支出 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半。' +
       '法定假日按国家法定节假日天数算（国庆 3 天，不是放假 7 天）。' +
-      '「特殊收入计入」「偶发加成」双击可改。虚线那行是下月预告，仅供参考，不算记录。</p>';
+      '「特殊收入计入」「偶发加成」双击可改（数字和说明一起改）；' +
+      '数字下带虚线的格子，鼠标停上去能看到明细。' +
+      '虚线那行是下月预告，仅供参考，不算记录。</p>';
   }
 
   function renderBudget(data, year) {
@@ -1849,7 +1950,16 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
   // 双击预算格才进编辑态
   function startBudgetEdit(month, field) {
-    state.budgetEdit = { month: month, field: field };
+    var row = state.budget[month];
+    var names = budgetFieldNames(field);
+    // 草稿先记下来，等焦点离开整个小面板再一次性比对、写回
+    state.budgetEdit = {
+      month: month, field: field,
+      draft: {
+        num: row ? (row[field] || 0) : 0,
+        note: (row && row[names.noteKey]) || ''
+      }
+    };
     render();
     var input = typeof treeEl.querySelector === 'function'
       ? treeEl.querySelector('input[data-budget]') : null;
@@ -1858,38 +1968,53 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     input.select();
   }
 
-  function commitBudget(month, field, raw) {
-    var text = String(raw).trim();
-    var value = text === '' ? 0 : Number(text);
-    if (!isFinite(value)) { state.budgetEdit = null; render(); return; }
-    var row = state.budget[month];
-    if (row && (row[field] || 0) === value) { state.budgetEdit = null; render(); return; }
-    saveBudgetField(month, field, value);
+  // 焦点离开小面板时收尾：只有真改过的字段才发请求
+  function commitBudgetEditor() {
+    var edit = state.budgetEdit;
+    if (!edit) return;
+    state.budgetEdit = null;
+
+    var names = budgetFieldNames(edit.field);
+    var row = state.budget[edit.month] ||
+      { id: null, specialIn: 0, bonus: 0, noteSpecialIn: '', noteBonus: '' };
+    var raw = String(edit.draft.num).trim();
+    var num = raw === '' ? 0 : Number(raw);
+    if (!isFinite(num)) num = 0;
+    var note = String(edit.draft.note || '').trim();
+
+    var props = {};
+    if ((row[edit.field] || 0) !== num) props[names.num] = { number: num };
+    if ((row[names.noteKey] || '') !== note) {
+      props[names.note] = { rich_text: note ? [{ text: { content: note } }] : [] };
+    }
+    if (!Object.keys(props).length) return render();
+    saveBudget(edit.month, props);
   }
 
-  function saveBudgetField(month, field, value) {
+  function saveBudget(month, props) {
     var row = state.budget[month];
-    var previous = row ? row[field] : undefined;
+    var snapshot = row ? Object.assign({}, row) : null;
     // 先落本地再发请求，免得往返期间闪回旧值；失败整体回滚
     state.budget[month] = Object.assign(
-      { id: null, month: month, specialIn: 0, bonus: 0 }, row || {});
-    state.budget[month][field] = value;
+      { id: row ? row.id : null, month: month, specialIn: 0, bonus: 0,
+        noteSpecialIn: '', noteBonus: '' }, row || {});
+    for (var name in props) {
+      if (name === '偶发加成') state.budget[month].bonus = props[name].number;
+      else if (name === '特殊收入计入') state.budget[month].specialIn = props[name].number;
+      else if (name === '偶发加成说明') state.budget[month].noteBonus = richText(props[name]);
+      else if (name === '特殊收入计入说明') state.budget[month].noteSpecialIn = richText(props[name]);
+    }
     state.budgetEdit = null;
     render();
 
-    var props = {};
-    props[field === 'bonus' ? '偶发加成' : '特殊收入计入'] = { number: value };
     var request = row && row.id
       ? notion('/pages/' + row.id, { method: 'PATCH', body: JSON.stringify({ properties: props }) })
       : notion('/pages', {
           method: 'POST',
           body: JSON.stringify({
             parent: { type: 'data_source_id', data_source_id: settings.budgetSourceId },
-            properties: (function () {
-              var full = { '月份': { title: [{ text: { content: month } }] } };
-              for (var key in props) full[key] = props[key];
-              return full;
-            })()
+            properties: Object.assign(
+              { '月份': { title: [{ text: { content: month } }] } }, props)
           })
         });
 
@@ -1898,8 +2023,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       if (saved.opening === null) state.budget[month] = saved;
       render();
     }).catch(function (err) {
-      if (previous === undefined) delete state.budget[month];
-      else state.budget[month][field] = previous;
+      if (snapshot) state.budget[month] = snapshot;
+      else delete state.budget[month];
       render();
       toast(err.message, false);
     });
@@ -2748,34 +2873,36 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     if (event.target.closest('.amt')) return startEdit(leaf.dataset.id, 'amount');
   });
 
-  // 预算格改完失焦即写回（change 先于 focusout 触发）
-  treeEl.addEventListener('change', function (event) {
-    var input = event.target.closest('input[data-budget]');
-    if (!input || !state.budgetEdit) return;
-    var month = input.dataset.budget;
-    var field = input.dataset.field;
-    if (state.budgetEdit.month !== month || state.budgetEdit.field !== field) return;
-    commitBudget(month, field, input.value);
+  // 预算格：编辑期间只更新草稿，别每敲一下都重画
+  treeEl.addEventListener('input', function (event) {
+    if (!state.budgetEdit) return;
+    var num = event.target.closest('input[data-budget]');
+    if (num) { state.budgetEdit.draft.num = num.value; return; }
+    var note = event.target.closest('input[data-budget-note]');
+    if (note) state.budgetEdit.draft.note = note.value;
   });
 
-  // 值没变就只是关掉编辑态
+  // 焦点彻底离开这个小面板才写回（在两个输入之间切换不算离开）
   treeEl.addEventListener('focusout', function (event) {
-    if (!state.budgetEdit || !event.target.closest('input[data-budget]')) return;
-    state.budgetEdit = null;
-    render();
+    if (!state.budgetEdit) return;
+    var cell = event.target.closest('td.cmp-edit.editing');
+    if (!cell) return;
+    var next = event.relatedTarget;
+    if (next && typeof next.closest === 'function' && next.closest('td.cmp-edit.editing') === cell) return;
+    commitBudgetEditor();
   });
 
   treeEl.addEventListener('keydown', function (event) {
     if (!state.budgetEdit) return;
-    var input = event.target.closest('input[data-budget]');
-    if (!input) return;
+    var inEditor = event.target.closest('input[data-budget], input[data-budget-note]');
+    if (!inEditor) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       state.budgetEdit = null;
       render();
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      input.blur();
+      commitBudgetEditor();
     }
   });
 
