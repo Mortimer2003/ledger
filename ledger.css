@@ -82,14 +82,29 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .bar > .metrics,
 .bar > .tools { margin-left: auto; }
 
-.brand { display: flex; align-items: baseline; gap: 7px; flex: none; }
-
-.brand h1 {
-  margin: 0;
-  font-size: 15px;
+/* 年份下拉：打头放在最左，跟视图切换一起组成「看哪一年、看什么」的导航区 */
+.year-select {
+  flex: none;
+  font: inherit;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: .2px;
+  padding: 4px 24px 4px 11px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background-color: var(--bg-soft);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%238a8f98' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.6 6 7.6 9 4.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 11px;
+  color: var(--text);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
+
+.year-select:hover { background-color: var(--hover); }
+.year-select:focus-visible { outline: none; border-color: var(--accent); }
+.year-select option { color: var(--text); background: var(--bg); }
 
 .count { font-size: 12px; color: var(--text-3); white-space: nowrap; }
 
@@ -143,21 +158,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .totals { display: flex; gap: 6px; }
 
-/* 顶栏右侧一组：年份切换 + 总计。年份排在数字前面，读起来才是「先选年、再看数字」 */
-.metrics { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; }
-
-/* 「范围」（视图/年份）和「汇总」（收入/支出/净额）是两类东西，
-   用一条竖线隔开，免得一堆同款胶囊糊成一片 */
-.metrics > .sep {
-  flex: none;
-  width: 1px;
-  height: 16px;
-  margin: 0 4px;
-  background: var(--line-strong);
-}
-
-/* 没有年份可切时 cmp-bar 会隐藏，分隔线得跟着走，否则剩一根孤零零的竖线 */
-.metrics > .seg[hidden] + .sep { display: none; }
+/* 顶栏右侧一组：笔数 + 收入/支出/净额。年份已经挪到最左，这里只放读数 */
+.metrics { display: flex; align-items: center; gap: 10px; margin-left: auto; min-width: 0; }
 
 .chip {
   display: inline-flex;
@@ -210,6 +212,26 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .icon-btn:hover { background: var(--hover); color: var(--text); }
 .icon-btn.spin svg { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* 「说明」：按钮待在顶栏工具区里，点开在按钮下方浮出气泡。
+   浮层脱离文档流，既不单占一行、也不会把下面的表格顶下去 */
+.hint-wrap { position: relative; display: flex; flex: none; }
+.hint-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: min(540px, calc(100vw - 2 * var(--gutter)));
+  padding: 10px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .16);
+}
+.hint-pop[hidden] { display: none; }
+/* 气泡里不需要那两个说明块自带的内边距 */
+.hint-pop .budget-hint,
+.hint-pop .assets-hint { margin: 0; padding: 0; }
 
 /* ---------- 加载条 ---------- */
 .progress { position: relative; flex: none; height: 2px; overflow: hidden; }
@@ -754,13 +776,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   cursor: pointer;
 }
 .view-bar .tool:hover { background: var(--hover); color: var(--text); }
-/* 展开状态高亮，一眼看出「说明」是不是开着 */
-.view-bar .tool[aria-expanded="true"] { background: var(--hover); color: var(--text); }
 .view-progress { color: var(--text-3); font-size: 12px; }
 .view-progress[hidden] { display: none; }
-
-/* 说明面板：默认收起，点工具条上的「说明」才展开 */
-.hint-panel[hidden] { display: none; }
 
 /* 新增表单：一行摆开，回车就提交，Esc 取消 */
 .assets-form {
@@ -967,9 +984,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .seg.sub { border-color: var(--line); }
 .seg.sub button { font-size: 12.5px; padding: 3px 10px; }
 
-/* 年份切换降一档：只留浅底不描边。否则它和视图切换长得一模一样，
-   两个分段控件挨在一起会被读成一个「月份 / 对比 / 2026」的三段控件 */
-.seg.soft { border-color: transparent; }
 
 /* 分类能决定收支方向时，这里显示只读标签，不给切换 */
 .sign-lock {
@@ -1120,6 +1134,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   .bar-tools > .tools { order: 1; }
   .bar-tools > .search { order: 2; flex: 1 1 100%; max-width: none; }
   .bar-info > .metrics { width: 100%; flex-wrap: wrap; }
+  .year-select { font-size: 12.5px; padding: 3px 22px 3px 9px; }
   .amt, .row.lv1 .amt { min-width: 76px; }
   .net { min-width: 88px; }
   /* 窄屏把操作位和缩进一起收窄，缩进线靠这几个变量跟着走 */
