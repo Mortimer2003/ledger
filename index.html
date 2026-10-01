@@ -17,8 +17,11 @@
   /* 对比表里吸顶/吸左的单元格必须是实色，半透明底色会让下层内容透出来 */
   --row-hover: #f1f1ef;
   --accent: #2383e2;
-  --pos: #0f7b6c;
-  --neg: #d44c47;
+  /* 金额配色按国内习惯「红涨绿跌」：收入红、支出绿。
+     与「危险操作」的红分开命名，避免删按钮、报错提示跟着一起变绿 */
+  --gain: #d44c47;
+  --loss: #0f7b6c;
+  --danger: #d44c47;
   --shadow: 0 1px 2px rgba(15, 15, 15, .05), 0 6px 16px rgba(15, 15, 15, .05);
   --radius: 8px;
   /* 金额列的层级缩进：--tail 是右侧操作位宽度，缩进线的位置由这几个值算出来 */
@@ -46,8 +49,9 @@
   --hover: rgba(255, 255, 255, .055);
   --row-hover: #262626;
   --accent: #529cca;
-  --pos: #4dab9a;
-  --neg: #ff7369;
+  --gain: #ff7369;
+  --loss: #4dab9a;
+  --danger: #ff7369;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 16px rgba(0, 0, 0, .32);
 }
 
@@ -383,8 +387,8 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.pos { color: var(--pos); }
-.neg { color: var(--neg); }
+.pos { color: var(--gain); }
+.neg { color: var(--loss); }
 .zero { color: var(--text-3); }
 
 .icon {
@@ -467,7 +471,7 @@ body {
 }
 
 .op:hover { background: var(--line); color: var(--text); }
-.op.danger { color: var(--neg); }
+.op.danger { color: var(--danger); }
 .confirm { font-size: 12px; color: var(--text-2); }
 
 /* ---------- 视图切换 ---------- */
@@ -588,7 +592,7 @@ body {
 
 .modal h2 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
 .hint { margin: 0 0 14px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
-.err { margin: 10px 0 0; font-size: 12px; color: var(--neg); word-break: break-all; }
+.err { margin: 10px 0 0; font-size: 12px; color: var(--danger); word-break: break-all; }
 .err[hidden] { display: none; }
 
 .field { margin-bottom: 12px; }
@@ -665,8 +669,8 @@ body {
 }
 
 .sign-lock[hidden] { display: none; }
-.sign-lock.pos { color: var(--pos); }
-.sign-lock.neg { color: var(--neg); }
+.sign-lock.pos { color: var(--gain); }
+.sign-lock.neg { color: var(--loss); }
 
 .saved-hint {
   margin: 12px 0 0;
@@ -775,7 +779,7 @@ body {
 }
 
 .toast.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
-.toast.error { background: var(--neg); }
+.toast.error { background: var(--danger); }
 
 .toast button {
   font: inherit;
