@@ -98,6 +98,9 @@
   var cmpBarEl = document.getElementById('cmp-bar');
   var totalsEl = document.getElementById('totals');
   var countEl = document.getElementById('count');
+  var hintWrapEl = document.getElementById('hint-wrap');
+  var hintPopEl = document.getElementById('hint-pop');
+  var btnHintEl = document.getElementById('btn-hint');
   var modalEl = document.getElementById('modal');
   var setupEl = document.getElementById('setup');
   var tagsEl = document.getElementById('tags');
@@ -541,13 +544,17 @@
     return '<span class="' + tone(value) + '">' + signed(value) + '</span>';
   }
 
+  // 年份改下拉选择：选项没变就不重建，免得每次 render 都把下拉框的焦点和展开状态弄丢
   function renderCmpBar(years, active) {
     cmpBarEl.hidden = !years.length;
-    cmpBarEl.innerHTML = years.map(function (y) {
-      return '<button type="button" data-cmp-year="' + esc(String(y)) + '"' +
-        (y === active ? ' class="active"' : '') + '>' +
-        (y === CMP_OTHER ? '未标月份' : y) + '</button>';
-    }).join('');
+    var sig = years.join(',') + '|' + active;
+    if (cmpBarEl.dataset.sig === sig) return;
+    cmpBarEl.dataset.sig = sig;
+    cmpBarEl.innerHTML = '<select class="year-select" title="年份">' +
+      years.map(function (y) {
+        return '<option value="' + esc(String(y)) + '"' + (y === active ? ' selected' : '') + '>' +
+          (y === CMP_OTHER ? '未标月份' : y + ' 年') + '</option>';
+      }).join('') + '</select>';
   }
 
   // entries 已经裁到某一年，这里只负责把该年的月份铺成列
@@ -814,29 +821,43 @@
       '>' + shown + (note ? '<span class="tip">' + tipHtml(noteLines(note)) + '</span>' : '') + '</td>';
   }
 
-  // 说明面板默认收起：一段解释压在表格上面太占地，收进「说明」按钮里，要看再点
-  function hintPanel(html) {
-    return '<div class="hint-panel"' + (state.hintOpen ? '' : ' hidden') + '>' + html + '</div>';
+  // 说明收进顶栏的「说明」按钮：点开在按钮下方浮出气泡。
+  // 浮层脱离文档流，既不单占一行，也不会把下面的表格顶下去
+  function renderHint(html) {
+    hintWrapEl.hidden = !html;
+    if (!html) {
+      state.hintOpen = false;
+      hintPopEl.hidden = true;
+      btnHintEl.setAttribute('aria-expanded', 'false');
+      return;
+    }
+    hintPopEl.innerHTML = html;
+    hintPopEl.hidden = !state.hintOpen;
+    btnHintEl.setAttribute('aria-expanded', state.hintOpen ? 'true' : 'false');
   }
 
+  // 只翻气泡，不整页重绘——点一下说明不该让表格闪一下
   function hintToggle() {
-    return '<button type="button" class="tool" data-hint-toggle="1"' +
-      (state.hintOpen ? ' aria-expanded="true"' : '') + '>说明</button>';
+    if (hintWrapEl.hidden) return;
+    state.hintOpen = !state.hintOpen;
+    hintPopEl.hidden = !state.hintOpen;
+    btnHintEl.setAttribute('aria-expanded', state.hintOpen ? 'true' : 'false');
   }
 
-  function budgetHint() {
-    return hintPanel('<p class="budget-hint">' +
+  function budgetHintText() {
+    return '<p class="budget-hint">' +
       '本月预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成；' +
       '本月结余 = 预算 − 本月花销 + 特殊收入计入。' +
       '本月花销 = 「娱乐支出」分类合计 + 「特殊支出」分类合计/2。' +
       '法定假日按国家法定节假日天数算（国庆 3 天，不是放假 7 天）。' +
       '「特殊收入计入」「偶发加成」双击可改（数字和说明一起改）；' +
       '数字下带虚线的格子，鼠标停上去能看到明细——「本月花销」那格会拆开告诉你娱乐和特殊各占多少。' +
-      '虚线那行是下月预告，仅供参考，不算记录。</p>');
+      '虚线那行是下月预告，仅供参考，不算记录。</p>';
   }
 
   function renderBudget(data, year) {
     if (!data || !data.rows.length) {
+      pendingHint = '';
       return '<p class="budget-hint">' +
         (year === null ? '还没有数据。' : year + ' 年还没有可推算的月份。') +
         '娱乐预算从 ' + esc(OPENING_MONTH) + ' 的结余往后滚，先在月份视图记几笔就有了。</p>';
@@ -881,13 +902,9 @@
       '<td><span class="zero">—</span></td>' +
       '<td class="cmp-total">' + money(data.preview.budget) + '</td></tr>' : '';
 
-    return budgetBar() + budgetHint() + '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
+    pendingHint = budgetHintText();
+    return '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
       openingRow + body + previewRow + '</tbody></table>';
-  }
-
-  // 预算没有别的工具，这条只有右侧一个「说明」
-  function budgetBar() {
-    return '<div class="view-bar"><span class="view-bar-tools">' + hintToggle() + '</span></div>';
   }
 
   // 顶栏读数取最后一个有数据的月份的结余
@@ -1174,33 +1191,32 @@
       save + '</div>';
   }
 
-  // withHint 只在有表可讲时才给「说明」按钮，空表旁边挂个点不动的按钮没意义
-  function assetBar(months, withHint) {
+  function assetBar(months) {
     return '<div class="view-bar">' +
       '<span class="view-progress" id="asset-progress" hidden></span>' +
       '<span class="view-bar-tools">' +
         (months.length
           ? '<button type="button" class="tool" data-asset-tool="month">＋ 新增月份</button>' : '') +
         '<button type="button" class="tool" data-asset-tool="item">＋ 新增资产项</button>' +
-        (withHint ? hintToggle() : '') +
       '</span></div>';
   }
 
-  function assetsHint() {
-    return hintPanel('<p class="assets-hint">' +
+  function assetsHintText() {
+    return '<p class="assets-hint">' +
       '每月一笔资产快照，格子里的数字是「月末」余额；双击格子能改「月初」「月末」，回车或点到别处就存下。' +
       '「总资产（含公积金）」把公积金账户算进来，「总资产（不含公积金）」只看能动用的钱——' +
       '公积金取不出来，两个口径都留着。' +
       '「较上月」是含公积金总资产的环比增量，「变化」那一列是首尾两个月之间涨跌了多少。' +
       '「＋ 新增月份」照上个月的样子铺一份新月，「＋ 新增资产项」给每个已有月份各加一行；' +
-      '明细行左边的 × 会把这一项在各月的记录一起删掉，删错了能撤销。</p>');
+      '明细行左边的 × 会把这一项在各月的记录一起删掉，删错了能撤销。</p>';
   }
 
   function renderAssets(year) {
     state.assetsYear = year;
     var data = buildAssets(year);
     if (!data.months.length) {
-      return assetBar([], false) +
+      pendingHint = '';
+      return assetBar([]) +
         '<p class="assets-hint">' +
         (year === null ? '还没有财产数据。' : year + ' 年还没有财产记录。') +
         '财产存在独立的「我的财产」数据源里，点「＋ 新增资产项」记第一行。</p>' +
@@ -1262,7 +1278,8 @@
       }).join('') +
       '<td class="cmp-total"><span class="zero">—</span></td></tr>';
 
-    return assetBar(data.months, true) + assetsHint() +
+    pendingHint = assetsHintText();
+    return assetBar(data.months) +
       (state.assetsForm ? assetForm(state.assetsForm) : '') +
       '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
       body + sumRows + deltaRow + '</tbody></table>';
@@ -1535,6 +1552,9 @@
 
   // ---------- 渲染 ----------
 
+  // 当前视图要讲的那段说明，由各视图的渲染函数填进来，render 末尾统一挂到「说明」气泡上
+  var pendingHint = '';
+
   // ===== 月度视图渲染 =====
   function amtCell(value, cls) {
     if (!value) return '<span class="amt zero">—</span>';
@@ -1546,6 +1566,7 @@
     var entries = visibleEntries();
     var searching = !!state.search.trim();
     var mode = state.view;
+    pendingHint = '';
 
     // 以年为界：年份切换栏、顶部总计、笔数和内容都收在同一年里，数字才不会互相打架
     var years = cmpYears(entries);
@@ -1555,7 +1576,6 @@
     renderCmpBar(years, year);
 
     var scoped = year !== null ? scopeToYear(entries, year) : entries;
-    var yearName = year === null ? '' : (year === CMP_OTHER ? '未标月份' : year + ' 年');
 
     // 预算只按年份过滤，不受搜索影响
     var yearEntries = year !== null ? scopeToYear(all, year) : all;
@@ -1565,12 +1585,12 @@
     emptyEl.hidden = scoped.length > 0 || mode === 'assets';
     if (mode === 'assets') {
       // 财产跟账本走的是两套数据，账本为空不代表没财产，这里不摆「还没有数据」
-      countEl.textContent = yearName ? yearName + ' · 财产' : '财产';
+      countEl.textContent = '财产';
     } else if (searching) {
       countEl.textContent = '匹配 ' + scoped.length + ' 笔';
       if (!scoped.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
     } else if (year !== null) {
-      countEl.textContent = yearName + ' · ' + scoped.length + ' 笔';
+      countEl.textContent = scoped.length + ' 笔';
       emptyEl.textContent = '还没有数据，点上方「新增月份账单」开始记录。';
     } else {
       countEl.textContent = '';
@@ -1607,6 +1627,9 @@
         : mode === 'assets'
           ? renderAssets(year)
           : groupByMonth(scoped).map(renderMonth).join('');
+
+    // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏的「说明」气泡上
+    renderHint(pendingHint);
 
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -2380,10 +2403,9 @@
   treeEl.addEventListener('click', function (event) {
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
-      '[data-hint-toggle],[data-asset-tool],[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel]');
+      '[data-asset-tool],[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel]');
     if (!target) return;
     var data = target.dataset;
-    if (data.hintToggle) { state.hintOpen = !state.hintOpen; return render(); }
     if (data.cmpToggle) {
       if (state.cmpCollapsed[data.cmpToggle]) delete state.cmpCollapsed[data.cmpToggle];
       else state.cmpCollapsed[data.cmpToggle] = true;
@@ -2482,12 +2504,17 @@
     }
   });
 
-  // 对比视图的年份切换
-  cmpBarEl.addEventListener('click', function (event) {
-    var btn = event.target.closest('button[data-cmp-year]');
-    if (!btn) return;
-    var raw = btn.dataset.cmpYear;
-    setCmpYear(raw === CMP_OTHER ? CMP_OTHER : Number(raw));
+  // 年份下拉切换
+  cmpBarEl.addEventListener('change', function (event) {
+    var sel = event.target.closest('select.year-select');
+    if (!sel) return;
+    setCmpYear(sel.value === CMP_OTHER ? CMP_OTHER : Number(sel.value));
+  });
+
+  // 「说明」：点按钮翻气泡，点别处收起（Esc 走下面的全局 keydown）
+  btnHintEl.addEventListener('click', hintToggle);
+  document.addEventListener('click', function (event) {
+    if (state.hintOpen && !event.target.closest('.hint-wrap')) hintToggle();
   });
 
   document.getElementById('f-sign').addEventListener('click', function (event) {
@@ -2627,6 +2654,7 @@
       else if (!monthMaskEl.hidden) closeMonthBill();
       else if (!tagsEl.hidden) closeTags();
       else if (!setupEl.hidden) closeSetup();
+      else if (state.hintOpen) hintToggle();
       else if (state.search) {
         searchEl.value = '';
         searchClearEl.hidden = true;
