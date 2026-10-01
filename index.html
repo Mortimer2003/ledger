@@ -1799,8 +1799,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     return (table && table[Number(m[2])]) || 0;
   }
 
-  // 娱乐支出 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半，取正数表示花掉多少
-  function funSpend(entries, monthName) {
+  // 计入支出 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半，取正数表示这个月从娱乐池子里花掉多少。
+  // 别叫「娱乐支出」：那是账本里的分类名，这一列还混进了特殊支出的一半，同名会把两件事搅在一起
+  function chargedSpend(entries, monthName) {
     var list = entries.filter(function (e) { return e.month === monthName; });
     var fun = sum(list.filter(function (e) { return e.category === '娱乐支出'; }));
     var special = sum(list.filter(function (e) { return e.category === '特殊支出'; }));
@@ -1809,7 +1810,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
   // 从期初往后逐月滚：
   //   预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成
-  //   结余 = 预算 − 娱乐支出 + 特殊收入计入
+  //   结余 = 预算 − 计入支出 + 特殊收入计入
   function buildBudget(entries, year) {
     if (year === null || year === CMP_OTHER) return null;
     var startKey = monthAt(OPENING_MONTH);
@@ -1823,7 +1824,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       var cfg = state.budget[name] || { id: null, specialIn: 0, bonus: 0 };
       var days = holidayDays(name);
       var budget = BUDGET_BASE + BUDGET_PER_HOLIDAY * days + prev + (cfg.bonus || 0);
-      var spend = funSpend(entries, name);
+      var spend = chargedSpend(entries, name);
       var remain = budget - spend + (cfg.specialIn || 0);
       rows.push({ month: name, days: days, cfg: cfg, budget: budget,
                   spend: spend, remain: remain });
@@ -1888,8 +1889,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   function budgetHint() {
     return '<p class="budget-hint">' +
       '本月预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成；' +
-      '本月结余 = 预算 − 娱乐支出 + 特殊收入计入。' +
-      '娱乐支出 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半。' +
+      '本月结余 = 预算 − 计入支出 + 特殊收入计入。' +
+      '计入支出 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半。' +
       '法定假日按国家法定节假日天数算（国庆 3 天，不是放假 7 天）。' +
       '「特殊收入计入」「偶发加成」双击可改（数字和说明一起改）；' +
       '数字下带虚线的格子，鼠标停上去能看到明细。' +
@@ -1906,7 +1907,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     var head = '<tr>' +
       '<th class="cmp-item"><span class="cell"><span class="name">月份</span></span></th>' +
       '<th>法定假日</th><th>特殊收入计入</th><th>偶发加成</th>' +
-      '<th>本月预算</th><th>娱乐支出</th>' +
+      '<th>本月预算</th><th>计入支出</th>' +
       '<th class="cmp-total">本月结余</th></tr>';
 
     var openingRow = '<tr class="cmp-open">' +
