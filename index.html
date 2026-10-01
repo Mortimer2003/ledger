@@ -964,6 +964,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .seg[hidden] { display: none; }
 
+/* 两级视图：父级「收支 / 财产」是标准胶囊；子级「月度 / 对比 / 预算」小一号、边框更浅，
+   一眼看出是下一层，也不跟后面无边框的年份胶囊混成一条 */
+.seg.sub { border-color: var(--line); }
+.seg.sub button { font-size: 12.5px; padding: 3px 10px; }
+
 /* 年份切换降一档：只留浅底不描边。否则它和视图切换长得一模一样，
    两个分段控件挨在一起会被读成一个「月份 / 对比 / 2026」的三段控件 */
 .seg.soft { border-color: transparent; }
@@ -1137,11 +1142,14 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         <span class="count" id="count"></span>
       </div>
       <div class="metrics">
-        <div class="seg view-switch" id="view-switch">
-          <button type="button" data-view="tree" class="active">月份</button>
+        <div class="seg view-switch" id="view-parent">
+          <button type="button" data-parent="income" class="active">收支</button>
+          <button type="button" data-parent="assets">财产</button>
+        </div>
+        <div class="seg view-switch sub" id="view-sub">
+          <button type="button" data-view="tree" class="active">月度</button>
           <button type="button" data-view="compare">对比</button>
           <button type="button" data-view="budget">预算</button>
-          <button type="button" data-view="assets">财产</button>
         </div>
         <div class="seg soft" id="cmp-bar" hidden></div>
         <div class="sep"></div>
@@ -1355,6 +1363,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   var KEY_DS = 'ledger.dataSourceId';
   var KEY_CACHE = 'ledger.cache';
   var KEY_VIEW = 'ledger.view';
+  var KEY_INCOME_VIEW = 'ledger.incomeView';
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
   var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
@@ -1363,8 +1372,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   var KEY_ASSET_CACHE = 'ledger.assetCache';
   var MAX_RETRY = 3;
 
-  // 视图白名单，顺序跟顶栏按钮一致
+  // 视图白名单，顺序跟顶栏按钮一致；财产是独立父视图，其余三个归在「收支」下
   var VIEWS = ['tree', 'compare', 'budget', 'assets'];
+  var INCOME_VIEWS = ['tree', 'compare', 'budget'];
 
   // ---------- 娱乐预算 ----------
   // 每月 1500 打底，每个法定节假日再加 100，结余（含超支）逐月往后累加。
@@ -1394,6 +1404,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     cmpCollapsed: {}, // 对比视图里收起的分类（默认展开）
     cmpYear: readCmpYear(), // 对比视图当前看哪一年；null = 跟随最新年份
     view: readView(),
+    incomeView: readIncomeView(), // 「收支」下最后看的那种子视图，从财产切回来时用
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
     budgetEdit: null,    // 正在就地编辑的预算格：{ month, field }
@@ -1790,6 +1801,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     return VIEWS.indexOf(raw) === -1 ? 'tree' : raw;
   }
 
+  function readIncomeView() {
+    var raw = localStorage.getItem(KEY_INCOME_VIEW);
+    return INCOME_VIEWS.indexOf(raw) === -1 ? 'tree' : raw;
+  }
+
   function cmpYears(entries) {
     var seen = {}, years = [], other = false;
     entries.forEach(function (e) {
@@ -1913,15 +1929,25 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     render();
   }
 
+  // 父级只标「收支 / 财产」，子级只标当前那一个；看财产时子级整条收起
   function syncViewButtons() {
-    Array.prototype.forEach.call(document.querySelectorAll('#view-switch button'), function (btn) {
+    var parent = state.view === 'assets' ? 'assets' : 'income';
+    Array.prototype.forEach.call(document.querySelectorAll('#view-parent button'), function (btn) {
+      btn.classList.toggle('active', btn.dataset.parent === parent);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#view-sub button'), function (btn) {
       btn.classList.toggle('active', btn.dataset.view === state.view);
     });
+    document.getElementById('view-sub').hidden = state.view === 'assets';
   }
 
   function setView(view) {
     state.view = VIEWS.indexOf(view) === -1 ? 'tree' : view;
     localStorage.setItem(KEY_VIEW, state.view);
+    if (INCOME_VIEWS.indexOf(state.view) !== -1) {
+      state.incomeView = state.view;
+      localStorage.setItem(KEY_INCOME_VIEW, state.view);
+    }
     syncViewButtons();
     render();
   }
@@ -3785,7 +3811,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   });
 
   document.getElementById('btn-cancel').addEventListener('click', closeEditor);
-  document.getElementById('view-switch').addEventListener('click', function (event) {
+  // 父级「收支 / 财产」：点财产直接进；点收支回到上次看的那种子视图
+  document.getElementById('view-parent').addEventListener('click', function (event) {
+    var btn = event.target.closest('button[data-parent]');
+    if (!btn) return;
+    setView(btn.dataset.parent === 'assets' ? 'assets' : state.incomeView);
+  });
+  document.getElementById('view-sub').addEventListener('click', function (event) {
     var btn = event.target.closest('button[data-view]');
     if (btn) setView(btn.dataset.view);
   });
