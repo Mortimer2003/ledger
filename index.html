@@ -134,7 +134,10 @@ body {
 .search .clear:hover { background: var(--line); color: var(--text); }
 .search .clear[hidden] { display: none; }
 
-.totals { display: flex; gap: 6px; margin-left: auto; }
+.totals { display: flex; gap: 6px; }
+
+/* 顶栏右侧一组：年份切换 + 总计。年份排在数字前面，读起来才是「先选年、再看数字」 */
+.metrics { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; }
 
 .chip {
   display: inline-flex;
@@ -751,7 +754,7 @@ body {
   .brand { order: 1; }
   .tools { order: 2; margin-left: auto; }
   .search { order: 3; flex: 1 1 100%; max-width: none; }
-  .totals { order: 4; margin-left: 0; width: 100%; }
+  .metrics { order: 4; margin-left: 0; width: 100%; flex-wrap: wrap; }
   .amt, .row.lv1 .amt { min-width: 76px; }
   .net { min-width: 88px; }
   /* 窄屏把操作位和缩进一起收窄，缩进线靠这几个变量跟着走 */
@@ -779,7 +782,10 @@ body {
       <input id="search" type="search" autocomplete="off" placeholder="搜索明细 / 分类 / 金额…">
       <button type="button" class="clear" id="search-clear" title="清除" hidden>✕</button>
     </div>
-    <div class="totals" id="totals"></div>
+    <div class="metrics">
+      <div class="seg" id="cmp-bar" hidden></div>
+      <div class="totals" id="totals"></div>
+    </div>
     <div class="tools">
       <div class="seg view-switch" id="view-switch">
         <button type="button" data-view="tree" class="active">月份</button>
@@ -927,6 +933,7 @@ body {
   var UNSET_CATEGORY = '未分类';
   var UNSET_SUB = '未分子类';
   var NEW_SUB = '__new__';
+  var CMP_OTHER = '__other__';   // 对比视图里「月份解析不出年份」的那一档
 
   var API = 'https://api.notion.com/v1';
   var NOTION_VERSION = '2025-09-03';
@@ -935,6 +942,7 @@ body {
   var KEY_DS = 'ledger.dataSourceId';
   var KEY_CACHE = 'ledger.cache';
   var KEY_VIEW = 'ledger.view';
+  var KEY_CMP_YEAR = 'ledger.cmpYear';
   var MAX_RETRY = 3;
 
   var settings = {
@@ -946,6 +954,7 @@ body {
     entries: [],
     expanded: {},   // 记录手动展开的节点，默认全部收起
     cmpCollapsed: {}, // 对比视图里收起的分类（默认展开）
+    cmpYear: readCmpYear(), // 对比视图当前看哪一年；null = 跟随最新年份
     view: localStorage.getItem(KEY_VIEW) === 'compare' ? 'compare' : 'tree',
     pendingDelete: null,
     editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
@@ -961,6 +970,7 @@ body {
 
   var treeEl = document.getElementById('tree');
   var emptyEl = document.getElementById('empty');
+  var cmpBarEl = document.getElementById('cmp-bar');
   var totalsEl = document.getElementById('totals');
   var countEl = document.getElementById('count');
   var modalEl = document.getElementById('modal');
@@ -1289,6 +1299,39 @@ body {
     return '<span class="yr">' + m[1] + '</span><span class="mo">' + m[2] + '月</span>';
   }
 
+  // 年界：月份能解析出年份才归到某一年，解析不出的单独一档
+  function yearOf(name) {
+    var m = /^(\d{4})年/.exec(name || '');
+    return m ? Number(m[1]) : null;
+  }
+
+  function readCmpYear() {
+    var raw = localStorage.getItem(KEY_CMP_YEAR);
+    if (raw === CMP_OTHER) return CMP_OTHER;
+    var n = Number(raw);
+    return raw && isFinite(n) ? n : null;   // null = 跟随最新年份
+  }
+
+  function cmpYears(entries) {
+    var seen = {}, years = [], other = false;
+    entries.forEach(function (e) {
+      var y = yearOf(e.month);
+      if (y === null) { other = true; return; }
+      if (!seen[y]) { seen[y] = true; years.push(y); }
+    });
+    years.sort(function (a, b) { return b - a; });   // 新的年份排在前面
+    if (other) years.push(CMP_OTHER);
+    return years;
+  }
+
+  // 汇总只在一年的范围内做：先把条目裁到某一年，再按月份聚合
+  function scopeToYear(entries, year) {
+    return entries.filter(function (e) {
+      var y = yearOf(e.month);
+      return year === CMP_OTHER ? y === null : y === year;
+    });
+  }
+
   function monthValues(list, months) {
     return months.map(function (m) {
       return sum(list.filter(function (e) { return (e.month || UNSET_MONTH) === m; }));
@@ -1299,7 +1342,7 @@ body {
     return values.reduce(function (acc, v) { return acc + v; }, 0);
   }
 
-  // 行 = 分类 + 子类两层，列 = 全部月份（时间正序）+ 合计
+  // 行 = 分类 + 子类两层，列 = 该年内的月份（正序）+ 合计
   function buildComparison(entries) {
     var seen = {}, months = [];
     entries.forEach(function (e) {
@@ -1324,6 +1367,16 @@ body {
     return '<span class="' + tone(value) + '">' + signed(value) + '</span>';
   }
 
+  function renderCmpBar(years, active) {
+    cmpBarEl.hidden = !years.length;
+    cmpBarEl.innerHTML = years.map(function (y) {
+      return '<button type="button" data-cmp-year="' + esc(String(y)) + '"' +
+        (y === active ? ' class="active"' : '') + '>' +
+        (y === CMP_OTHER ? '未标月份' : y) + '</button>';
+    }).join('');
+  }
+
+  // entries 已经裁到某一年，这里只负责把该年的月份铺成列
   function renderCompare(entries) {
     var data = buildComparison(entries);
     if (!data.months.length) return '';
@@ -1362,7 +1415,7 @@ body {
       return catRow + subRows;
     }).join('');
 
-    // 分类有收有支，纵向加起来就是当月净额
+    // 分类有收有支，同一年内纵向加起来就是当月净额
     var netValues = data.months.map(function (m, i) {
       return sumArr(data.rows.map(function (r) { return r.values[i]; }));
     });
@@ -1374,6 +1427,12 @@ body {
 
     return '<table class="cmp"><thead>' + head + '</thead><tbody>' +
       body + netRow + '</tbody></table>';
+  }
+
+  function setCmpYear(year) {
+    state.cmpYear = year;
+    localStorage.setItem(KEY_CMP_YEAR, String(year));
+    render();
   }
 
   function syncViewButtons() {
@@ -1399,32 +1458,44 @@ body {
     var all = state.entries;
     var entries = visibleEntries();
     var searching = !!state.search.trim();
+    var comparing = state.view === 'compare';
+
+    // 对比视图以年为界：顶部总计、笔数和表格都收在同一年里，数字才不会互相打架
+    var years = comparing ? cmpYears(entries) : [];
+    var year = years.length
+      ? (years.indexOf(state.cmpYear) !== -1 ? state.cmpYear : years[0])
+      : null;
+    renderCmpBar(years, year);
+
+    var scoped = comparing && year !== null ? scopeToYear(entries, year) : entries;
+    var yearName = year === null ? '' : (year === CMP_OTHER ? '未标月份' : year + ' 年');
 
     emptyEl.hidden = entries.length > 0;
     if (searching) {
-      countEl.textContent = '匹配 ' + entries.length + ' / 共 ' + all.length + ' 笔';
+      countEl.textContent = comparing
+        ? '匹配 ' + scoped.length + ' 笔'
+        : '匹配 ' + entries.length + ' / 共 ' + all.length + ' 笔';
       if (!entries.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
+    } else if (comparing) {
+      countEl.textContent = year === null ? '' : yearName + ' · ' + scoped.length + ' 笔';
+      emptyEl.textContent = '还没有数据，点右上角「新增」记一笔。';
     } else {
       countEl.textContent = all.length ? '共 ' + all.length + ' 笔' : '';
       emptyEl.textContent = '还没有数据，点右上角「新增」记一笔。';
     }
 
-    var income = sum(entries.filter(function (e) { return e.amount > 0; }));
-    var expense = sum(entries.filter(function (e) { return e.amount < 0; }));
+    var income = sum(scoped.filter(function (e) { return e.amount > 0; }));
+    var expense = sum(scoped.filter(function (e) { return e.amount < 0; }));
     totalsEl.innerHTML =
       '<span class="chip"><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
       '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
       '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
       tone(income + expense) + '">' + signed(income + expense) + '</i></span>';
 
-    var comparing = state.view === 'compare';
     treeEl.className = comparing ? 'tree compare' : 'tree';
-
-    if (comparing) {
-      treeEl.innerHTML = renderCompare(entries);
-    } else {
-      treeEl.innerHTML = groupByMonth(entries).map(renderMonth).join('');
-    }
+    treeEl.innerHTML = comparing
+      ? renderCompare(scoped)
+      : groupByMonth(entries).map(renderMonth).join('');
 
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -2049,6 +2120,14 @@ body {
     if (!leaf) return;
     if (event.target.closest('.name')) return startEdit(leaf.dataset.id, 'item');
     if (event.target.closest('.amt')) return startEdit(leaf.dataset.id, 'amount');
+  });
+
+  // 对比视图的年份切换
+  cmpBarEl.addEventListener('click', function (event) {
+    var btn = event.target.closest('button[data-cmp-year]');
+    if (!btn) return;
+    var raw = btn.dataset.cmpYear;
+    setCmpYear(raw === CMP_OTHER ? CMP_OTHER : Number(raw));
   });
 
   document.getElementById('f-sign').addEventListener('click', function (event) {
