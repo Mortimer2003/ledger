@@ -1818,17 +1818,29 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     return {
       fun: fun,
       special: special,
-      half: Math.round(special * SPECIAL_SHARE),
       total: Math.round(fun + special * SPECIAL_SHARE)
     };
   }
 
-  // 气泡里那句话：这笔花销由哪几块凑出来
+  // 气泡里那几行：这笔花销由哪几块凑出来，一行一块
   function spendTip(s) {
-    var parts = [];
-    if (s.fun) parts.push('娱乐支出 ' + money(s.fun));
-    if (s.special) parts.push('特殊支出 ' + money(s.special) + ' 的一半 ' + money(s.half));
-    return parts.join(' + ');
+    var lines = [];
+    if (s.fun) lines.push('娱乐支出 ' + money(s.fun));
+    if (s.special) lines.push('特殊支出 ' + money(s.special) + '/2');
+    return lines;
+  }
+
+  // 说明里几笔钱用户习惯用「+」连着写，悬停时拆成一行一笔。
+  // 加号紧跟数字的（如「生日 +500」）是正数符号不是分隔，别拆
+  function noteLines(text) {
+    return String(text).split(/\s*\+\s*(?=\D)/)
+      .map(function (s) { return s.trim(); })
+      .filter(function (s) { return s; });
+  }
+
+  // 气泡内容：每行单独转义，别让 .map 把数组下标也塞进 esc
+  function tipHtml(lines) {
+    return lines.map(function (l) { return esc(l); }).join('<br>');
   }
 
   // 从期初往后逐月滚：
@@ -1900,7 +1912,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
           '<label><span>数字</span><input type="number" step="1" placeholder="0"' +
             ' value="' + (value ? esc(String(value)) : '') + '"' +
             ' data-budget="' + esc(row.month) + '" data-field="' + field + '"></label>' +
-          '<label><span>说明</span><input type="text" placeholder="这笔钱由什么组成"' +
+          '<label><span>说明</span><input type="text" placeholder="这笔钱由什么组成，用 + 分隔"' +
             ' value="' + esc(note) + '"' +
             ' data-budget-note="' + esc(row.month) + '" data-field="' + field + '"></label>' +
         '</span></td>';
@@ -1908,14 +1920,14 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
     return '<td class="cmp-edit' + (note ? ' has-note' : '') + '"' +
       ' data-budget-open="' + esc(row.month) + '" data-field="' + field + '"' +
-      '>' + shown + (note ? '<span class="tip">' + esc(note) + '</span>' : '') + '</td>';
+      '>' + shown + (note ? '<span class="tip">' + tipHtml(noteLines(note)) + '</span>' : '') + '</td>';
   }
 
   function budgetHint() {
     return '<p class="budget-hint">' +
       '本月预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成；' +
       '本月结余 = 预算 − 本月花销 + 特殊收入计入。' +
-      '本月花销 = 「娱乐支出」分类合计 + 「特殊支出」分类的一半。' +
+      '本月花销 = 「娱乐支出」分类合计 + 「特殊支出」分类合计/2。' +
       '法定假日按国家法定节假日天数算（国庆 3 天，不是放假 7 天）。' +
       '「特殊收入计入」「偶发加成」双击可改（数字和说明一起改）；' +
       '数字下带虚线的格子，鼠标停上去能看到明细——「本月花销」那格会拆开告诉你娱乐和特殊各占多少。' +
@@ -1951,7 +1963,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         // 花销走支出色（绿），跟账本里负数支出一个颜色；悬停能看娱乐和特殊各占多少
         '<td class="cmp-spend">' + (row.spend.total
           ? '<span class="v neg">−' + money(row.spend.total) + '</span>' +
-            '<span class="tip">' + esc(spendTip(row.spend)) + '</span>'
+            '<span class="tip">' + tipHtml(spendTip(row.spend)) + '</span>'
           : '<span class="zero">—</span>') + '</td>' +
         '<td class="cmp-total">' + budgetCell(row.remain) + '</td>' +
       '</tr>';
