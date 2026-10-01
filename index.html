@@ -713,6 +713,35 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp.budget tbody tr.preview .name { font-style: italic; }
 .cmp.budget tbody tr.preview:hover > * { background: var(--bg); }
 
+/* ---------- 财产视图 ---------- */
+/* 跟对比视图一样要横向铺开，两侧留白去掉 */
+.tree.assets { padding: 0 0 28px; }
+
+.assets-hint {
+  margin: 0;
+  padding: 10px 14px 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* 总计行：跟分类行一样压深一档，再往上收一条实线，跟明细断开 */
+.cmp.assets tbody tr.assets-sum th,
+.cmp.assets tbody tr.assets-sum td {
+  background: var(--bg-soft);
+  font-weight: 600;
+  border-top: 1px solid var(--line-strong);
+}
+.cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
+
+/* 环比行：派生数，不是资产本身，压灰一档 */
+.cmp.assets tbody tr.assets-delta th,
+.cmp.assets tbody tr.assets-delta td {
+  color: var(--text-2);
+  font-weight: 500;
+}
+.cmp.assets tbody tr.assets-delta .name { font-size: 13px; color: var(--text-2); }
+
 /* ---------- 弹窗 ---------- */
 .mask {
   position: fixed;
@@ -977,6 +1006,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
           <button type="button" data-view="tree" class="active">月份</button>
           <button type="button" data-view="compare">对比</button>
           <button type="button" data-view="budget">预算</button>
+          <button type="button" data-view="assets">财产</button>
         </div>
         <div class="seg soft" id="cmp-bar" hidden></div>
         <div class="sep"></div>
@@ -1050,6 +1080,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     <div class="field">
       <label for="s-budget">娱乐预算数据源 ID <span class="opt">可选</span></label>
       <input id="s-budget" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="s-assets">财产数据源 ID <span class="opt">可选</span></label>
+      <input id="s-assets" autocomplete="off" spellcheck="false">
     </div>
     <p class="err" id="s-err" hidden></p>
     <div class="modal-actions">
@@ -1189,7 +1223,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
   var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
+  var KEY_ASSETS_DS = 'ledger.assetsSourceId';
+  var DEFAULT_ASSETS_DS = 'aa5d7d6d-9349-4af1-a193-91c2af0eb26f';
+  var KEY_ASSET_CACHE = 'ledger.assetCache';
   var MAX_RETRY = 3;
+
+  // 视图白名单，顺序跟顶栏按钮一致
+  var VIEWS = ['tree', 'compare', 'budget', 'assets'];
 
   // ---------- 娱乐预算 ----------
   // 每月 1500 打底，每个法定节假日再加 100，结余（含超支）逐月往后累加。
@@ -1209,7 +1249,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   var settings = {
     token: localStorage.getItem(KEY_TOKEN) || '',
     dataSourceId: localStorage.getItem(KEY_DS) || DEFAULT_DATA_SOURCE,
-    budgetSourceId: localStorage.getItem(KEY_BUDGET_DS) || DEFAULT_BUDGET_DS
+    budgetSourceId: localStorage.getItem(KEY_BUDGET_DS) || DEFAULT_BUDGET_DS,
+    assetsSourceId: localStorage.getItem(KEY_ASSETS_DS) || DEFAULT_ASSETS_DS
   };
 
   var state = {
@@ -1221,6 +1262,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
     budgetEdit: null,    // 正在就地编辑的预算格：{ month, field }
+    assets: [],          // 财产快照：每行 { id, name, month, app, start, end, note }
     pendingDelete: null,
     editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
     search: '',
@@ -1607,7 +1649,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
   function readView() {
     var raw = localStorage.getItem(KEY_VIEW);
-    return raw === 'compare' || raw === 'budget' ? raw : 'tree';
+    return VIEWS.indexOf(raw) === -1 ? 'tree' : raw;
   }
 
   function cmpYears(entries) {
@@ -1740,7 +1782,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   }
 
   function setView(view) {
-    state.view = view === 'compare' || view === 'budget' ? view : 'tree';
+    state.view = VIEWS.indexOf(view) === -1 ? 'tree' : view;
     localStorage.setItem(KEY_VIEW, state.view);
     syncViewButtons();
     render();
@@ -2072,6 +2114,216 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     });
   }
 
+  // ---------- 我的财产 ----------
+  // 每月一笔资产快照（月初 / 月末）。「公积金」那部分取不出来，看「能动的钱」时得剔掉，
+  // 所以两个总计都给：含公积金、不含公积金。
+  var ASSET_APP_ORDER = ['招商银行', '支付宝', '微信', '公积金', '证券'];
+  var ASSET_RESERVED = '公积金';
+
+  function normalizeAsset(page) {
+    var props = page.properties || {};
+    var title = (props['类型'] && props['类型'].title) || [];
+    function sel(name) {
+      return (props[name] && props[name].select && props[name].select.name) || '';
+    }
+    function num(name) {
+      var v = props[name] && props[name].number;
+      return v === undefined ? null : v;
+    }
+    return {
+      id: page.id,
+      name: title.map(function (t) { return t.plain_text || ''; }).join(''),
+      month: sel('月份'),
+      app: sel('应用'),
+      start: num('月初'),
+      end: num('月末'),
+      note: richText(props['备注'])
+    };
+  }
+
+  function fetchAssets() {
+    var rows = [];
+    function step(cursor) {
+      var payload = { page_size: 100 };
+      if (cursor) payload.start_cursor = cursor;
+      return notion('/data_sources/' + settings.assetsSourceId + '/query', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }).then(function (page) {
+        rows = rows.concat((page.results || []).map(normalizeAsset));
+        return page.has_more ? step(page.next_cursor) : rows;
+      });
+    }
+    return step(null).then(function (list) { state.assets = list; return list; });
+  }
+
+  // 这一年里真正有记录的月份，正序
+  function assetMonths(year) {
+    var seen = {}, months = [];
+    state.assets.forEach(function (a) {
+      if (!a.month || !a.name) return;
+      var y = yearOf(a.month);
+      if (year !== null && year !== CMP_OTHER && y !== year) return;
+      if (year === CMP_OTHER && y !== null) return;
+      if (!seen[a.month]) { seen[a.month] = true; months.push(a.month); }
+    });
+    months.sort(function (a, b) { return monthKey(a) - monthKey(b); });
+    return months;
+  }
+
+  function columnSums(items, count) {
+    var out = [];
+    for (var i = 0; i < count; i++) {
+      out.push(items.reduce(function (acc, it) {
+        var v = it.values[i];
+        return acc + (v === null || v === undefined ? 0 : v);
+      }, 0));
+    }
+    return out;
+  }
+
+  function buildAssets(year) {
+    var months = assetMonths(year);
+    if (!months.length) return { months: [], groups: [], totals: [] };
+
+    // 同一个「应用 + 类型」在各月各有一条记录，按月份攒成一行
+    var index = {};
+    state.assets.forEach(function (a) {
+      if (months.indexOf(a.month) === -1 || !a.name) return;
+      var key = a.app + '|' + a.name;
+      var item = index[key] || (index[key] = { app: a.app, name: a.name, values: {} });
+      item.values[a.month] = a.end;
+    });
+
+    var items = Object.keys(index).map(function (k) {
+      var it = index[k];
+      return {
+        app: it.app,
+        name: it.name,
+        values: months.map(function (m) {
+          var v = it.values[m];
+          return v === undefined ? null : v;
+        })
+      };
+    });
+
+    // 应用按固定顺序排；没列进去的排最后，免得新加的账户漏掉
+    var apps = ASSET_APP_ORDER.filter(function (app) {
+      return items.some(function (it) { return it.app === app; });
+    });
+    items.forEach(function (it) {
+      if (apps.indexOf(it.app) === -1) apps.push(it.app);
+    });
+
+    var last = months.length - 1;
+    var groups = apps.map(function (app) {
+      var list = items.filter(function (it) { return it.app === app; })
+        .sort(function (x, y) {
+          // 组内按最新一个月从大到小，大头排前面；再按名字定个稳定次序
+          return (y.values[last] || 0) - (x.values[last] || 0) ||
+            (x.name < y.name ? -1 : 1);
+        });
+      return { app: app, items: list, values: columnSums(list, months.length) };
+    });
+
+    return {
+      months: months,
+      groups: groups,
+      totals: [
+        { label: '总资产（含公积金）', values: columnSums(items, months.length) },
+        { label: '总资产（不含公积金）', values: columnSums(items.filter(function (it) {
+            return it.app !== ASSET_RESERVED;
+          }), months.length) }
+      ]
+    };
+  }
+
+  function assetCell(value) {
+    return value === null || value === undefined
+      ? '<span class="zero">—</span>' : money(value);
+  }
+
+  // 变化 = 最后一个月 − 第一个月；涨红跌绿，跟账本里一个规矩
+  function assetDelta(values) {
+    if (values.length < 2) return '<span class="zero">—</span>';
+    var d = values[values.length - 1] - values[0];
+    if (!d) return '<span class="zero">—</span>';
+    return '<span class="' + tone(d) + '">' + signed(d) + '</span>';
+  }
+
+  function assetsHint() {
+    return '<p class="assets-hint">' +
+      '每月一笔资产快照，格子里的数字是「月末」余额。' +
+      '「总资产（含公积金）」把公积金账户算进来，「总资产（不含公积金）」只看能动用的钱——' +
+      '公积金取不出来，两个口径都留着。' +
+      '「较上月」是含公积金总资产的环比增量，「变化」那一列是首尾两个月之间涨跌了多少。' +
+      '这里只读；要改数就打开 Notion 的「我的财产」数据源，改「月初」「月末」。</p>';
+  }
+
+  function renderAssets(year) {
+    var data = buildAssets(year);
+    if (!data.months.length) {
+      return '<p class="assets-hint">' +
+        (year === null ? '还没有财产数据。' : year + ' 年还没有财产记录。') +
+        '财产存在独立的「我的财产」数据源里，在 Notion 里按月记上「月初」「月末」就会出现在这里。</p>';
+    }
+
+    var head = '<tr>' +
+      '<th class="cmp-item"><span class="cell"><span class="name">资产项</span></span></th>' +
+      data.months.map(function (m) {
+        return '<th class="cmp-month">' + monthHead(m) + '</th>';
+      }).join('') +
+      '<th class="cmp-total">变化</th></tr>';
+
+    var body = data.groups.map(function (g) {
+      var groupRow = '<tr class="cmp-cat">' +
+        '<th class="cmp-item"><span class="cell">' +
+          '<span class="chev ghost"></span>' +
+          '<span class="name">' + esc(g.app) + '</span>' +
+        '</span></th>' +
+        g.values.map(function (v) { return '<td>' + assetCell(v) + '</td>'; }).join('') +
+        '<td class="cmp-total">' + assetDelta(g.values) + '</td>' +
+      '</tr>';
+
+      var itemRows = g.items.map(function (it) {
+        return '<tr class="cmp-sub">' +
+          '<th class="cmp-item"><span class="cell">' +
+            '<span class="indent"></span>' +
+            '<span class="name">' + esc(it.name) + '</span>' +
+          '</span></th>' +
+          it.values.map(function (v) { return '<td>' + assetCell(v) + '</td>'; }).join('') +
+          '<td class="cmp-total">' + assetDelta(it.values) + '</td>' +
+        '</tr>';
+      }).join('');
+
+      return groupRow + itemRows;
+    }).join('');
+
+    var sumRows = data.totals.map(function (t) {
+      return '<tr class="assets-sum">' +
+        '<th class="cmp-item"><span class="cell"><span class="name">' + esc(t.label) +
+        '</span></span></th>' +
+        t.values.map(function (v) { return '<td>' + assetCell(v) + '</td>'; }).join('') +
+        '<td class="cmp-total">' + assetDelta(t.values) + '</td>' +
+      '</tr>';
+    }).join('');
+
+    // 环比：这个月比上个月多了多少，跟「月度理财总览」里的资产增量一个意思
+    var main = data.totals[0].values;
+    var deltaRow = '<tr class="assets-delta">' +
+      '<th class="cmp-item"><span class="cell"><span class="name">较上月</span></span></th>' +
+      main.map(function (v, i) {
+        if (i === 0) return '<td><span class="zero">—</span></td>';
+        var d = v - main[i - 1];
+        if (!d) return '<td><span class="zero">—</span></td>';
+        return '<td><span class="' + tone(d) + '">' + signed(d) + '</span></td>';
+      }).join('') +
+      '<td class="cmp-total"><span class="zero">—</span></td></tr>';
+
+    return assetsHint() + '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
+      body + sumRows + deltaRow + '</tbody></table>';
+  }
+
   // ---------- 渲染 ----------
   function amtCell(value, cls) {
     if (!value) return '<span class="amt zero">—</span>';
@@ -2099,8 +2351,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     var budgetData = buildBudget(yearEntries, year);
     var budgetLast = lastRealBudget(budgetData);
 
-    emptyEl.hidden = scoped.length > 0;
-    if (searching) {
+    emptyEl.hidden = scoped.length > 0 || mode === 'assets';
+    if (mode === 'assets') {
+      // 财产跟账本走的是两套数据，账本为空不代表没财产，这里不摆「还没有数据」
+      countEl.textContent = yearName ? yearName + ' · 财产' : '财产';
+    } else if (searching) {
       countEl.textContent = '匹配 ' + scoped.length + ' 笔';
       if (!scoped.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
     } else if (year !== null) {
@@ -2113,22 +2368,34 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
     var income = sum(scoped.filter(function (e) { return e.amount > 0; }));
     var expense = sum(scoped.filter(function (e) { return e.amount < 0; }));
-    totalsEl.innerHTML =
-      '<span class="chip"><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
-      '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
-      '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
-      tone(income + expense) + '">' + signed(income + expense) + '</i></span>' +
-      (budgetLast
-        ? '<span class="chip budget"><b>娱乐结余</b><i class="' + tone(budgetLast.remain) + '">' +
-          signed(budgetLast.remain) + '</i></span>'
-        : '');
+    if (mode === 'assets') {
+      // 财产视图不看收支，顶栏换成最新一个月的两个口径总资产
+      var assetTop = buildAssets(year);
+      var at = assetTop.months.length - 1;
+      totalsEl.innerHTML = at < 0 ? '' :
+        '<span class="chip"><b>含公积金</b><i>' + money(assetTop.totals[0].values[at]) + '</i></span>' +
+        '<span class="chip"><b>不含公积金</b><i>' + money(assetTop.totals[1].values[at]) + '</i></span>';
+    } else {
+      totalsEl.innerHTML =
+        '<span class="chip"><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
+        '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
+        '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
+        tone(income + expense) + '">' + signed(income + expense) + '</i></span>' +
+        (budgetLast
+          ? '<span class="chip budget"><b>娱乐结余</b><i class="' + tone(budgetLast.remain) + '">' +
+            signed(budgetLast.remain) + '</i></span>'
+          : '');
+    }
 
-    treeEl.className = 'tree' + (mode === 'compare' ? ' compare' : mode === 'budget' ? ' budget' : '');
+    treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
+      : mode === 'budget' ? ' budget' : mode === 'assets' ? ' assets' : '');
     treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped)
       : mode === 'budget'
         ? renderBudget(budgetData, year)
-        : groupByMonth(scoped).map(renderMonth).join('');
+        : mode === 'assets'
+          ? renderAssets(year)
+          : groupByMonth(scoped).map(renderMonth).join('');
 
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -2310,7 +2577,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     return Promise.all([
       fetchAll(),
       // 预算读不到不影响记账，顶栏那颗读数会自己消失
-      fetchBudget().catch(function () { return null; })
+      fetchBudget().catch(function () { return null; }),
+      // 财产是独立数据源，读不到也只是财产视图空着，账本照常
+      fetchAssets().catch(function () { return null; })
     ]).then(function (results) {
       state.entries = results[0];
       state.pendingDelete = null;
@@ -2676,6 +2945,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     document.getElementById('s-token').value = settings.token;
     document.getElementById('s-ds').value = settings.dataSourceId;
     document.getElementById('s-budget').value = settings.budgetSourceId;
+    document.getElementById('s-assets').value = settings.assetsSourceId;
     document.getElementById('s-cancel').hidden = !state.entries.length && !settings.token;
     var errEl = document.getElementById('s-err');
     errEl.hidden = !message;
@@ -3029,6 +3299,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     var token = document.getElementById('s-token').value.trim();
     var ds = document.getElementById('s-ds').value.trim();
     var budgetDs = document.getElementById('s-budget').value.trim();
+    var assetsDs = document.getElementById('s-assets').value.trim();
     var errEl = document.getElementById('s-err');
     if (!token) { errEl.hidden = false; errEl.textContent = '请填写集成令牌'; return; }
     if (!ds) { errEl.hidden = false; errEl.textContent = '请填写数据源 ID'; return; }
@@ -3036,6 +3307,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     settings.token = token;
     settings.dataSourceId = ds;
     settings.budgetSourceId = budgetDs;
+    settings.assetsSourceId = assetsDs || DEFAULT_ASSETS_DS;
     var saveBtn = document.getElementById('s-save');
     saveBtn.disabled = true;
     setLoading(true);
@@ -3044,12 +3316,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       localStorage.setItem(KEY_TOKEN, token);
       localStorage.setItem(KEY_DS, ds);
       localStorage.setItem(KEY_BUDGET_DS, budgetDs);
+      localStorage.setItem(KEY_ASSETS_DS, settings.assetsSourceId);
       render();
       writeCache();
       closeSetup();
       toast('已连接');
       fetchSubOptions().catch(function () { return null; });
-      fetchBudget().catch(function () { return null; }).then(render);
+      fetchBudget().catch(function () { return null; })
+        .then(function () { return fetchAssets().catch(function () { return null; }); })
+        .then(render);
     }).catch(function (err) {
       errEl.hidden = false;
       errEl.textContent = err.message;
