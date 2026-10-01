@@ -742,6 +742,141 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .cmp.assets tbody tr.assets-delta .name { font-size: 13px; color: var(--text-2); }
 
+/* 工具条：左边进度、右边两个「＋」，跟顶栏按钮一个调子 */
+.assets-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 10px;
+}
+.assets-bar-tools { display: flex; gap: 8px; margin-left: auto; }
+.assets-bar .tool {
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.assets-bar .tool:hover { background: var(--hover); color: var(--text); }
+.assets-progress { color: var(--text-3); font-size: 12px; }
+.assets-progress[hidden] { display: none; }
+
+/* 新增表单：一行摆开，回车就提交，Esc 取消 */
+.assets-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 14px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+.assets-form label { display: flex; align-items: center; gap: 6px; }
+.assets-form label > span { color: var(--text-3); font-size: 12px; }
+.assets-form input {
+  width: 112px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.assets-form input:focus { border-color: var(--accent); }
+.assets-form-tip { color: var(--text-3); font-size: 12px; }
+.assets-form button {
+  padding: 4px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.assets-form button[data-asset-form-save] {
+  border-color: transparent;
+  background: var(--accent);
+  color: #fff;
+}
+.assets-form button:hover { opacity: .88; }
+
+/* 删除按钮：贴着名字，平时淡一点，指到行上才显眼 */
+.asset-del {
+  flex: none;
+  margin-left: 2px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: .45;
+}
+.cmp.assets tbody tr:hover .asset-del { opacity: 1; }
+.asset-del:hover { color: var(--danger); background: var(--hover); }
+
+/* 财产格：平时只显月末，双击展开「月初 + 月末」，跟预算格一个规矩 */
+.cmp.assets td.cmp-edit {
+  position: relative;
+  padding: 5px 10px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cmp.assets td.cmp-edit[data-asset-open] { cursor: text; }
+.cmp.assets td.cmp-edit[data-asset-open]:hover { box-shadow: inset 0 0 0 1px var(--line); }
+.cmp.assets td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
+.cmp.assets td.cmp-edit input {
+  width: 84px;
+  padding: 3px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+}
+.cmp.assets td.cmp-edit input::placeholder { color: var(--text-3); }
+.cmp.assets td.cmp-edit .editor {
+  position: absolute;
+  right: 0;
+  top: calc(100% - 1px);
+  z-index: 6;
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+.cmp.assets td.cmp-edit .editor label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.cmp.assets td.cmp-edit .editor label:last-child { margin-bottom: 0; }
+.cmp.assets td.cmp-edit .editor label > span {
+  flex: none;
+  width: 26px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+
 /* ---------- 弹窗 ---------- */
 .mask {
   position: fixed;
@@ -1263,6 +1398,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     budgetOpening: { id: null, amount: 0 },
     budgetEdit: null,    // 正在就地编辑的预算格：{ month, field }
     assets: [],          // 财产快照：每行 { id, name, month, app, start, end, note }
+    assetsEdit: null,    // 正在就地编辑的财产格：{ id, draft: { start, end } }
+    assetsForm: null,    // 财产的新增表单：{ kind: 'item' | 'month', ... }
+    assetsYear: null,    // 财产视图当前看哪一年，新增月份时按它铺列
     pendingDelete: null,
     editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
     search: '',
@@ -2191,8 +2329,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     state.assets.forEach(function (a) {
       if (months.indexOf(a.month) === -1 || !a.name) return;
       var key = a.app + '|' + a.name;
-      var item = index[key] || (index[key] = { app: a.app, name: a.name, values: {} });
-      item.values[a.month] = a.end;
+      var item = index[key] || (index[key] = { app: a.app, name: a.name, byMonth: {} });
+      item.byMonth[a.month] = { id: a.id, start: a.start, end: a.end };
     });
 
     var items = Object.keys(index).map(function (k) {
@@ -2200,9 +2338,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       return {
         app: it.app,
         name: it.name,
+        // 每列对应的那条记录（没有就是 null），就地编辑要拿它的 id 和原值
+        cells: months.map(function (m) { return it.byMonth[m] || null; }),
         values: months.map(function (m) {
-          var v = it.values[m];
-          return v === undefined ? null : v;
+          var c = it.byMonth[m];
+          return c ? c.end : null;
         })
       };
     });
@@ -2238,7 +2378,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     };
   }
 
-  function assetCell(value) {
+  function assetNum(value) {
     return value === null || value === undefined
       ? '<span class="zero">—</span>' : money(value);
   }
@@ -2251,21 +2391,90 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     return '<span class="' + tone(d) + '">' + signed(d) + '</span>';
   }
 
+  // 明细格：平时只显月末，双击展开「月初 + 月末」两个输入框
+  function assetCell(item, cell) {
+    if (!cell) return '<td><span class="zero">—</span></td>';
+    var shown = assetNum(cell.end);
+    if (state.assetsEdit && state.assetsEdit.id === cell.id) {
+      function box(field, label, value) {
+        return '<label><span>' + label + '</span><input type="number" step="1" placeholder="0"' +
+          ' value="' + (value === null || value === undefined ? '' : esc(String(value))) + '"' +
+          ' data-asset-num="' + field + '"></label>';
+      }
+      return '<td class="cmp-edit editing">' + shown +
+        '<span class="editor">' +
+          box('start', '月初', cell.start) +
+          box('end', '月末', cell.end) +
+        '</span></td>';
+    }
+    return '<td class="cmp-edit" data-asset-open="' + esc(cell.id) + '"' +
+      ' title="双击改月初 / 月末">' + shown + '</td>';
+  }
+
+  function assetForm(form) {
+    var months = form.months;
+    var apps = ASSET_APP_ORDER.slice();
+    state.assets.forEach(function (a) {
+      if (a.app && apps.indexOf(a.app) === -1) apps.push(a.app);
+    });
+    var list = '<datalist id="asset-apps">' + apps.map(function (a) {
+      return '<option value="' + esc(a) + '"></option>';
+    }).join('') + '</datalist>';
+
+    var save = '<button type="button" data-asset-form-save="1">创建</button>' +
+      '<button type="button" data-asset-form-cancel="1">取消</button>';
+
+    if (form.kind === 'item') {
+      return list + '<div class="assets-form">' +
+        '<label><span>应用</span><input id="asset-app" list="asset-apps" autocomplete="off"' +
+          ' data-asset-field="app" placeholder="招商银行" value="' + esc(form.app) + '"></label>' +
+        '<label><span>名称</span><input id="asset-name" autocomplete="off"' +
+          ' data-asset-field="name" placeholder="活期存款" value="' + esc(form.name) + '"></label>' +
+        // 一个月都还没有时，得先告诉它记到哪个月
+        (months.length ? '' :
+          '<label><span>月份</span><input id="asset-month" list="months" autocomplete="off"' +
+            ' data-asset-field="month" placeholder="2026年10月" value="' + esc(form.month) + '"></label>') +
+        '<span class="assets-form-tip">' +
+          (months.length ? '给 ' + months.length + ' 个月各建一行，金额留空待填' : '先建一行，之后再补别的月份') +
+        '</span>' + save + '</div>';
+    }
+
+    return list + '<div class="assets-form">' +
+      '<label><span>月份</span><input id="asset-month" list="months" autocomplete="off"' +
+        ' data-asset-field="month" placeholder="2026年10月" value="' + esc(form.month) + '"></label>' +
+      '<span class="assets-form-tip">照抄 ' + esc(form.from) + ' 的全部资产项，月初自动接上月末</span>' +
+      save + '</div>';
+  }
+
+  function assetTools(months) {
+    var html = '<div class="assets-bar">' +
+      '<span class="assets-progress" id="asset-progress" hidden></span>' +
+      '<span class="assets-bar-tools">' +
+        (months.length
+          ? '<button type="button" class="tool" data-asset-tool="month">＋ 新增月份</button>' : '') +
+        '<button type="button" class="tool" data-asset-tool="item">＋ 新增资产项</button>' +
+      '</span></div>';
+    return state.assetsForm ? html + assetForm(state.assetsForm) : html;
+  }
+
   function assetsHint() {
     return '<p class="assets-hint">' +
-      '每月一笔资产快照，格子里的数字是「月末」余额。' +
+      '每月一笔资产快照，格子里的数字是「月末」余额；双击格子能改「月初」「月末」，回车或点到别处就存下。' +
       '「总资产（含公积金）」把公积金账户算进来，「总资产（不含公积金）」只看能动用的钱——' +
       '公积金取不出来，两个口径都留着。' +
       '「较上月」是含公积金总资产的环比增量，「变化」那一列是首尾两个月之间涨跌了多少。' +
-      '这里只读；要改数就打开 Notion 的「我的财产」数据源，改「月初」「月末」。</p>';
+      '「＋ 新增月份」照上个月的样子铺一份新月，「＋ 新增资产项」给每个已有月份各加一行；' +
+      '明细行左边的 × 会把这一项在各月的记录一起删掉，删错了能撤销。</p>';
   }
 
   function renderAssets(year) {
+    state.assetsYear = year;
     var data = buildAssets(year);
     if (!data.months.length) {
       return '<p class="assets-hint">' +
         (year === null ? '还没有财产数据。' : year + ' 年还没有财产记录。') +
-        '财产存在独立的「我的财产」数据源里，在 Notion 里按月记上「月初」「月末」就会出现在这里。</p>';
+        '财产存在独立的「我的财产」数据源里，点「＋ 新增资产项」记第一行。</p>' +
+        assetTools([]);
     }
 
     var head = '<tr>' +
@@ -2281,7 +2490,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
           '<span class="chev ghost"></span>' +
           '<span class="name">' + esc(g.app) + '</span>' +
         '</span></th>' +
-        g.values.map(function (v) { return '<td>' + assetCell(v) + '</td>'; }).join('') +
+        g.values.map(function (v) { return '<td>' + assetNum(v) + '</td>'; }).join('') +
         '<td class="cmp-total">' + assetDelta(g.values) + '</td>' +
       '</tr>';
 
@@ -2290,8 +2499,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
           '<th class="cmp-item"><span class="cell">' +
             '<span class="indent"></span>' +
             '<span class="name">' + esc(it.name) + '</span>' +
+            '<button type="button" class="asset-del" title="删掉这个资产项"' +
+              ' data-asset-del-app="' + esc(it.app) + '"' +
+              ' data-asset-del-name="' + esc(it.name) + '">×</button>' +
           '</span></th>' +
-          it.values.map(function (v) { return '<td>' + assetCell(v) + '</td>'; }).join('') +
+          it.cells.map(function (c) { return assetCell(it, c); }).join('') +
           '<td class="cmp-total">' + assetDelta(it.values) + '</td>' +
         '</tr>';
       }).join('');
@@ -2303,7 +2515,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       return '<tr class="assets-sum">' +
         '<th class="cmp-item"><span class="cell"><span class="name">' + esc(t.label) +
         '</span></span></th>' +
-        t.values.map(function (v) { return '<td>' + assetCell(v) + '</td>'; }).join('') +
+        t.values.map(function (v) { return '<td>' + assetNum(v) + '</td>'; }).join('') +
         '<td class="cmp-total">' + assetDelta(t.values) + '</td>' +
       '</tr>';
     }).join('');
@@ -2320,8 +2532,274 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       }).join('') +
       '<td class="cmp-total"><span class="zero">—</span></td></tr>';
 
-    return assetsHint() + '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
+    return assetsHint() + assetTools(data.months) +
+      '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
       body + sumRows + deltaRow + '</tbody></table>';
+  }
+
+  // ---------- 财产的增改 ----------
+  function assetMonthsInView() {
+    return buildAssets(state.assetsYear).months;
+  }
+
+  function setAssetProgress(text) {
+    var el = document.getElementById('asset-progress');
+    if (!el) return;
+    el.hidden = !text;
+    el.textContent = text || '';
+  }
+
+  // 双击格子：草稿先记着，等焦点离开整块小面板再一次性比对、只写改过的那几个字段
+  function startAssetEdit(id) {
+    var row = state.assets.filter(function (a) { return a.id === id; })[0];
+    if (!row) return;
+    state.assetsEdit = { id: id, draft: { start: row.start, end: row.end } };
+    render();
+    var input = typeof treeEl.querySelector === 'function'
+      ? treeEl.querySelector('input[data-asset-num]') : null;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }
+
+  function commitAssetEditor() {
+    var edit = state.assetsEdit;
+    if (!edit) return;
+    state.assetsEdit = null;
+    var row = state.assets.filter(function (a) { return a.id === edit.id; })[0];
+    if (!row) return render();
+
+    function num(raw) {
+      var s = String(raw == null ? '' : raw).trim();
+      if (!s) return null;   // 清空就是不填，别硬当成 0
+      var n = Number(s);
+      return isFinite(n) ? n : null;
+    }
+    var start = num(edit.draft.start);
+    var end = num(edit.draft.end);
+    var props = {};
+    if (start !== row.start) props['月初'] = { number: start };
+    if (end !== row.end) props['月末'] = { number: end };
+    if (!Object.keys(props).length) return render();
+    saveAsset(edit.id, props);
+  }
+
+  function saveAsset(id, props) {
+    var before = state.assets;
+    // 先落本地再发请求，免得往返期间闪回旧值；失败整体回滚
+    state.assets = state.assets.map(function (a) {
+      if (a.id !== id) return a;
+      var next = Object.assign({}, a);
+      if ('月初' in props) next.start = props['月初'].number;
+      if ('月末' in props) next.end = props['月末'].number;
+      return next;
+    });
+    render();
+    setLoading(true);
+    notion('/pages/' + id, { method: 'PATCH', body: JSON.stringify({ properties: props }) })
+      .then(function (page) {
+        var saved = normalizeAsset(page);
+        state.assets = state.assets.map(function (a) { return a.id === saved.id ? saved : a; });
+        render();
+      })
+      .catch(function (err) {
+        state.assets = before;
+        render();
+        toast(err.message, false);
+      })
+      .then(function () { setLoading(false); });
+  }
+
+  function assetPost(props) {
+    return notion('/pages', {
+      method: 'POST',
+      body: JSON.stringify({
+        parent: { type: 'data_source_id', data_source_id: settings.assetsSourceId },
+        properties: props
+      })
+    });
+  }
+
+  // 删一个资产项 = 把它在各月的记录一起归档，撤销时整批恢复
+  function removeAssetItem(app, name) {
+    var ids = state.assets.filter(function (a) { return a.app === app && a.name === name; })
+      .map(function (a) { return a.id; });
+    if (!ids.length) return;
+    var done = [];
+    setLoading(true);
+
+    function step(i) {
+      if (i >= ids.length) return Promise.resolve();
+      setAssetProgress('正在删除 ' + (i + 1) + '/' + ids.length + ' 条…');
+      return notion('/pages/' + ids[i], { method: 'PATCH', body: JSON.stringify({ archived: true }) })
+        .then(function () { done.push(ids[i]); return step(i + 1); });
+    }
+
+    function settle(message) {
+      state.assets = state.assets.filter(function (a) { return done.indexOf(a.id) === -1; });
+      setAssetProgress('');
+      render();
+      setLoading(false);
+      if (message) toast(message, false);
+      else toast('已删除「' + name + '」', true, {
+        label: '撤销',
+        run: function () { restoreAssetRows(done); }
+      });
+    }
+
+    step(0).then(function () { settle(null); })
+      .catch(function (err) { settle('删除「' + name + '」失败：' + err.message); });
+  }
+
+  function restoreAssetRows(ids) {
+    setLoading(true);
+    function step(i) {
+      if (i >= ids.length) return Promise.resolve();
+      return notion('/pages/' + ids[i], { method: 'PATCH', body: JSON.stringify({ archived: false }) })
+        .then(function () { return step(i + 1); });
+    }
+    step(0).then(function () { return fetchAssets(); })
+      .then(function () { render(); toast('已恢复 ' + ids.length + ' 条'); })
+      .catch(function (err) { toast(err.message, false); })
+      .then(function () { setLoading(false); });
+  }
+
+  function createAssetItem(app, name, months) {
+    app = String(app || '').trim();
+    name = String(name || '').trim();
+    if (!app || !name) { toast('应用和名称都要填', false); return; }
+    if (state.assets.some(function (a) {
+      return a.app === app && a.name === name && months.indexOf(a.month) !== -1;
+    })) { toast('「' + name + '」已经在了', false); return; }
+
+    state.assetsForm = null;
+    render();
+    setLoading(true);
+    var created = [];
+    var failed = null;
+
+    function step(i) {
+      if (i >= months.length) return Promise.resolve();
+      setAssetProgress('正在创建 ' + (i + 1) + '/' + months.length + ' 个月…');
+      return assetPost({
+        '类型': { title: [{ text: { content: name } }] },
+        '应用': { select: { name: app } },
+        '月份': { select: { name: months[i] } },
+        '月初': { number: null },
+        '月末': { number: null },
+        '备注': { rich_text: [] }
+      }).then(function (page) {
+        created.push(normalizeAsset(page));
+        return step(i + 1);
+      }).catch(function (err) { failed = err; });
+    }
+
+    step(0).then(function () {
+      created.forEach(function (a) { state.assets.push(a); });
+      setAssetProgress('');
+      render();
+      setLoading(false);
+      if (failed) {
+        toast('「' + name + '」建到一半失败：' + failed.message +
+          (created.length ? '（已建 ' + created.length + ' 个月，再点一次可补齐）' : ''), false);
+      } else {
+        toast('已加「' + name + '」，' + created.length + ' 个月各一行，金额待填');
+      }
+    });
+  }
+
+  function createAssetMonth(label, months) {
+    label = String(label || '').trim();
+    if (!/^\d{4}年\d{1,2}月$/.test(label)) { toast('月份要写成 2026年10月 这样', false); return; }
+    var before = months.filter(function (m) { return monthKey(m) < monthKey(label); });
+    var from = before.length ? before[before.length - 1] : null;
+    if (!from) { toast('「' + label + '」前面没有可照抄的月份', false); return; }
+
+    var have = {};
+    state.assets.forEach(function (a) {
+      if (a.month === label && a.name) have[a.app + '|' + a.name] = true;
+    });
+    // 已经有的项跳过，所以重复点不会写重，中途失败也能再点一次补齐
+    var src = state.assets.filter(function (a) {
+      return a.month === from && a.name && !have[a.app + '|' + a.name];
+    });
+    if (!src.length) { toast('「' + label + '」已经齐了'); return; }
+
+    state.assetsForm = null;
+    render();
+    setLoading(true);
+    var created = [];
+    var failed = null;
+
+    function step(i) {
+      if (i >= src.length) return Promise.resolve();
+      setAssetProgress('正在创建 ' + (i + 1) + '/' + src.length + ' 项…');
+      return assetPost({
+        '类型': { title: [{ text: { content: src[i].name } }] },
+        '应用': { select: { name: src[i].app } },
+        '月份': { select: { name: label } },
+        // 月初接上月末，省得再填一遍
+        '月初': { number: src[i].end },
+        '月末': { number: null },
+        '备注': { rich_text: [] }
+      }).then(function (page) {
+        created.push(normalizeAsset(page));
+        return step(i + 1);
+      }).catch(function (err) { failed = err; });
+    }
+
+    step(0).then(function () {
+      created.forEach(function (a) { state.assets.push(a); });
+      setAssetProgress('');
+      render();
+      setLoading(false);
+      if (failed) {
+        toast('「' + label + '」建到一半失败：' + failed.message +
+          (created.length ? '（已建 ' + created.length + ' 项，再点一次可补齐）' : ''), false);
+      } else {
+        toast('已铺好「' + label + '」，' + created.length + ' 项，月初已接上月末');
+      }
+    });
+  }
+
+  function openAssetForm(kind, months) {
+    if (kind === 'month') {
+      var label = '';
+      if (months.length) {
+        var m = /^(\d{4})年(\d{1,2})月$/.exec(months[months.length - 1]);
+        if (m) {
+          var y = Number(m[1]), mo = Number(m[2]) + 1;
+          if (mo > 12) { mo = 1; y += 1; }
+          label = y + '年' + String(mo).padStart(2, '0') + '月';
+        }
+      }
+      var before = months.filter(function (m2) { return monthKey(m2) < monthKey(label); });
+      state.assetsForm = {
+        kind: 'month', months: months.slice(), month: label,
+        from: before.length ? before[before.length - 1] : (months[months.length - 1] || '')
+      };
+    } else {
+      state.assetsForm = {
+        kind: 'item', months: months.slice(), app: '', name: '',
+        month: months.length ? months[months.length - 1] : ''
+      };
+    }
+    render();
+    var input = typeof treeEl.querySelector === 'function'
+      ? treeEl.querySelector('input[data-asset-field]') : null;
+    if (input) { input.focus(); input.select(); }
+  }
+
+  function submitAssetForm() {
+    var form = state.assetsForm;
+    if (!form) return;
+    if (form.kind === 'item') {
+      var months = form.months.length ? form.months : [String(form.month || '').trim()];
+      if (!/^\d{4}年\d{1,2}月$/.test(months[0])) { toast('月份要写成 2026年10月 这样', false); return; }
+      createAssetItem(form.app, form.name, months);
+    } else {
+      createAssetMonth(form.month, form.months);
+    }
   }
 
   // ---------- 渲染 ----------
@@ -3156,7 +3634,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   // ---------- 事件 ----------
   treeEl.addEventListener('click', function (event) {
     var target = event.target.closest(
-      '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle]');
+      '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
+      '[data-asset-tool],[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel]');
     if (!target) return;
     var data = target.dataset;
     if (data.cmpToggle) {
@@ -3173,10 +3652,16 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     if (data.del) { state.pendingDelete = data.del; return render(); }
     if (data.delCancel) { state.pendingDelete = null; return render(); }
     if (data.delConfirm) return removeEntry(data.delConfirm);
+    if (data.assetTool) return openAssetForm(data.assetTool, assetMonthsInView());
+    if (data.assetDelApp) return removeAssetItem(data.assetDelApp, data.assetDelName);
+    if (data.assetFormCancel) { state.assetsForm = null; return render(); }
+    if (data.assetFormSave) return submitAssetForm();
   });
 
-  // 双击明细行的标题或金额，就地变成输入框；预算格同样双击才进编辑
+  // 双击明细行的标题或金额，就地变成输入框；预算格、财产格同样双击才进编辑
   treeEl.addEventListener('dblclick', function (event) {
+    var asset = event.target.closest('[data-asset-open]');
+    if (asset) return startAssetEdit(asset.dataset.assetOpen);
     var budget = event.target.closest('[data-budget-open]');
     if (budget) return startBudgetEdit(budget.dataset.budgetOpen, budget.dataset.field);
     var leaf = event.target.closest('.leaf');
@@ -3185,26 +3670,59 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     if (event.target.closest('.amt')) return startEdit(leaf.dataset.id, 'amount');
   });
 
-  // 预算格：编辑期间只更新草稿，别每敲一下都重画
+  // 预算格、财产格、新增表单：编辑期间只更新草稿，别每敲一下都重画
   treeEl.addEventListener('input', function (event) {
-    if (!state.budgetEdit) return;
-    var num = event.target.closest('input[data-budget]');
-    if (num) { state.budgetEdit.draft.num = num.value; return; }
-    var note = event.target.closest('input[data-budget-note]');
-    if (note) state.budgetEdit.draft.note = note.value;
+    if (state.budgetEdit) {
+      var num = event.target.closest('input[data-budget]');
+      if (num) { state.budgetEdit.draft.num = num.value; return; }
+      var note = event.target.closest('input[data-budget-note]');
+      if (note) { state.budgetEdit.draft.note = note.value; return; }
+    }
+    if (state.assetsEdit) {
+      var box = event.target.closest('input[data-asset-num]');
+      if (box) { state.assetsEdit.draft[box.dataset.assetNum] = box.value; return; }
+    }
+    if (state.assetsForm) {
+      var field = event.target.closest('input[data-asset-field]');
+      if (field) state.assetsForm[field.dataset.assetField] = field.value;
+    }
   });
 
   // 焦点彻底离开这个小面板才写回（在两个输入之间切换不算离开）
   treeEl.addEventListener('focusout', function (event) {
-    if (!state.budgetEdit) return;
     var cell = event.target.closest('td.cmp-edit.editing');
     if (!cell) return;
     var next = event.relatedTarget;
     if (next && typeof next.closest === 'function' && next.closest('td.cmp-edit.editing') === cell) return;
-    commitBudgetEditor();
+    if (state.assetsEdit) return commitAssetEditor();
+    if (state.budgetEdit) return commitBudgetEditor();
   });
 
   treeEl.addEventListener('keydown', function (event) {
+    if (state.assetsEdit) {
+      if (!event.target.closest('input[data-asset-num]')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        state.assetsEdit = null;
+        render();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        commitAssetEditor();
+      }
+      return;
+    }
+    if (state.assetsForm) {
+      if (!event.target.closest('input[data-asset-field]')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        state.assetsForm = null;
+        render();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        submitAssetForm();
+      }
+      return;
+    }
     if (!state.budgetEdit) return;
     var inEditor = event.target.closest('input[data-budget], input[data-budget-note]');
     if (!inEditor) return;
