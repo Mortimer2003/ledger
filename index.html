@@ -4,24 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261002-0251">
+<link rel="stylesheet" href="ledger.css?v=20261002-0257">
 
 </head>
 <body>
 <div class="app">
   <header class="topbar">
-    <!-- 第一行：看什么。年份下拉打头、视图切换紧随，左侧整块固定不动；
-         右侧只留笔数和读数，宽度随视图伸缩也推不动左边 -->
+    <!-- 第一行固定两段：上段「看哪一年、看什么」（年份 + 两级视图切换），下段读数。
+         两段各自换行，读数多一个 chip 也不会改变行数，切视图顶栏不跳 -->
     <div class="bar bar-info">
-      <div id="cmp-bar" hidden></div>
-      <div class="seg view-switch" id="view-parent">
-        <button type="button" data-parent="income" class="active">收支</button>
-        <button type="button" data-parent="assets">财产</button>
-      </div>
-      <div class="seg view-switch sub" id="view-sub">
-        <button type="button" data-view="tree" class="active">月度</button>
-        <button type="button" data-view="compare">对比</button>
-        <button type="button" data-view="budget">预算</button>
+      <div class="nav">
+        <div id="cmp-bar" hidden></div>
+        <div class="nav-views">
+          <div class="seg view-switch" id="view-parent">
+            <button type="button" data-parent="income" class="active">收支</button>
+            <button type="button" data-parent="assets">财产</button>
+          </div>
+          <div class="seg view-switch sub" id="view-sub">
+            <button type="button" data-view="tree" class="active">月度</button>
+            <button type="button" data-view="compare">对比</button>
+            <button type="button" data-view="budget">预算</button>
+          </div>
+        </div>
       </div>
       <div class="metrics">
         <span class="count" id="count"></span>
@@ -216,7 +220,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261002-0251"></script>
+<script src="ledger.js?v=20261002-0257"></script>
 
 </body>
 </html>
