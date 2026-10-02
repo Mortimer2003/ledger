@@ -751,13 +751,20 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* 总计行：跟分类行一样压深一档，再往上收一条实线，跟明细断开 */
 .cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
 
-/* 环比行：派生数，不是资产本身，压灰一档 */
-.cmp.assets tbody tr.assets-delta th,
-.cmp.assets tbody tr.assets-delta td {
-  color: var(--text-2);
-  font-weight: 500;
+/* 环比小字：贴在余额下面，比余额小一档、压灰；有涨跌才上色，
+   涨跌为 0 或缺数是 .zero。首月没有上个月，这一行不渲染 */
+.cmp.assets td .d {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 400;
 }
-.cmp.assets tbody tr.assets-delta .name { font-size: 13px; color: var(--text-2); }
+.cmp.assets td .d.zero { color: var(--text-3); }
+
+/* 加了环比小字后行变成两行：按基线对齐，让每格的第一行
+   （项目名 / 余额）始终在同一水平线上；缺数那格只显「—」也跟着走 */
+.cmp.assets td,
+.cmp.assets th { vertical-align: baseline; }
 
 /* 视图级工具：正文顶上单独一行，只对当前视图有意义（标签/说明/各种新增）。
    左端留给进度提示，右端是按钮；跟正文一样按 --gutter 对齐。
