@@ -274,8 +274,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 /* ---------- 月度画廊 ---------- */
 /* 一页横排三张竖卡：中间最大、两边依次变小，左右滚动切换居中的月份。
-   画廊自己铺满，所以左右/底部留白都归零，卡片直接贴边滑出去 */
-.tree.gallery { --tree-side: 0; --tree-bottom: 0; overflow: hidden; }
+   画廊自己铺满，所以左右/底部留白都归零，卡片直接贴边滑出去。
+   注意：外层 #tree 的模式类叫 gal，不能叫 gallery——否则下面 .gallery 那套
+   布局规则会同时命中 #tree，把内层滚动容器挤成一张卡宽（只剩居中那张可见） */
+.tree.gal { --tree-side: 0; --tree-bottom: 0; overflow: hidden; }
 .tree.detail { --tree-side: var(--gutter); --tree-bottom: 28px; }
 
 .gallery {
