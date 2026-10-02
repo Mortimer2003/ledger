@@ -82,13 +82,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .bar > .metrics,
 .bar > .tools { margin-left: auto; }
 
-/* 第一行拆成固定的两段：上段「看哪一年、看哪个大类」，下段读数。
-   两段各自换行——窄下去只会把读数整组挤到下一行，不会把「收支|财产」拆散，
-   读数多一个 chip（预算的「娱乐结余」）也不会改变行数，切视图顶栏不跳 */
-.bar-info { flex-direction: column; align-items: stretch; gap: 6px; }
+/* 第一行：导航（年份 + 收支/财产）+ 视图级工具 + 读数，一条排开。
+   切视图时只在中段增减工具，导航贴左、读数贴右，两端不动，顶栏不跳 */
 .bar-info > .nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 #cmp-bar { flex: none; }
-.bar-info > .metrics { margin-left: 0; justify-content: flex-end; flex-wrap: wrap; }
+.bar-info > .metrics { justify-content: flex-end; flex-wrap: wrap; }
 
 /* 年份下拉：打头放在最左，跟视图切换一起组成「看哪一年、看什么」的导航区 */
 .year-select {
@@ -256,7 +254,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .tree {
   flex: 1;
   overflow: auto;
-  padding: 10px var(--gutter) 28px;
+  /* 正文跟顶栏之间留一段：顶栏底边线紧贴着内容会显得糊在一起 */
+  padding: 16px var(--gutter) 28px;
   /* 隐藏滚动条，但保留滚动能力 */
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -504,8 +503,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 /* ---------- 对比视图 ---------- */
 /* 对比表要横向铺开，去掉两侧留白，让月份列尽量占满窗口。
-   上边距跟 .tree 基础值一致：有没有工具条，表格跟上方都隔同样一段，切视图不跳 */
-.tree.compare { padding: 10px 0 28px; }
+   上边距跟 .tree 基础值一致：切视图时表格跟顶栏都隔同样一段，不跳 */
+.tree.compare { padding: 16px 0 28px; }
 
 .cmp {
   border-collapse: separate;   /* sticky 表头/首列必须配 separate，collapse 下会错位 */
@@ -601,7 +600,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .chip.budget { border: 1px solid var(--line); }
 
 /* 底部多留一块：说明气泡和编辑面板都挂在格子下方，留白不够会被裁掉 */
-.tree.budget { padding: 10px 0 110px; }
+.tree.budget { padding: 16px 0 110px; }
 
 /* 表内空状态：对比/预算/财产三个表格视图共用同一条 */
 .cmp-hint {
@@ -744,7 +743,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* ---------- 财产视图 ---------- */
 /* 跟对比视图一样要横向铺开，两侧留白去掉。
    底部留一块给编辑面板（只一行「月末 + 备注」，比预算窄些），否则改最后一行会被裁 */
-.tree.assets { padding: 10px 0 76px; }
+.tree.assets { padding: 16px 0 76px; }
 
 /* 总计行：跟分类行一样压深一档，再往上收一条实线，跟明细断开 */
 .cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
@@ -757,30 +756,20 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .cmp.assets tbody tr.assets-delta .name { font-size: 13px; color: var(--text-2); }
 
-/* 工具条：左边进度、右边功能按钮，跟顶栏按钮一个调子。各视图共用同一条。
-   下边距交给 .tree 的 padding-top，表格跟工具条、跟顶栏都隔同样一段 */
+/* 视图级工具：跟导航同在顶栏第一行，靠右收尾（进度提示留在这一段的左端）。
+   切视图只在中段增减按钮，导航贴左、读数贴右，两端不动 */
 .view-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  /* 跟 .tree 一样按 --gutter 对齐，工具条和内容左右边缘才在同一条竖线上 */
-  padding: 0 var(--gutter);
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
 }
 /* 这条是 flex，[hidden] 的默认规则压不住；里面的 .icon-btn / .hint-wrap 同理 */
 .view-bar[hidden] { display: none; }
 .view-bar [hidden] { display: none; }
 .view-bar-tools { display: flex; gap: 8px; margin-left: auto; }
-.view-bar .tool {
-  padding: 4px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: var(--bg-soft);
-  color: var(--text-2);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.view-bar .tool:hover { background: var(--hover); color: var(--text); }
 .view-progress { color: var(--text-3); font-size: 12px; }
 .view-progress[hidden] { display: none; }
 
