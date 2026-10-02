@@ -103,6 +103,9 @@
   var btnHintEl = document.getElementById('btn-hint');
   var btnTagsEl = document.getElementById('btn-tags');
   var btnMonthEl = document.getElementById('btn-month');
+  var viewBarEl = document.getElementById('view-bar');
+  var btnAssetMonthEl = document.getElementById('btn-asset-month');
+  var btnAssetItemEl = document.getElementById('btn-asset-item');
   var modalEl = document.getElementById('modal');
   var setupEl = document.getElementById('setup');
   var tagsEl = document.getElementById('tags');
@@ -1188,14 +1191,17 @@
       save + '</div>';
   }
 
-  function assetBar(months) {
-    return '<div class="view-bar">' +
-      '<span class="view-progress" id="asset-progress" hidden></span>' +
-      '<span class="view-bar-tools">' +
-        (months.length
-          ? '<button type="button" class="tool" data-asset-tool="month">＋ 新增月份</button>' : '') +
-        '<button type="button" class="tool" data-asset-tool="item">＋ 新增资产项</button>' +
-      '</span></div>';
+  // 正文工具条是三个视图共用的同一个 DOM，位置固定；各视图只显隐自己那几个按钮，
+  // 所以「新增」类操作不管在哪个视图都在同一处，不会一个跑顶栏一个跑正文
+  function renderViewBar(mode, hasHint) {
+    var isTree = mode === 'tree';
+    var isAssets = mode === 'assets';
+    btnTagsEl.hidden = !isTree;
+    btnMonthEl.hidden = !isTree;
+    btnAssetItemEl.hidden = !isAssets;
+    // 一个资产月都没有时铺不了新月，按钮先收着
+    btnAssetMonthEl.hidden = !isAssets || !assetMonthsInView().length;
+    viewBarEl.hidden = !(isTree || isAssets || hasHint);
   }
 
   function assetsHintText() {
@@ -1213,8 +1219,7 @@
     var data = buildAssets(year);
     if (!data.months.length) {
       pendingHint = '';
-      return assetBar([]) +
-        '<p class="assets-hint">' +
+      return '<p class="assets-hint">' +
         (year === null ? '还没有财产数据。' : year + ' 年还没有财产记录。') +
         '财产存在独立的「我的财产」数据源里，点「＋ 新增资产项」记第一行。</p>' +
         (state.assetsForm ? assetForm(state.assetsForm) : '');
@@ -1276,8 +1281,7 @@
       '<td class="cmp-total"><span class="zero">—</span></td></tr>';
 
     pendingHint = assetsHintText();
-    return assetBar(data.months) +
-      (state.assetsForm ? assetForm(state.assetsForm) : '') +
+    return (state.assetsForm ? assetForm(state.assetsForm) : '') +
       '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
       body + sumRows + deltaRow + '</tbody></table>';
   }
@@ -1559,10 +1563,6 @@
     var mode = state.view;
     pendingHint = '';
 
-    // 「子类标签」「新增月份账单」是账本自己的操作，对比/预算/财产里用不上，别摆在那儿添乱
-    btnTagsEl.hidden = mode !== 'tree';
-    btnMonthEl.hidden = mode !== 'tree';
-
     // 以年为界：年份切换栏、顶部总计、笔数和内容都收在同一年里，数字才不会互相打架
     var years = cmpYears(entries);
     var year = years.length
@@ -1627,8 +1627,9 @@
           ? renderAssets(year)
           : groupByMonth(scoped).map(renderMonth).join('');
 
-    // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏的「说明」气泡上
+    // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到正文工具条的「说明」气泡上
     renderHint(pendingHint);
+    renderViewBar(mode, !!pendingHint);
 
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -2402,7 +2403,7 @@
   treeEl.addEventListener('click', function (event) {
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
-      '[data-asset-tool],[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel]');
+      '[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel]');
     if (!target) return;
     var data = target.dataset;
     if (data.cmpToggle) {
@@ -2419,10 +2420,15 @@
     if (data.del) { state.pendingDelete = data.del; return render(); }
     if (data.delCancel) { state.pendingDelete = null; return render(); }
     if (data.delConfirm) return removeEntry(data.delConfirm);
-    if (data.assetTool) return openAssetForm(data.assetTool, assetMonthsInView());
     if (data.assetDelApp) return removeAssetItem(data.assetDelApp, data.assetDelName);
     if (data.assetFormCancel) { state.assetsForm = null; return render(); }
     if (data.assetFormSave) return submitAssetForm();
+  });
+
+  // 正文工具条上的按钮是静态的、不在 #tree 里，单独委托
+  viewBarEl.addEventListener('click', function (event) {
+    var target = event.target.closest('[data-asset-tool]');
+    if (target) return openAssetForm(target.dataset.assetTool, assetMonthsInView());
   });
 
   // 双击明细行的标题或金额，就地变成输入框；预算格、财产格同样双击才进编辑
