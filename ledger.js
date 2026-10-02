@@ -9,6 +9,7 @@
   var UNSET_SUB = '未分子类';
   var NEW_SUB = '__new__';
   var CMP_OTHER = '__other__';   // 对比视图里「月份解析不出年份」的那一档
+  var NEW_MONTH = '__new_month__';   // 月度画廊最右那张「新建下一个月」的占位卡
 
   // 「新增月份账单」的模板：每月都要有的壳子。
   // 常规项名字里的月号按目标月份生成，房租记的是下个月（9月账单里放「10月房租」），所以用 {下月}。
@@ -31,6 +32,7 @@
   var KEY_VIEW = 'ledger.view';
   var KEY_INCOME_VIEW = 'ledger.incomeView';
   var KEY_ASSET_VIEW = 'ledger.assetView';
+  var KEY_GALLERY_AT = 'ledger.galleryAt';
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
   var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
@@ -77,6 +79,8 @@
     view: readView(),
     incomeView: readIncomeView(), // 「收支」下最后看的那种子视图，从财产切回来时用
     assetView: readAssetView(),   // 「财产」下最后看的那种子视图（明细/图表）
+    galleryAt: readGalleryAt(), // 月度画廊里居中的月份；null/失效时用最新一个月
+    monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
     budgetEdit: null,    // 正在就地编辑的预算格：{ month, field }
@@ -500,6 +504,11 @@
   function readAssetView() {
     var raw = localStorage.getItem(KEY_ASSET_VIEW);
     return ASSET_VIEWS.indexOf(raw) === -1 ? 'assets' : raw;
+  }
+
+  // 画廊里居中的月份：记着上次停在哪一张，重开还在那儿
+  function readGalleryAt() {
+    return localStorage.getItem(KEY_GALLERY_AT) || null;
   }
 
 
@@ -2036,9 +2045,12 @@
           : '');
     }
 
+    // 月度视图分三态：搜索时铺可展开的月份列表（一次看全命中），
+    // 点开某个月进详情页，否则停在画廊
+    var monthly = mode === 'tree' && !searching ? (state.monthOpen ? 'detail' : 'gallery') : '';
     treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
       : mode === 'budget' ? ' budget' : (mode === 'charts' || mode === 'assetCharts') ? ' charts'
-      : mode === 'assets' ? ' assets' : '');
+      : mode === 'assets' ? ' assets' : monthly ? ' ' + monthly : '');
     treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped)
       : mode === 'budget'
@@ -2049,7 +2061,8 @@
             ? renderAssetCharts(year)
             : mode === 'assets'
               ? renderAssets(year)
-              : groupByMonth(scoped).map(renderMonth).join('');
+              : renderMonthly(scoped, searching);
+    if (monthly === 'gallery') galleryJump();
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
     renderHint(pendingHint);
@@ -2067,6 +2080,185 @@
     document.getElementById('months').innerHTML = options.map(function (m) {
       return '<option value="' + esc(m) + '">';
     }).join('');
+  }
+
+  // 月度视图分三态：搜索时铺可展开的月份列表（一次看全命中），
+  // 点开某个月进详情，否则停在画廊
+  function renderMonthly(scoped, searching) {
+    if (searching) return groupByMonth(scoped).map(renderMonth).join('');
+    var months = galleryMonths(scoped);
+    if (state.monthOpen) {
+      var open = null;
+      months.forEach(function (m) { if (m.name === state.monthOpen) open = m; });
+      if (open) return renderMonthDetail(open);
+      state.monthOpen = null;   // 那个月没了（删空/换了年），退回画廊
+    }
+    return renderGallery(months);
+  }
+
+  // 画廊里排的月份：只认规范月名，按时间升序（左边上个月、右边下个月）
+  function galleryMonths(scoped) {
+    return groupByMonth(scoped)
+      .filter(function (m) { return m.name !== UNSET_MONTH; })
+      .sort(function (a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
+  }
+
+  // 居中的那张：记着上次停在哪儿，失效了（月没了/换了年）退回最新一个月
+  function resolveGalleryAt(months) {
+    if (state.galleryAt === NEW_MONTH) return NEW_MONTH;
+    var hit = false;
+    months.forEach(function (m) { if (m.name === state.galleryAt) hit = true; });
+    return hit ? state.galleryAt : (months.length ? months[months.length - 1].name : NEW_MONTH);
+  }
+
+  // 卡片离中间越远越小：d0 居中、d1/d2 依次收一档，更远的再暗一档
+  function galleryCls(i, ci) {
+    var d = Math.abs(i - ci);
+    return d === 0 ? ' is-center' : d === 1 ? ' d1' : d === 2 ? ' d2' : ' d3';
+  }
+
+  function renderGallery(months) {
+    var at = resolveGalleryAt(months);
+    state.galleryAt = at;
+    localStorage.setItem(KEY_GALLERY_AT, at);
+    // 居中那张的下标：月份卡按升序排，末尾再挂一张「新建下一个月」
+    var names = months.map(function (m) { return m.name; });
+    names.push(NEW_MONTH);
+    var ci = names.indexOf(at);
+    if (ci === -1) ci = names.length - 1;
+    var cards = months.map(function (m, i) { return galleryCard(m, i, ci); });
+    cards.push(galleryNewCard(months.length, ci));
+    return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
+  }
+
+  function galleryCard(month, i, ci) {
+    var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
+    var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
+    var net = income + expense;
+    // 只认「…年…月」里的月，别让正则先咬到年份的「20」
+    var m = /^\d{4}年(\d{1,2})月$/.exec(month.name);
+    var center = i === ci;
+    return '<article class="gcard' + galleryCls(i, ci) + '"' +
+      ' data-gallery-month="' + esc(month.name) + '"' + (center ? ' data-center="1"' : '') + '>' +
+      '<div class="gcard-in">' +
+        '<div class="gcard-year">' + esc(month.name.slice(0, 5)) + '</div>' +
+        '<div class="gcard-mon">' + esc(m ? m[1] : month.name) + '<span>月</span></div>' +
+        '<div class="gcard-net ' + tone(net) + '">' + signed(net) + '</div>' +
+        '<div class="gcard-cap">净额</div>' +
+      '</div>' +
+    '</article>';
+  }
+
+  function galleryNewCard(i, ci) {
+    var center = i === ci;
+    return '<article class="gcard gcard-new' + galleryCls(i, ci) + '"' +
+      ' data-gallery-new="1"' + (center ? ' data-center="1"' : '') + '>' +
+      '<div class="gcard-in">' +
+        '<div class="gcard-plus">＋</div>' +
+        '<div class="gcard-new-label">新建下一个月</div>' +
+        '<div class="gcard-new-month">' + esc(nextBillMonth()) + '</div>' +
+      '</div>' +
+    '</article>';
+  }
+
+  // 点开某个月的详情：顶栏一行放返回、月份、收支和净额，下面就是那个月的分类树
+  function renderMonthDetail(month) {
+    var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
+    var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
+    return '<div class="mdetail">' +
+      '<div class="mdetail-bar">' +
+        '<button type="button" class="icon-btn" data-gallery-back="1" title="返回画廊">' +
+          '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" ' +
+          'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M10 3.5 5.5 8 10 12.5"/></svg>' +
+        '</button>' +
+        '<span class="mdetail-name">' + esc(month.name) + '</span>' +
+        '<span class="mdetail-io">' +
+          '<span class="pos">' + (income ? '+' + money(income) : '—') + '</span>' +
+          '<span class="neg">' + (expense ? '−' + money(expense) : '—') + '</span>' +
+        '</span>' +
+        '<span class="spacer"></span>' +
+        '<span class="mdetail-net ' + tone(income + expense) + '">净 ' + signed(income + expense) + '</span>' +
+        '<button type="button" class="icon" data-add="' + esc('m:' + month.name) + '" title="在本月新增">＋</button>' +
+      '</div>' +
+      '<div class="children">' +
+        groupByCategory(month.list).map(function (c) { return renderCategory(month.name, c, true); }).join('') +
+      '</div>' +
+    '</div>';
+  }
+
+  // 把居中的那张卡滚到正中间。测试桩没有布局，直接跳过
+  function galleryJump() {
+    var box = document.getElementById('gallery');
+    if (!box || typeof box.scrollTo !== 'function' || !box.children) return;
+    var card = null;
+    Array.prototype.forEach.call(box.children, function (c) {
+      if (c.dataset && c.dataset.center) card = c;
+    });
+    if (!card) return;
+    box.scrollLeft = Math.max(0, card.offsetLeft - (box.clientWidth - card.offsetWidth) / 2);
+    gallerySync();
+  }
+
+  // 滚动/横滑之后，把离中线最近的那张标成居中，顺手记住位置
+  function gallerySync() {
+    var box = document.getElementById('gallery');
+    if (!box || !box.children || !box.children.length) return;
+    var mid = box.scrollLeft + box.clientWidth / 2;
+    var kids = Array.prototype.slice.call(box.children);
+    var best = 0, bestD = Infinity;
+    kids.forEach(function (c, i) {
+      var d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    // 按「离中间几张」重新分级，滚起来两侧跟着放大/缩小
+    kids.forEach(function (c, i) {
+      if (!c.classList) return;
+      var cls = galleryCls(i, best);
+      c.classList.toggle('is-center', cls === ' is-center');
+      c.classList.toggle('d1', cls === ' d1');
+      c.classList.toggle('d2', cls === ' d2');
+      c.classList.toggle('d3', cls === ' d3');
+    });
+    var name = galleryCardName(kids[best]);
+    if (name && name !== state.galleryAt) {
+      state.galleryAt = name;
+      localStorage.setItem(KEY_GALLERY_AT, name);
+    }
+  }
+
+  function galleryCardName(card) {
+    return card.dataset.galleryMonth || (card.dataset.galleryNew ? NEW_MONTH : null);
+  }
+
+  // 点侧边的卡：滑到中间。DOM 不在（测试桩）时退化成重画，让居中标重新落位
+  function galleryGoTo(name) {
+    state.galleryAt = name;
+    localStorage.setItem(KEY_GALLERY_AT, name);
+    var box = document.getElementById('gallery');
+    var card = null;
+    if (box && box.children) {
+      Array.prototype.forEach.call(box.children, function (c) {
+        if (galleryCardName(c) === name) card = c;
+      });
+    }
+    if (!card || typeof box.scrollTo !== 'function') return render();
+    box.scrollTo({
+      left: Math.max(0, card.offsetLeft - (box.clientWidth - card.offsetWidth) / 2),
+      behavior: 'smooth'
+    });
+  }
+
+  // 鼠标滚轮一格格推：往下/往右看下一个月，往上/往左看上一个月
+  function galleryStep(dir) {
+    var box = document.getElementById('gallery');
+    if (!box || !box.children) return;
+    var names = [];
+    Array.prototype.forEach.call(box.children, function (c) { names.push(galleryCardName(c)); });
+    var i = names.indexOf(state.galleryAt);
+    if (i === -1) i = 0;
+    var j = Math.max(0, Math.min(names.length - 1, i + dir));
+    if (j !== i) galleryGoTo(names[j]);
   }
 
   function renderMonth(month) {
@@ -2091,13 +2283,13 @@
       '</section>';
   }
 
-  function renderCategory(monthName, category) {
+  function renderCategory(monthName, category, forceOpen) {
     var key = 'c:' + monthName + '|' + category.name;
-    var open = isOpen(key);
+    var open = forceOpen || isOpen(key);
     var total = sum(category.list);
     var hasSub = category.list.some(function (e) { return e.sub; });
     var body = hasSub
-      ? groupBySub(category.list).map(function (s) { return renderSub(monthName, category.name, s); }).join('')
+      ? groupBySub(category.list).map(function (s) { return renderSub(monthName, category.name, s, forceOpen); }).join('')
       : category.list.slice().sort(byAmount).map(function (e) { return renderLeaf(e, false); }).join('');
     return '' +
       '<div class="node">' +
@@ -2112,9 +2304,9 @@
       '</div>';
   }
 
-  function renderSub(monthName, categoryName, sub) {
+  function renderSub(monthName, categoryName, sub, forceOpen) {
     var key = 's:' + monthName + '|' + categoryName + '|' + sub.name;
-    var open = isOpen(key);
+    var open = forceOpen || isOpen(key);
     var total = sum(sub.list);
     return '' +
       '<div class="node sub">' +
@@ -2587,7 +2779,15 @@
 
     step(0).then(function () {
       created.forEach(function (entry) { state.entries.push(entry); expandPath(entry); });
-      if (created.length) { writeCache(); render(); }
+      if (created.length) {
+        // 建完就把画廊挪到新月份上，一眼看到刚铺的那张卡
+        if (state.view === 'tree' && !state.monthOpen) {
+          state.galleryAt = label;
+          localStorage.setItem(KEY_GALLERY_AT, label);
+        }
+        writeCache();
+        render();
+      }
       setLoading(false);
       monthCancelBtn.disabled = false;
       tplProgressEl.hidden = true;
@@ -2827,9 +3027,20 @@
   treeEl.addEventListener('click', function (event) {
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
-      '[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel]');
+      '[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel],' +
+      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center]');
     if (!target) return;
     var data = target.dataset;
+    // 画廊：点中间那张进详情/新建，点旁边那张把它挪到中间
+    if (data.galleryBack) { state.monthOpen = null; return render(); }
+    if (data.galleryMonth) {
+      if (data.center) { state.monthOpen = data.galleryMonth; return render(); }
+      return galleryGoTo(data.galleryMonth);
+    }
+    if (data.galleryNew) {
+      if (data.center) return openMonthBill();
+      return galleryGoTo(NEW_MONTH);
+    }
     if (data.cmpToggle) {
       if (state.cmpCollapsed[data.cmpToggle]) delete state.cmpCollapsed[data.cmpToggle];
       else state.cmpCollapsed[data.cmpToggle] = true;
@@ -2854,6 +3065,25 @@
     var target = event.target.closest('[data-asset-tool]');
     if (target) return openAssetForm(target.dataset.assetTool, assetMonthsInView());
   });
+
+  // 画廊是横向滚动容器：滚动（含横滑）时同步居中的卡。scroll 不冒泡，用捕获接住
+  var galleryLock = 0;
+  treeEl.addEventListener('scroll', function (event) {
+    if (event.target && event.target.id === 'gallery') gallerySync();
+  }, true);
+
+  // 鼠标滚轮竖着滚 → 一格格推画廊，免得只有触控板才滑得动
+  treeEl.addEventListener('wheel', function (event) {
+    var box = event.target && event.target.closest ? event.target.closest('.gallery') : null;
+    if (!box) return;
+    var d = Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    if (!d) return;
+    event.preventDefault();
+    var now = Date.now();
+    if (now < galleryLock) return;
+    galleryLock = now + 420;
+    galleryStep(d > 0 ? 1 : -1);
+  }, { passive: false });
 
   // 双击明细行的标题或金额，就地变成输入框；预算格、财产格同样双击才进编辑
   treeEl.addEventListener('dblclick', function (event) {
@@ -3024,7 +3254,13 @@
   // 两条子 tab 各挂一份，点谁都是切到 data-view 指定的视图
   function onSubViewClick(event) {
     var btn = event.target.closest('button[data-view]');
-    if (btn) setView(btn.dataset.view);
+    if (!btn) return;
+    // 已经在看月度了，再点一次就是退回画廊（详情页里的返回键也是这个意思）
+    if (btn.dataset.view === 'tree' && state.view === 'tree' && state.monthOpen) {
+      state.monthOpen = null;
+      return render();
+    }
+    setView(btn.dataset.view);
   }
   document.getElementById('view-sub').addEventListener('click', onSubViewClick);
   document.getElementById('view-sub-assets').addEventListener('click', onSubViewClick);
