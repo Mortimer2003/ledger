@@ -665,10 +665,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   cursor: help;
 }
 
-/* 悬停气泡：预算的说明和财产的备注共用一套 */
+/* 悬停气泡：预算的说明、财产的备注（首列名字上）共用一套 */
 .cmp.budget td.cmp-edit .tip,
 .cmp.budget td.cmp-spend .tip,
-.cmp.assets td.cmp-edit .tip {
+.cmp.assets .cmp-item .tip {
   position: absolute;
   right: 0;
   top: calc(100% - 1px);
@@ -841,7 +841,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .asset-del:focus-visible { opacity: 1; }
 .asset-del:hover { color: var(--danger); background: var(--hover); }
 
-/* 财产格：平时只显月末，双击展开「月末 + 备注」小面板，跟预算格一个规矩 */
+/* 财产格：平时只显月末，双击展开「月末」输入框，跟预算格一个规矩 */
 .cmp.assets td.cmp-edit {
   position: relative;
   text-align: right;
@@ -850,9 +850,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp.assets td.cmp-edit[data-asset-open] { cursor: text; }
 .cmp.assets td.cmp-edit[data-asset-open]:hover { box-shadow: inset 0 0 0 1px var(--line); }
 .cmp.assets td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
-/* 备注跟预算的说明同一套：数字下加虚线，悬停出气泡 */
-.cmp.assets td.cmp-edit.has-note .v { border-bottom: 1px dotted var(--text-3); cursor: help; }
-.cmp.assets td.cmp-edit.has-note:hover .tip { opacity: 1; visibility: visible; }
 .cmp.assets td.cmp-edit input {
   width: 84px;
   padding: 3px 6px;
@@ -866,8 +863,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   outline: none;
 }
 .cmp.assets td.cmp-edit input::placeholder { color: var(--text-3); }
-/* 备注比数字长，给它宽一点、左对齐 */
-.cmp.assets td.cmp-edit .editor input[data-asset-note] { width: 190px; text-align: left; }
 .cmp.assets td.cmp-edit .editor {
   position: absolute;
   right: 0;
@@ -881,20 +876,57 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   box-shadow: var(--shadow);
   text-align: left;
 }
-.cmp.assets td.cmp-edit .editor label {
+.cmp.assets td.cmp-edit .editor label,
+.cmp.assets .cmp-item .editor label {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
 }
-.cmp.assets td.cmp-edit .editor label:last-child { margin-bottom: 0; }
-.cmp.assets td.cmp-edit .editor label > span {
+.cmp.assets td.cmp-edit .editor label:last-child,
+.cmp.assets .cmp-item .editor label:last-child { margin-bottom: 0; }
+.cmp.assets td.cmp-edit .editor label > span,
+.cmp.assets .cmp-item .editor label > span {
   flex: none;
   width: 26px;
   color: var(--text-3);
   font-size: 12px;
   font-weight: 400;
 }
+
+/* 备注是资产项维度的，挂在首列的名字上，不跟着月份走：
+   有备注就加虚线、悬停出气泡，双击进编辑，面板贴在名字下方 */
+.cmp.assets .cmp-item .name.asset-note { cursor: text; }
+.cmp.assets .cmp-item .name.has-note { border-bottom: 1px dotted var(--text-3); cursor: help; }
+.cmp.assets .cmp-item .tip { left: 0; right: auto; z-index: 6; }
+.cmp.assets .cmp-item:hover .tip { opacity: 1; visibility: visible; }
+.cmp.assets th.cmp-item.editing { box-shadow: inset 0 0 0 1px var(--accent); }
+.cmp.assets .cmp-item .editor {
+  position: absolute;
+  left: 0;
+  top: calc(100% - 1px);
+  z-index: 6;
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+/* 备注比数字长，给它宽一点、左对齐 */
+.cmp.assets .cmp-item .editor input[data-asset-note] {
+  width: 190px;
+  padding: 3px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  outline: none;
+}
+.cmp.assets .cmp-item .editor input::placeholder { color: var(--text-3); }
 
 /* ---------- 弹窗 ---------- */
 .mask {
