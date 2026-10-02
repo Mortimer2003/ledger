@@ -82,11 +82,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .bar > .metrics,
 .bar > .tools { margin-left: auto; }
 
-/* 第一行：导航（年份 + 收支/财产）+ 视图级工具 + 读数，一条排开。
-   切视图时只在中段增减工具，导航贴左、读数贴右，两端不动，顶栏不跳 */
-.bar-info > .nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+/* 第一行：年份 + 收支/财产 贴左，搜索吃掉中间，刷新、设置收在右端。
+   这一行放的都是跟数据、跟视图都无关的东西，切视图不动 */
+.bar-main > .nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 #cmp-bar { flex: none; }
-.bar-info > .metrics { justify-content: flex-end; flex-wrap: wrap; }
+
+/* 第二行：子视图（月度/对比/预算）贴左，读数贴右 */
+.bar-sub > .metrics { justify-content: flex-end; flex-wrap: wrap; }
 
 /* 年份下拉：打头放在最左，跟视图切换一起组成「看哪一年、看什么」的导航区 */
 .year-select {
@@ -756,15 +758,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .cmp.assets tbody tr.assets-delta .name { font-size: 13px; color: var(--text-2); }
 
-/* 视图级工具：跟导航同在顶栏第一行，靠右收尾（进度提示留在这一段的左端）。
-   切视图只在中段增减按钮，导航贴左、读数贴右，两端不动 */
+/* 视图级工具：正文顶上单独一行，只对当前视图有意义（标签/说明/各种新增）。
+   左端留给进度提示，右端是按钮；跟正文一样按 --gutter 对齐。
+   上方留 16px 跟顶栏隔开，下方交给 .tree 的 padding-top，三处间距一个数 */
 .view-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1 1 auto;
-  min-width: 0;
-  justify-content: flex-end;
+  flex: none;
+  padding: 16px var(--gutter) 0;
 }
 /* 这条是 flex，[hidden] 的默认规则压不住；里面的 .icon-btn / .hint-wrap 同理 */
 .view-bar[hidden] { display: none; }
