@@ -509,12 +509,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
    上边距跟 .tree 基础值一致：切视图时表格跟顶栏都隔同样一段，不跳 */
 .tree.compare { padding: 0 0 28px; }
 
-/* 三个表格视图的滚动容器都不能留上内边距：吸顶表头贴的是内容框顶，
-   容器一旦有 padding-top，滚动时表体内容就会从上面这条缝里露到表头之上。
-   间距改由 ::before 撑出来——它是内容的一部分，会随滚动一起消失，缝也就不存在了 */
-.tree.compare::before,
-.tree.budget::before,
-.tree.assets::before { content: ''; display: block; height: 8px; }
+/* 表格视图的间距留在滚动容器「外面」（margin-top），容器里第一件东西就是表格本身。
+   这样表头的自然位置就是容器顶，吸顶后一位都不挪；容器里也没有上内边距可供内容露头。
+   之前把间距放进容器（padding-top 或 ::before 占位块）都会让表头先偏 8px、滚动时才滑回去 */
+.tree.compare,
+.tree.budget,
+.tree.assets { margin-top: 8px; }
 
 .cmp {
   border-collapse: separate;   /* sticky 表头/首列必须配 separate，collapse 下会错位 */
