@@ -2050,7 +2050,7 @@
     var monthly = mode === 'tree' && !searching ? (state.monthOpen ? 'detail' : 'gallery') : '';
     treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
       : mode === 'budget' ? ' budget' : (mode === 'charts' || mode === 'assetCharts') ? ' charts'
-      : mode === 'assets' ? ' assets' : monthly ? ' ' + monthly : '');
+      : mode === 'assets' ? ' assets' : monthly ? ' ' + (monthly === 'gallery' ? 'gal' : monthly) : '');
     treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped)
       : mode === 'budget'
