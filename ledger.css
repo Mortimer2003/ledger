@@ -256,9 +256,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .tree {
   flex: 1;
   overflow: auto;
-  /* 正文跟顶栏之间留一段：顶栏底边线紧贴着内容会显得糊在一起。
-     有工具条的视图里，这段跟 .view-bar 的上留白一起构成按钮下方的间距，两处同值 */
-  padding: 8px var(--gutter) 28px;
+  /* 正文跟顶栏之间的间距统一放在滚动容器「外面」：容器里第一件东西就是内容本身。
+     表格视图的吸顶表头必须如此——间距一旦放进容器，表头会先偏 8px、滚动时才滑回去。
+     五个视图共用这一套，各自只覆盖左右（--tree-side）和底部（--tree-bottom）两个值 */
+  margin-top: 8px;
+  /* 左右：表格视图要铺满、sticky 首末列要贴容器边，覆盖成 0；月度/图表居中 */
+  --tree-side: var(--gutter);
+  /* 底部：给挂在下方的浮层（编辑面板 / 说明气泡）留位置 */
+  --tree-bottom: 28px;
+  padding: 0 var(--tree-side) var(--tree-bottom);
   /* 隐藏滚动条，但保留滚动能力 */
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -505,16 +511,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .view-switch { flex: none; }
 
 /* ---------- 对比视图 ---------- */
-/* 对比表要横向铺开，去掉两侧留白，让月份列尽量占满窗口。
-   上边距跟 .tree 基础值一致：切视图时表格跟顶栏都隔同样一段，不跳 */
-.tree.compare { padding: 0 0 28px; }
-
-/* 表格视图的间距留在滚动容器「外面」（margin-top），容器里第一件东西就是表格本身。
-   这样表头的自然位置就是容器顶，吸顶后一位都不挪；容器里也没有上内边距可供内容露头。
-   之前把间距放进容器（padding-top 或 ::before 占位块）都会让表头先偏 8px、滚动时才滑回去 */
-.tree.compare,
-.tree.budget,
-.tree.assets { margin-top: 8px; }
+/* 对比表要横向铺开：去掉两侧留白，让月份列尽量占满窗口。
+   底部保持基础的 28px（对比不就地编辑，不用给浮层留位置） */
+.tree.compare { --tree-side: 0; }
 
 .cmp {
   border-collapse: separate;   /* sticky 表头/首列必须配 separate，collapse 下会错位 */
@@ -614,8 +613,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* 顶栏那颗读数跟收入/支出/净额不是一类东西（前者是预算状态，后者是年度合计），描个边区分开 */
 .chip.budget { border: 1px solid var(--line); }
 
-/* 底部多留一块：说明气泡和编辑面板都挂在格子下方，留白不够会被裁掉 */
-.tree.budget { padding: 0 0 110px; }
+/* 表格铺满，底部多留一块：说明气泡和编辑面板都挂在格子下方，留白不够会被裁掉 */
+.tree.budget { --tree-side: 0; --tree-bottom: 110px; }
 
 /* 表内空状态：对比/预算/财产三个表格视图共用同一条 */
 .cmp-hint {
@@ -763,7 +762,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* ---------- 财产视图 ---------- */
 /* 跟对比视图一样要横向铺开，两侧留白去掉。
    底部留一块给编辑面板（只一行「月末 + 备注」，比预算窄些），否则改最后一行会被裁 */
-.tree.assets { padding: 0 0 76px; }
+.tree.assets { --tree-side: 0; --tree-bottom: 76px; }
 
 /* 总计行：跟分类行一样压深一档，再往上收一条实线，跟明细断开 */
 .cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
