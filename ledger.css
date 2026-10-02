@@ -915,6 +915,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp.assets .cmp-item .tip { left: 0; right: auto; z-index: 6; }
 .cmp.assets .cmp-item:hover .tip { opacity: 1; visibility: visible; }
 .cmp.assets th.cmp-item.editing { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* 首列是 sticky + z-index:2，本身就自成层叠上下文；备注气泡挂在这一格里面，
+   于是被后面那些同级（同为 z-index:2、DOM 更靠后）的行整片盖住——鼠标悬上去看着毫无反应，
+   像备注丢了。所以悬停这一格、或正在编辑这一项时，把这一格抬到后面的行之上。
+   抬到 3 就够，仍压在吸顶表头（z-index:4）之下，气泡不会窜到表头上面去 */
+.cmp.assets tbody .cmp-item:hover,
+.cmp.assets tbody .cmp-item.editing { z-index: 3; }
 .cmp.assets .cmp-item .editor {
   position: absolute;
   left: 0;
