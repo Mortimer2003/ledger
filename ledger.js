@@ -1151,21 +1151,38 @@
       ? '<span class="zero">—</span>' : money(value);
   }
 
-  // 变化 = 最后一个月 − 第一个月；涨红跌绿，跟账本里一个规矩
-  function assetDelta(values) {
-    if (values.length < 2) return '<span class="zero">—</span>';
-    var d = values[values.length - 1] - values[0];
-    if (!d) return '<span class="zero">—</span>';
-    return '<span class="' + tone(d) + '">' + signed(d) + '</span>';
+  // 环比小字：这个月比上个月多/少了多少，涨红跌绿跟账本一个规矩。
+  // 首月没有上个月可比，整行留空；缺数或没变化就用「—」占位，行高才齐
+  function assetDeltaLine(value, prev, isFirst) {
+    if (isFirst) return '';
+    var d = (value === null || value === undefined ||
+             prev === null || prev === undefined) ? null : value - prev;
+    if (d === null || !d) return '<span class="d zero">—</span>';
+    return '<span class="d ' + tone(d) + '">' + signed(d) + '</span>';
   }
 
-  // 明细格：平时只显月末，双击展开输入框就地改。
+  // 月份格：上面是那个月的月末余额，下面挂环比小字
+  function assetMonthCell(value, prev, isFirst) {
+    if (value === null || value === undefined) return '<td><span class="zero">—</span></td>';
+    return '<td><span class="v">' + money(value) + '</span>' +
+      assetDeltaLine(value, prev, isFirst) + '</td>';
+  }
+
+  // 一行里所有月份格：余额 + 该月环比，首月只显余额
+  function assetMonthCells(values) {
+    return values.map(function (v, i) {
+      return assetMonthCell(v, i ? values[i - 1] : null, i === 0);
+    }).join('');
+  }
+
+  // 明细格：平时只显月末 + 环比小字，双击展开输入框就地改。
   // 备注不在这儿——它属于资产项，挂在首列的名字上
-  function assetCell(cell) {
+  function assetCell(cell, prev, isFirst) {
     if (!cell) return '<td><span class="zero">—</span></td>';
+    var line = assetDeltaLine(cell.end, prev ? prev.end : null, isFirst);
     var shown = '<span class="v">' + assetNum(cell.end) + '</span>';
     if (state.assetsEdit && state.assetsEdit.id === cell.id) {
-      return '<td class="cmp-edit editing">' + shown +
+      return '<td class="cmp-edit editing">' + shown + line +
         '<span class="editor">' +
           '<label><span>月末</span><input type="number" step="1" placeholder="0"' +
             ' value="' + (cell.end === null || cell.end === undefined ? '' : esc(String(cell.end))) + '"' +
@@ -1173,7 +1190,7 @@
         '</span></td>';
     }
     return '<td class="cmp-edit" data-asset-open="' + esc(cell.id) +
-      '" title="双击改月末">' + shown + '</td>';
+      '" title="双击改月末">' + shown + line + '</td>';
   }
 
   // 资产项的名字：备注是这一项维度的，所以虚线和气泡都挂在名字上，
@@ -1246,10 +1263,10 @@
 
   function assetsHintText() {
     return '<p>' +
-      '每月一笔资产快照，格子里的数字就是那个月的月末余额；双击格子能改，回车或点到别处就存下。' +
+      '每月一笔资产快照，格子里的数字就是那个月的月末余额，底下那行小字是这个月比上个月多/少了多少。' +
+      '双击格子能改月末，回车或点到别处就存下；资产项的备注双击名字写，改一次这一项各月都有。' +
       '「总资产（含公积金）」把公积金账户算进来，「总资产（不含公积金）」只看能动用的钱——' +
       '公积金取不出来，两个口径都留着。' +
-      '「较上月」是含公积金总资产的环比增量，「变化」那一列是首尾两个月之间涨跌了多少。' +
       '「＋ 新增月份」照上个月的样子铺一份新月，「＋ 新增资产项」给每个已有月份各加一行；' +
       '明细行左边的 × 会把这一项在各月的记录一起删掉，删错了能撤销。</p>';
   }
@@ -1271,7 +1288,7 @@
       data.months.map(function (m) {
         return '<th class="cmp-month">' + monthHead(m) + '</th>';
       }).join('') +
-      '<th class="cmp-total">变化</th></tr>';
+      '</tr>';
 
     var body = data.groups.map(function (g) {
       var groupRow = '<tr class="cmp-cat">' +
@@ -1279,8 +1296,7 @@
           '<span class="chev ghost"></span>' +
           '<span class="name">' + esc(g.app) + '</span>' +
         '</span></th>' +
-        g.values.map(function (v) { return '<td>' + assetNum(v) + '</td>'; }).join('') +
-        '<td class="cmp-total">' + assetDelta(g.values) + '</td>' +
+        assetMonthCells(g.values) +
       '</tr>';
 
       var itemRows = g.items.map(function (it) {
@@ -1293,8 +1309,9 @@
               ' data-asset-del-app="' + esc(it.app) + '"' +
               ' data-asset-del-name="' + esc(it.name) + '">×</button>' +
           '</span></th>' +
-          it.cells.map(function (c) { return assetCell(c); }).join('') +
-          '<td class="cmp-total">' + assetDelta(it.values) + '</td>' +
+          it.cells.map(function (c, i) {
+            return assetCell(c, i ? it.cells[i - 1] : null, i === 0);
+          }).join('') +
         '</tr>';
       }).join('');
 
@@ -1305,27 +1322,14 @@
       return '<tr class="assets-sum">' +
         '<th class="cmp-item"><span class="cell"><span class="name">' + esc(t.label) +
         '</span></span></th>' +
-        t.values.map(function (v) { return '<td>' + assetNum(v) + '</td>'; }).join('') +
-        '<td class="cmp-total">' + assetDelta(t.values) + '</td>' +
+        assetMonthCells(t.values) +
       '</tr>';
     }).join('');
-
-    // 环比：这个月比上个月多了多少，跟「月度理财总览」里的资产增量一个意思
-    var main = data.totals[0].values;
-    var deltaRow = '<tr class="assets-delta">' +
-      '<th class="cmp-item"><span class="cell"><span class="name">较上月</span></span></th>' +
-      main.map(function (v, i) {
-        if (i === 0) return '<td><span class="zero">—</span></td>';
-        var d = v - main[i - 1];
-        if (!d) return '<td><span class="zero">—</span></td>';
-        return '<td><span class="' + tone(d) + '">' + signed(d) + '</span></td>';
-      }).join('') +
-      '<td class="cmp-total"><span class="zero">—</span></td></tr>';
 
     pendingHint = assetsHintText();
     return (state.assetsForm ? assetForm(state.assetsForm) : '') +
       '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
-      body + sumRows + deltaRow + '</tbody></table>';
+      body + sumRows + '</tbody></table>';
   }
 
   // ---------- 财产的增改 ----------
