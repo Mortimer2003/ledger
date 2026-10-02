@@ -30,6 +30,7 @@
   var KEY_CACHE = 'ledger.cache';
   var KEY_VIEW = 'ledger.view';
   var KEY_INCOME_VIEW = 'ledger.incomeView';
+  var KEY_ASSET_VIEW = 'ledger.assetView';
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
   var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
@@ -38,9 +39,11 @@
   var KEY_ASSET_CACHE = 'ledger.assetCache';
   var MAX_RETRY = 3;
 
-  // 视图白名单，顺序跟顶栏按钮一致；财产是独立父视图，其余几个归在「收支」下
-  var VIEWS = ['tree', 'compare', 'budget', 'charts', 'assets'];
+  // 视图白名单，顺序跟顶栏按钮一致。两个父级各有自己的一条子 tab：
+  // 「收支」下是 月度/对比/预算/图表，「财产」下是 明细/图表——图跟它画的数据待在同一个域里
+  var VIEWS = ['tree', 'compare', 'budget', 'charts', 'assets', 'assetCharts'];
   var INCOME_VIEWS = ['tree', 'compare', 'budget', 'charts'];
+  var ASSET_VIEWS = ['assets', 'assetCharts'];
 
   // ---------- 娱乐预算 ----------
   // 每月 1500 打底，每个法定节假日再加 100，结余（含超支）逐月往后累加。
@@ -73,6 +76,7 @@
     cmpYear: readCmpYear(), // 对比视图当前看哪一年；null = 跟随最新年份
     view: readView(),
     incomeView: readIncomeView(), // 「收支」下最后看的那种子视图，从财产切回来时用
+    assetView: readAssetView(),   // 「财产」下最后看的那种子视图（明细/图表）
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
     budgetEdit: null,    // 正在就地编辑的预算格：{ month, field }
@@ -493,6 +497,11 @@
     return INCOME_VIEWS.indexOf(raw) === -1 ? 'tree' : raw;
   }
 
+  function readAssetView() {
+    var raw = localStorage.getItem(KEY_ASSET_VIEW);
+    return ASSET_VIEWS.indexOf(raw) === -1 ? 'assets' : raw;
+  }
+
 
   // ===== 对比视图 =====
   function cmpYears(entries) {
@@ -626,27 +635,38 @@
     render();
   }
 
-  // 父级只标「收支 / 财产」，子级只标当前那一个；看财产时子级整条收起
+  // 父级只标「收支 / 财产」，子级标当前那一个
 
   // ===== 视图切换 =====
+  // 两个父级各挂一条子 tab：收支是 月度/对比/预算/图表，财产是 明细/图表。
+  // 谁在前台由当前视图决定，另一条整条收起
   function syncViewButtons() {
-    var parent = state.view === 'assets' ? 'assets' : 'income';
+    var isAsset = ASSET_VIEWS.indexOf(state.view) !== -1;
+    var parent = isAsset ? 'assets' : 'income';
     Array.prototype.forEach.call(document.querySelectorAll('#view-parent button'), function (btn) {
       btn.classList.toggle('active', btn.dataset.parent === parent);
     });
     Array.prototype.forEach.call(document.querySelectorAll('#view-sub button'), function (btn) {
       btn.classList.toggle('active', btn.dataset.view === state.view);
     });
-    document.getElementById('view-sub').hidden = state.view === 'assets';
+    Array.prototype.forEach.call(document.querySelectorAll('#view-sub-assets button'), function (btn) {
+      btn.classList.toggle('active', btn.dataset.view === state.view);
+    });
+    document.getElementById('view-sub').hidden = isAsset;
+    document.getElementById('view-sub-assets').hidden = !isAsset;
   }
 
   function setView(view) {
     state.view = VIEWS.indexOf(view) === -1 ? 'tree' : view;
     state.hintOpen = false;   // 换视图就把说明收回去，默认不铺开
     localStorage.setItem(KEY_VIEW, state.view);
+    // 记住各自域下最后看的那种子视图，从另一个父级切回来时恢复
     if (INCOME_VIEWS.indexOf(state.view) !== -1) {
       state.incomeView = state.view;
       localStorage.setItem(KEY_INCOME_VIEW, state.view);
+    } else if (ASSET_VIEWS.indexOf(state.view) !== -1) {
+      state.assetView = state.view;
+      localStorage.setItem(KEY_ASSET_VIEW, state.view);
     }
     syncViewButtons();
     render();
@@ -1757,7 +1777,8 @@
     var m = data.months;
     if (!m.length) return '';
     var inc = data.totals[0].values;
-    var txt = year + '年 ' + monthLabel(m[0]) + ' – ' + monthLabel(m[m.length - 1]);
+    var span = (year === null || year === CMP_OTHER) ? '' : year + '年 ';
+    var txt = span + monthLabel(m[0]) + ' – ' + monthLabel(m[m.length - 1]);
     var first = inc[0], last = inc[inc.length - 1];
     if (m.length > 1 && first !== null && first !== undefined && last !== null && last !== undefined) {
       txt += ' · 累计 ' + signed(last - first);
@@ -1904,28 +1925,40 @@
     ]));
   }
 
+  // 图跟着它画的数据待在同一个域里：收支下只画收支/预算，财产下只画资产
   function chartsHintText() {
     return '<p>' +
-      '四张图都跟着左上角选的年份走。' +
-      '「总资产走势」是含/不含公积金两条线，纵轴按实际区间取整，不是从 0 起——看的是趋势，不是比例。' +
-      '「各应用占比」取最新一个月，环心那个数就是含公积金的总资产。' +
+      '两张图都跟着左上角选的年份走。' +
       '「预算 · 花销 · 结余」里结余可以是负的（超支），所以带一条零线；预算走中性灰、花销走支出色，跟预算表一个规矩。' +
       '「月度收入 / 支出」两条都按绝对值立起来，红收入、绿支出。</p>';
   }
 
-  function renderCharts(year, scoped, budgetData) {
+  function renderCharts(scoped, budgetData) {
     pendingHint = chartsHintText();
     var w = chartWidth();
-    var assets = buildAssets(year);
-    var sub = assetTrendSub(assets, year);
     return '<div class="charts">' +
-      chartCard('总资产走势', sub, renderAssetTrend(assets, year, w)) +
-      chartCard('各应用占比', assets.months.length
-        ? monthLabel(assets.months[assets.months.length - 1]) + ' · 按月末余额' : '', renderAppShare(assets)) +
       chartCard('预算 · 花销 · 结余', budgetData && budgetData.rows.length
         ? monthLabel(budgetData.rows[0].month) + ' – ' + monthLabel(budgetData.rows[budgetData.rows.length - 1].month)
         : '', renderBudgetBars(budgetData, w)) +
       chartCard('月度收入 / 支出', '', renderIncomeBars(scoped, w)) +
+    '</div>';
+  }
+
+  function assetChartsHintText() {
+    return '<p>' +
+      '两张图都跟着左上角选的年份走。' +
+      '「总资产走势」是含/不含公积金两条线，纵轴按实际区间取整，不是从 0 起——看的是趋势，不是比例。' +
+      '「各应用占比」取最新一个月，环心那个数就是含公积金的总资产。</p>';
+  }
+
+  function renderAssetCharts(year) {
+    pendingHint = assetChartsHintText();
+    var w = chartWidth();
+    var assets = buildAssets(year);
+    return '<div class="charts">' +
+      chartCard('总资产走势', assetTrendSub(assets, year), renderAssetTrend(assets, year, w)) +
+      chartCard('各应用占比', assets.months.length
+        ? monthLabel(assets.months[assets.months.length - 1]) + ' · 按月末余额' : '', renderAppShare(assets)) +
     '</div>';
   }
 
@@ -1966,7 +1999,7 @@
     // 只有「搜索没匹配」仍旧走全局，免得表内的解释跟搜索对不上
     var emptyTip = '还没有数据，点上方「新增月份账单」开始记录。';
     emptyEl.hidden = scoped.length > 0 || (mode !== 'tree' && !searching);
-    if (mode === 'assets') {
+    if (ASSET_VIEWS.indexOf(mode) !== -1) {
       // 财产跟账本走的是两套数据，账本为空不代表没财产，笔数那儿换成「财产」
       countEl.textContent = '财产';
     } else if (searching) {
@@ -1984,7 +2017,7 @@
 
     var income = sum(scoped.filter(function (e) { return e.amount > 0; }));
     var expense = sum(scoped.filter(function (e) { return e.amount < 0; }));
-    if (mode === 'assets') {
+    if (ASSET_VIEWS.indexOf(mode) !== -1) {
       // 财产视图不看收支，顶栏换成最新一个月的两个口径总资产
       var assetTop = buildAssets(year);
       var at = assetTop.months.length - 1;
@@ -2004,17 +2037,19 @@
     }
 
     treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
-      : mode === 'budget' ? ' budget' : mode === 'charts' ? ' charts'
+      : mode === 'budget' ? ' budget' : (mode === 'charts' || mode === 'assetCharts') ? ' charts'
       : mode === 'assets' ? ' assets' : '');
     treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped)
       : mode === 'budget'
         ? renderBudget(budgetData, year)
         : mode === 'charts'
-          ? renderCharts(year, scoped, budgetData)
-          : mode === 'assets'
-            ? renderAssets(year)
-            : groupByMonth(scoped).map(renderMonth).join('');
+          ? renderCharts(scoped, budgetData)
+          : mode === 'assetCharts'
+            ? renderAssetCharts(year)
+            : mode === 'assets'
+              ? renderAssets(year)
+              : groupByMonth(scoped).map(renderMonth).join('');
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
     renderHint(pendingHint);
@@ -2980,16 +3015,19 @@
   });
 
   document.getElementById('btn-cancel').addEventListener('click', closeEditor);
-  // 父级「收支 / 财产」：点财产直接进；点收支回到上次看的那种子视图
+  // 父级「收支 / 财产」：各回到自己域下上次看的那种子视图
   document.getElementById('view-parent').addEventListener('click', function (event) {
     var btn = event.target.closest('button[data-parent]');
     if (!btn) return;
-    setView(btn.dataset.parent === 'assets' ? 'assets' : state.incomeView);
+    setView(btn.dataset.parent === 'assets' ? state.assetView : state.incomeView);
   });
-  document.getElementById('view-sub').addEventListener('click', function (event) {
+  // 两条子 tab 各挂一份，点谁都是切到 data-view 指定的视图
+  function onSubViewClick(event) {
     var btn = event.target.closest('button[data-view]');
     if (btn) setView(btn.dataset.view);
-  });
+  }
+  document.getElementById('view-sub').addEventListener('click', onSubViewClick);
+  document.getElementById('view-sub-assets').addEventListener('click', onSubViewClick);
   refreshBtn.addEventListener('click', function () { refresh(); });
   document.getElementById('btn-settings').addEventListener('click', function () { openSetup(); });
 
