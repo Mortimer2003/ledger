@@ -1228,8 +1228,8 @@
     return '<span class="indent"></span>' +
       '<span class="name asset-note' + (item.note ? ' has-note' : '') + '"' +
         ' data-asset-note-app="' + esc(item.app) + '"' +
-        ' data-asset-note-name="' + esc(item.name) + '"' +
-        ' title="双击写备注">' + esc(item.name) + '</span>' +
+        ' data-asset-note-name="' + esc(item.name) + '">' +
+        esc(item.name) + '</span>' +
       (item.note ? '<span class="tip">' + esc(item.note) + '</span>' : '');
   }
 
