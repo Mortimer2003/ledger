@@ -4,61 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261002-1216">
+<link rel="stylesheet" href="ledger.css?v=20261002-1236">
 
 </head>
 <body>
 <div class="app">
   <header class="topbar">
-    <!-- 第一行：年份 + 收支/财产 + 视图级工具（标签/说明/各种新增），读数右对齐收尾。
-         工具跟年份同排，切视图只在中段增减，导航和读数两端不动，顶栏不跳 -->
-    <div class="bar bar-info">
+    <!-- 第一行：看哪一年、看哪一大类，加上跟数据、跟视图都无关的全局控件。
+         年份和「收支/财产」贴在左侧固定区，搜索吃掉中间，刷新、设置收在右端 -->
+    <div class="bar bar-main">
       <div class="nav">
         <div id="cmp-bar" hidden></div>
         <div class="seg view-switch" id="view-parent">
           <button type="button" data-parent="income" class="active">收支</button>
           <button type="button" data-parent="assets">财产</button>
         </div>
-      </div>
-      <!-- 视图级控件：各视图按需显隐自己那几个，整条没内容时收起 -->
-      <div class="view-bar" id="view-bar" hidden>
-        <span class="view-progress" id="asset-progress" hidden></span>
-        <span class="view-bar-tools">
-          <button type="button" class="icon-btn" id="btn-tags" title="子类标签" hidden>
-            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2.5 7.2V2.5h4.7l6.3 6.3-4.7 4.7z"/>
-              <circle cx="5.4" cy="5.4" r=".9"/>
-            </svg>
-          </button>
-          <div class="hint-wrap" id="hint-wrap" hidden>
-            <button type="button" class="icon-btn" id="btn-hint" title="说明" aria-expanded="false">
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-                   stroke-width="1.5" stroke-linecap="round">
-                <circle cx="8" cy="8" r="6"/>
-                <path d="M8 7.4v4"/>
-                <circle cx="8" cy="5" r=".85" fill="currentColor" stroke="none"/>
-              </svg>
-            </button>
-            <div class="hint-pop" id="hint-pop" hidden></div>
-          </div>
-          <button type="button" class="btn primary" id="btn-asset-month" data-asset-tool="month" hidden>＋ 新增月份</button>
-          <button type="button" class="btn ghost" id="btn-asset-item" data-asset-tool="item" hidden>＋ 新增资产项</button>
-          <button type="button" class="btn primary" id="btn-month" hidden>新增月份账单</button>
-        </span>
-      </div>
-      <div class="metrics">
-        <span class="count" id="count"></span>
-        <div class="totals" id="totals"></div>
-      </div>
-    </div>
-    <!-- 第二行：子视图切换 + 全局控件。子级「月度/对比/预算」放最左，跟上方「收支/财产」上下对齐；
-         搜索、刷新、设置跟数据无关、跟视图无关，永远在这儿 -->
-    <div class="bar bar-tools">
-      <div class="seg view-switch sub" id="view-sub">
-        <button type="button" data-view="tree" class="active">月度</button>
-        <button type="button" data-view="compare">对比</button>
-        <button type="button" data-view="budget">预算</button>
       </div>
       <div class="search">
         <span class="mag">
@@ -91,9 +51,49 @@
         </button>
       </div>
     </div>
+    <!-- 第二行：这一大类下面的子视图（月度/对比/预算），右边是这一年的读数 -->
+    <div class="bar bar-sub">
+      <div class="seg view-switch sub" id="view-sub">
+        <button type="button" data-view="tree" class="active">月度</button>
+        <button type="button" data-view="compare">对比</button>
+        <button type="button" data-view="budget">预算</button>
+      </div>
+      <div class="metrics">
+        <span class="count" id="count"></span>
+        <div class="totals" id="totals"></div>
+      </div>
+    </div>
   </header>
 
   <div class="progress" id="progress"></div>
+
+  <!-- 视图级工具：只对当前视图有意义的操作（标签/说明/各种新增），跟正文同一列 -->
+  <div class="view-bar" id="view-bar" hidden>
+    <span class="view-progress" id="asset-progress" hidden></span>
+    <span class="view-bar-tools">
+      <button type="button" class="icon-btn" id="btn-tags" title="子类标签" hidden>
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2.5 7.2V2.5h4.7l6.3 6.3-4.7 4.7z"/>
+          <circle cx="5.4" cy="5.4" r=".9"/>
+        </svg>
+      </button>
+      <div class="hint-wrap" id="hint-wrap" hidden>
+        <button type="button" class="icon-btn" id="btn-hint" title="说明" aria-expanded="false">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round">
+            <circle cx="8" cy="8" r="6"/>
+            <path d="M8 7.4v4"/>
+            <circle cx="8" cy="5" r=".85" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+        <div class="hint-pop" id="hint-pop" hidden></div>
+      </div>
+      <button type="button" class="btn primary" id="btn-asset-month" data-asset-tool="month" hidden>＋ 新增月份</button>
+      <button type="button" class="btn ghost" id="btn-asset-item" data-asset-tool="item" hidden>＋ 新增资产项</button>
+      <button type="button" class="btn primary" id="btn-month" hidden>新增月份账单</button>
+    </span>
+  </div>
 
   <main class="tree" id="tree"></main>
   <p class="empty" id="empty" hidden>还没有数据，点上方「新增月份账单」开始记录。</p>
@@ -227,7 +227,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261002-1216"></script>
+<script src="ledger.js?v=20261002-1236"></script>
 
 </body>
 </html>
