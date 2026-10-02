@@ -186,8 +186,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .chip i { font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .tools { display: flex; gap: 6px; flex: none; }
-/* 工具区里的按钮各自设了 display，hidden 属性会被盖掉，这里统一兜住 */
-.tools > [hidden] { display: none; }
 
 .btn {
   font: inherit;
@@ -774,8 +772,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px 10px;
+  /* 跟 .tree 一样按 --gutter 对齐，工具条和内容左右边缘才在同一条竖线上 */
+  padding: 0 var(--gutter) 10px;
 }
+/* 这条是 flex，[hidden] 的默认规则压不住；里面的 .icon-btn / .hint-wrap 同理 */
+.view-bar[hidden] { display: none; }
+.view-bar [hidden] { display: none; }
 .view-bar-tools { display: flex; gap: 8px; margin-left: auto; }
 .view-bar .tool {
   padding: 4px 10px;
