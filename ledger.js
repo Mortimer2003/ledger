@@ -38,9 +38,9 @@
   var KEY_ASSET_CACHE = 'ledger.assetCache';
   var MAX_RETRY = 3;
 
-  // 视图白名单，顺序跟顶栏按钮一致；财产是独立父视图，其余三个归在「收支」下
-  var VIEWS = ['tree', 'compare', 'budget', 'assets'];
-  var INCOME_VIEWS = ['tree', 'compare', 'budget'];
+  // 视图白名单，顺序跟顶栏按钮一致；财产是独立父视图，其余几个归在「收支」下
+  var VIEWS = ['tree', 'compare', 'budget', 'charts', 'assets'];
+  var INCOME_VIEWS = ['tree', 'compare', 'budget', 'charts'];
 
   // ---------- 娱乐预算 ----------
   // 每月 1500 打底，每个法定节假日再加 100，结余（含超支）逐月往后累加。
@@ -1650,6 +1650,286 @@
     }
   }
 
+  // ===== 图表视图 =====
+  // 手写 SVG，不引外部图表库：Notion 的 iframe 里加载 CDN 不稳，而且这几张图形状都简单。
+  // 宽度按正文列实测（.tree 的左右内边距就是 --gutter），再减掉卡片自己的内边距和边框，
+  // 这样 viewBox 跟卡片像素 1:1，刻度文字不会被缩放拉变形
+  function chartWidth() {
+    var el = treeEl;
+    if (el && el.clientWidth) {
+      var cs = window.getComputedStyle(el);
+      var pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      var avail = Math.min(el.clientWidth - pad, 960);
+      if (avail > 0) return Math.max(280, avail - 34);
+    }
+    return 600;
+  }
+
+  // 轴刻度取整：把原始步长抬到 1/2/5×10^n，刻度读数才是整数
+  function niceStep(raw) {
+    if (!(raw > 0)) return 1;
+    var base = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+    var f = raw / base;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * base;
+  }
+
+  function axisScale(min, max, count) {
+    if (!isFinite(min) || !isFinite(max)) { min = 0; max = 1; }
+    if (min === max) { max = min + 1; }
+    var step = niceStep((max - min) / count);
+    var lo = Math.floor(min / step) * step;
+    var hi = Math.ceil(max / step) * step;
+    var ticks = [];
+    for (var v = lo; v <= hi + step / 2; v += step) ticks.push(Math.round(v * 1000) / 1000);
+    return { lo: lo, hi: hi, ticks: ticks };
+  }
+
+  function sharePct(x) { return (Math.round(x * 1000) / 10) + '%'; }
+
+  function svgWrap(w, h, inner) {
+    return '<svg class="chart-svg" viewBox="0 0 ' + w + ' ' + h +
+      '" width="' + w + '" height="' + h + '">' + inner + '</svg>';
+  }
+
+  // 三色槽：图形和图例共用一份 --c，换主题时跟着 CSS 变量走
+  function chartLegend(items) {
+    return '<div class="chart-legend">' + items.map(function (it) {
+      return '<span class="lg ' + it.cls + '"><i class="sw"></i>' + esc(it.name) + '</span>';
+    }).join('') + '</div>';
+  }
+
+  function chartCard(title, sub, body) {
+    return '<section class="chart-card">' +
+      '<header><h3>' + esc(title) + '</h3>' +
+        (sub ? '<span class="chart-sub">' + esc(sub) + '</span>' : '') + '</header>' +
+      body + '</section>';
+  }
+
+  // 坐标骨架：横网格 + 左侧刻度 + 零线。柱图有负数时零线就是基准
+  function chartFrame(w, h, pad, sc, y, withZero) {
+    var right = w - pad.r;
+    var grid = sc.ticks.map(function (t) {
+      return '<line class="grid" x1="' + pad.l + '" x2="' + right + '" y1="' + y(t) + '" y2="' + y(t) + '"/>' +
+        '<text x="' + (pad.l - 8) + '" y="' + (y(t) + 3.5) + '" text-anchor="end">' + money(t) + '</text>';
+    }).join('');
+    if (!withZero || sc.lo > 0) return grid;
+    return grid + '<line class="zero" x1="' + pad.l + '" x2="' + right +
+      '" y1="' + y(0) + '" y2="' + y(0) + '"/>';
+  }
+
+  // 成组柱：每组若干根并排，共用同一把尺子。柱身上挂 <title>，悬停能看具体数额
+  function groupedBars(w, groups, legend) {
+    var h = 260, pad = { l: 58, r: 16, t: 18, b: 34 };
+    var plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+    var vals = [];
+    groups.forEach(function (g) { g.bars.forEach(function (b) { vals.push(b.v); }); });
+    if (!vals.length) return '';
+    var sc = axisScale(Math.min.apply(null, vals.concat([0])),
+                       Math.max.apply(null, vals.concat([0])), 4);
+    var y = function (v) { return pad.t + (sc.hi - v) / (sc.hi - sc.lo) * plotH; };
+    var zeroY = y(0);
+
+    var slot = plotW / groups.length;
+    var n = groups[0].bars.length;
+    var bw = Math.max(6, Math.min(26, slot * 0.66 / n));
+    var gap = 4;
+    var bars = groups.map(function (g, gi) {
+      var groupW = n * bw + (n - 1) * gap;
+      var x0 = pad.l + slot * gi + (slot - groupW) / 2;
+      return g.bars.map(function (b, bi) {
+        var top = b.v >= 0 ? y(b.v) : zeroY;
+        var hgt = Math.max(1, Math.abs(y(b.v) - zeroY));
+        return '<rect class="bar ' + b.cls + '" x="' + (x0 + bi * (bw + gap)) + '" y="' + top +
+          '" width="' + bw + '" height="' + hgt + '" rx="2"><title>' +
+          esc(g.label + ' · ' + b.name + ' ' + signed(b.v)) + '</title></rect>';
+      }).join('');
+    }).join('');
+
+    var labels = groups.map(function (g, gi) {
+      return '<text class="xlab" x="' + (pad.l + slot * gi + slot / 2) + '" y="' + (h - 12) +
+        '" text-anchor="middle">' + esc(g.label) + '</text>';
+    }).join('');
+
+    return legend + svgWrap(w, h, chartFrame(w, h, pad, sc, y, true) + bars + labels);
+  }
+
+  function assetTrendSub(data, year) {
+    var m = data.months;
+    if (!m.length) return '';
+    var inc = data.totals[0].values;
+    var txt = year + '年 ' + monthLabel(m[0]) + ' – ' + monthLabel(m[m.length - 1]);
+    var first = inc[0], last = inc[inc.length - 1];
+    if (m.length > 1 && first !== null && first !== undefined && last !== null && last !== undefined) {
+      txt += ' · 累计 ' + signed(last - first);
+    }
+    return txt;
+  }
+
+  // 总资产走势：含/不含公积金两条线。资产都在几十万这个量级，
+  // 从 0 起画会把三条线压成一条，所以按实际区间取整，刻度上写清楚数
+  function renderAssetTrend(data, year, w) {
+    if (!data.months.length) return '<p class="chart-empty">还没有财产数据。</p>';
+    var h = 260, pad = { l: 58, r: 18, t: 16, b: 30 };
+    var plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+    var series = [
+      { name: '含公积金', cls: 'c1', values: data.totals[0].values },
+      { name: '不含公积金', cls: 'c2', values: data.totals[1].values }
+    ];
+    var vals = [];
+    series.forEach(function (s) {
+      s.values.forEach(function (v) { if (v !== null && v !== undefined) vals.push(v); });
+    });
+    if (!vals.length) return '<p class="chart-empty">还没有余额数据。</p>';
+
+    var sc = axisScale(Math.min.apply(null, vals), Math.max.apply(null, vals), 4);
+    var y = function (v) { return pad.t + (sc.hi - v) / (sc.hi - sc.lo) * plotH; };
+    var n = data.months.length;
+    var x = function (i) { return n > 1 ? pad.l + plotW * i / (n - 1) : pad.l + plotW / 2; };
+
+    var lines = series.map(function (s) {
+      var pts = [], dots = '';
+      s.values.forEach(function (v, i) {
+        if (v === null || v === undefined) return;
+        pts.push(x(i) + ',' + y(v));
+        dots += '<circle class="dot ' + s.cls + '" cx="' + x(i) + '" cy="' + y(v) + '" r="3.5">' +
+          '<title>' + esc(monthLabel(data.months[i]) + ' ' + s.name + ' ' + money(v)) + '</title></circle>';
+      });
+      return (pts.length > 1 ? '<polyline class="ln ' + s.cls + '" points="' + pts.join(' ') + '"/>' : '') + dots;
+    }).join('');
+
+    var labels = data.months.map(function (m, i) {
+      return '<text class="xlab" x="' + x(i) + '" y="' + (h - 10) + '" text-anchor="middle">' +
+        esc(monthLabel(m)) + '</text>';
+    }).join('');
+
+    return chartLegend(series.map(function (s) { return { name: s.name, cls: s.cls }; })) +
+      svgWrap(w, h, chartFrame(w, h, pad, sc, y, false) + lines + labels);
+  }
+
+  // 各应用占比：取最新一个月，把各应用余额摊成环形。总量就是「含公积金」的口径
+  function renderAppShare(data) {
+    if (!data.months.length) return '<p class="chart-empty">还没有财产数据。</p>';
+    var at = data.months.length - 1;
+    var parts = data.groups.map(function (g) {
+      return { name: g.app, value: g.values[at] || 0 };
+    }).filter(function (p) { return p.value > 0; })
+      .sort(function (a, b) { return b.value - a.value; });
+    if (!parts.length) return '<p class="chart-empty">最新一个月还没有余额。</p>';
+
+    var total = parts.reduce(function (a, p) { return a + p.value; }, 0);
+    var size = 180, c = size / 2, r = 60, sw = 26;
+    var C = 2 * Math.PI * r, acc = 0;
+    var arcs = parts.map(function (p, i) {
+      var len = p.value / total * C;
+      var draw = Math.max(0.6, len - 2.5);   // 留一道细缝，两段不会糊在一起
+      var el = '<circle class="arc c' + (i % 5 + 1) + '" cx="' + c + '" cy="' + c + '" r="' + r +
+        '" stroke-width="' + sw + '" stroke-dasharray="' + draw + ' ' + (C - draw) + '"' +
+        ' stroke-dashoffset="' + (-acc) + '">' +
+        '<title>' + esc(p.name + ' ' + money(p.value) + '（' + sharePct(p.value / total) + '）') + '</title></circle>';
+      acc += len;
+      return el;
+    }).join('');
+
+    var legend = parts.map(function (p, i) {
+      return '<li class="donut-item c' + (i % 5 + 1) + '"><i class="sw"></i>' +
+        '<span class="nm">' + esc(p.name) + '</span>' +
+        '<span class="vl">' + money(p.value) + '</span>' +
+        '<span class="pc">' + sharePct(p.value / total) + '</span></li>';
+    }).join('');
+
+    return '<div class="donut-wrap">' +
+      '<svg class="chart-svg donut" viewBox="0 0 ' + size + ' ' + size +
+        '" width="' + size + '" height="' + size + '">' +
+        '<g transform="rotate(-90 ' + c + ' ' + c + ')">' + arcs + '</g>' +
+        '<text class="donut-total" x="' + c + '" y="' + (c - 3) + '" text-anchor="middle">' + money(total) + '</text>' +
+        '<text class="donut-cap" x="' + c + '" y="' + (c + 15) + '" text-anchor="middle">总资产（含公积金）</text>' +
+      '</svg>' +
+      '<ul class="donut-legend">' + legend + '</ul>' +
+    '</div>';
+  }
+
+  // 预算 / 花销 / 结余：结余可以是负的（超支），所以带零线。
+  // 预算走中性灰（表格里也不上色），花销走支出色，结余按正负——跟预算表一个规矩
+  function renderBudgetBars(data, w) {
+    if (!data || !data.rows.length) return '<p class="chart-empty">这一年还没有预算数据。</p>';
+    var groups = data.rows.map(function (row) {
+      var r = Math.round(row.remain);
+      return {
+        label: monthLabel(row.month),
+        bars: [
+          { v: Math.round(row.budget), cls: 'b-budget', name: '预算' },
+          { v: row.spend.total, cls: 'b-spend', name: '花销' },
+          { v: r, cls: r > 0 ? 'b-pos' : r < 0 ? 'b-neg' : 'b-zero', name: '结余' }
+        ]
+      };
+    });
+    return groupedBars(w, groups, chartLegend([
+      { name: '本月预算', cls: 'b-budget' },
+      { name: '本月花销', cls: 'b-spend' },
+      { name: '本月结余', cls: 'b-pos' }
+    ]));
+  }
+
+  // 逐月收入/支出：两条都按绝对值立起来，红收入、绿支出，跟账本一个规矩
+  function monthlyTotals(entries) {
+    var map = new Map();
+    entries.forEach(function (e) {
+      if (!e.month || e.month === UNSET_MONTH) return;
+      var row = map.get(e.month);
+      if (!row) { row = { month: e.month, income: 0, expense: 0 }; map.set(e.month, row); }
+      if (e.amount > 0) row.income += e.amount;
+      else if (e.amount < 0) row.expense += -e.amount;
+    });
+    var out = [];
+    map.forEach(function (r) { out.push(r); });
+    out.sort(function (a, b) { return monthKey(a.month) - monthKey(b.month); });
+    return out;
+  }
+
+  function renderIncomeBars(entries, w) {
+    var rows = monthlyTotals(entries);
+    if (!rows.length) return '<p class="chart-empty">这一年还没有收支记录。</p>';
+    var groups = rows.map(function (row) {
+      return {
+        label: monthLabel(row.month),
+        bars: [
+          { v: Math.round(row.income), cls: 'b-income', name: '收入' },
+          { v: Math.round(row.expense), cls: 'b-expense', name: '支出' }
+        ]
+      };
+    });
+    return groupedBars(w, groups, chartLegend([
+      { name: '收入', cls: 'b-income' },
+      { name: '支出', cls: 'b-expense' }
+    ]));
+  }
+
+  function chartsHintText() {
+    return '<p>' +
+      '四张图都跟着左上角选的年份走。' +
+      '「总资产走势」是含/不含公积金两条线，纵轴按实际区间取整，不是从 0 起——看的是趋势，不是比例。' +
+      '「各应用占比」取最新一个月，环心那个数就是含公积金的总资产。' +
+      '「预算 · 花销 · 结余」里结余可以是负的（超支），所以带一条零线；预算走中性灰、花销走支出色，跟预算表一个规矩。' +
+      '「月度收入 / 支出」两条都按绝对值立起来，红收入、绿支出。</p>';
+  }
+
+  function renderCharts(year, scoped, budgetData) {
+    pendingHint = chartsHintText();
+    var w = chartWidth();
+    var assets = buildAssets(year);
+    var sub = assetTrendSub(assets, year);
+    return '<div class="charts">' +
+      chartCard('总资产走势', sub, renderAssetTrend(assets, year, w)) +
+      chartCard('各应用占比', assets.months.length
+        ? monthLabel(assets.months[assets.months.length - 1]) + ' · 按月末余额' : '', renderAppShare(assets)) +
+      chartCard('预算 · 花销 · 结余', budgetData && budgetData.rows.length
+        ? monthLabel(budgetData.rows[0].month) + ' – ' + monthLabel(budgetData.rows[budgetData.rows.length - 1].month)
+        : '', renderBudgetBars(budgetData, w)) +
+      chartCard('月度收入 / 支出', '', renderIncomeBars(scoped, w)) +
+    '</div>';
+  }
+
+
   // ---------- 渲染 ----------
 
   // 当前视图要讲的那段说明，由各视图的渲染函数填进来，render 末尾统一挂到「说明」气泡上
@@ -1692,6 +1972,8 @@
     } else if (searching) {
       countEl.textContent = '匹配 ' + scoped.length + ' 笔';
       if (!scoped.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
+    } else if (mode === 'charts') {
+      countEl.textContent = '图表';
     } else if (year !== null) {
       countEl.textContent = scoped.length + ' 笔';
       emptyEl.textContent = emptyTip;
@@ -1722,14 +2004,17 @@
     }
 
     treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
-      : mode === 'budget' ? ' budget' : mode === 'assets' ? ' assets' : '');
+      : mode === 'budget' ? ' budget' : mode === 'charts' ? ' charts'
+      : mode === 'assets' ? ' assets' : '');
     treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped)
       : mode === 'budget'
         ? renderBudget(budgetData, year)
-        : mode === 'assets'
-          ? renderAssets(year)
-          : groupByMonth(scoped).map(renderMonth).join('');
+        : mode === 'charts'
+          ? renderCharts(year, scoped, budgetData)
+          : mode === 'assets'
+            ? renderAssets(year)
+            : groupByMonth(scoped).map(renderMonth).join('');
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
     renderHint(pendingHint);
