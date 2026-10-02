@@ -82,13 +82,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .bar > .metrics,
 .bar > .tools { margin-left: auto; }
 
-/* 第一行拆成固定的两段：上段「看哪一年、看什么」，下段读数。
-   两段各自换行——窄下去只会把读数整组挤到下一行，不会把「收支|财产」和「月度|对比|预算」拆散，
+/* 第一行拆成固定的两段：上段「看哪一年、看哪个大类」，下段读数。
+   两段各自换行——窄下去只会把读数整组挤到下一行，不会把「收支|财产」拆散，
    读数多一个 chip（预算的「娱乐结余」）也不会改变行数，切视图顶栏不跳 */
 .bar-info { flex-direction: column; align-items: stretch; gap: 6px; }
 .bar-info > .nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-/* 两个 seg 绑成一组：窄屏要么都在，要么整组换行，不让两级导航分家 */
-.nav-views { display: flex; align-items: center; gap: 12px; flex: none; }
 #cmp-bar { flex: none; }
 .bar-info > .metrics { margin-left: 0; justify-content: flex-end; flex-wrap: wrap; }
 
