@@ -1202,7 +1202,7 @@
       save + '</div>';
   }
 
-  // 正文工具条是三个视图共用的同一个 DOM，位置固定；各视图只显隐自己那几个按钮，
+  // 视图级工具是各视图共用的同一个 DOM，就挂在顶栏第一行；各视图只显隐自己那几个按钮，
   // 所以「新增」类操作不管在哪个视图都在同一处，不会一个跑顶栏一个跑正文
   function renderViewBar(mode, hasHint) {
     var isTree = mode === 'tree';
@@ -1647,7 +1647,7 @@
           ? renderAssets(year)
           : groupByMonth(scoped).map(renderMonth).join('');
 
-    // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到正文工具条的「说明」气泡上
+    // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
     renderHint(pendingHint);
     renderViewBar(mode, !!pendingHint);
 
