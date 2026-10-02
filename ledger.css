@@ -256,8 +256,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .tree {
   flex: 1;
   overflow: auto;
-  /* 正文跟顶栏之间留一段：顶栏底边线紧贴着内容会显得糊在一起 */
-  padding: 16px var(--gutter) 28px;
+  /* 正文跟顶栏之间留一段：顶栏底边线紧贴着内容会显得糊在一起。
+     有工具条的视图里，这段跟 .view-bar 的上留白一起构成按钮下方的间距，两处同值 */
+  padding: 8px var(--gutter) 28px;
   /* 隐藏滚动条，但保留滚动能力 */
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -506,7 +507,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* ---------- 对比视图 ---------- */
 /* 对比表要横向铺开，去掉两侧留白，让月份列尽量占满窗口。
    上边距跟 .tree 基础值一致：切视图时表格跟顶栏都隔同样一段，不跳 */
-.tree.compare { padding: 16px 0 28px; }
+.tree.compare { padding: 8px 0 28px; }
 
 .cmp {
   border-collapse: separate;   /* sticky 表头/首列必须配 separate，collapse 下会错位 */
@@ -602,7 +603,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .chip.budget { border: 1px solid var(--line); }
 
 /* 底部多留一块：说明气泡和编辑面板都挂在格子下方，留白不够会被裁掉 */
-.tree.budget { padding: 16px 0 110px; }
+.tree.budget { padding: 8px 0 110px; }
 
 /* 表内空状态：对比/预算/财产三个表格视图共用同一条 */
 .cmp-hint {
@@ -745,7 +746,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* ---------- 财产视图 ---------- */
 /* 跟对比视图一样要横向铺开，两侧留白去掉。
    底部留一块给编辑面板（只一行「月末 + 备注」，比预算窄些），否则改最后一行会被裁 */
-.tree.assets { padding: 16px 0 76px; }
+.tree.assets { padding: 8px 0 76px; }
 
 /* 总计行：跟分类行一样压深一档，再往上收一条实线，跟明细断开 */
 .cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
@@ -760,13 +761,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 /* 视图级工具：正文顶上单独一行，只对当前视图有意义（标签/说明/各种新增）。
    左端留给进度提示，右端是按钮；跟正文一样按 --gutter 对齐。
-   上方留 16px 跟顶栏隔开，下方交给 .tree 的 padding-top，三处间距一个数 */
+   上下留白都收成 8px：上方接顶栏、下方交给 .tree 的 padding-top，按钮不再被架在半空 */
 .view-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: none;
-  padding: 16px var(--gutter) 0;
+  padding: 8px var(--gutter) 0;
 }
 /* 这条是 flex，[hidden] 的默认规则压不住；里面的 .icon-btn / .hint-wrap 同理 */
 .view-bar[hidden] { display: none; }
