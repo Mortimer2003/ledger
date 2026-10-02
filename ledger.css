@@ -648,7 +648,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .cmp.budget td.cmp-edit[data-budget-open] { cursor: text; }
 
-.cmp.budget td.cmp-edit[data-budget-open]:hover { box-shadow: inset 0 0 0 1px var(--line); }
+/* 可编辑格的唯一线索：悬停时给浅底 + 一圈边框。静止态保持纯文本，
+   不然整张表都是框。边框用 --line-strong（16%），--line（9%）太淡看不见 */
+.cmp.budget td.cmp-edit[data-budget-open]:hover {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  background: var(--hover);
+}
 
 .cmp.budget td.cmp-edit input {
   width: 84px;
@@ -867,7 +872,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   font-variant-numeric: tabular-nums;
 }
 .cmp.assets td.cmp-edit[data-asset-open] { cursor: text; }
-.cmp.assets td.cmp-edit[data-asset-open]:hover { box-shadow: inset 0 0 0 1px var(--line); }
+.cmp.assets td.cmp-edit[data-asset-open]:hover {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  background: var(--hover);
+}
 .cmp.assets td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
 .cmp.assets td.cmp-edit input {
   width: 84px;
