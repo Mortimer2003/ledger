@@ -1197,3 +1197,113 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   .cmp .cmp-item { min-width: 104px; }
   .cmp .cmp-total { min-width: 78px; }
 }
+
+/* ---------- 图表视图 ---------- */
+/* 五色槽只给图表用，不动账本的红涨绿跌。深色下提亮一档，
+   保证在 #202020 的卡片底色上还分得清 */
+:root {
+  --chart-1: #2383e2;
+  --chart-2: #9065d4;
+  --chart-3: #d9a23b;
+  --chart-4: #2f9e8f;
+  --chart-5: #d9730d;
+}
+
+[data-theme="dark"] {
+  --chart-1: #529cca;
+  --chart-2: #a98ae8;
+  --chart-3: #e0b355;
+  --chart-4: #4dab9a;
+  --chart-5: #e08a3c;
+}
+
+/* --c 是当前图形的色号：线、点、环、色块都从它取色，
+   换主题只换上面的变量，图形不用跟着改 */
+.c1 { --c: var(--chart-1); }
+.c2 { --c: var(--chart-2); }
+.c3 { --c: var(--chart-3); }
+.c4 { --c: var(--chart-4); }
+.c5 { --c: var(--chart-5); }
+
+.charts { display: flex; flex-direction: column; gap: 14px; padding-bottom: 8px; }
+
+.chart-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px 12px;
+}
+
+.chart-card > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.chart-card h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.chart-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-empty { margin: 6px 0; font-size: 13px; color: var(--text-3); }
+
+.chart-svg { display: block; width: 100%; height: auto; }
+.chart-svg text { font-size: 11px; fill: var(--text-3); font-variant-numeric: tabular-nums; }
+.chart-svg .grid { stroke: var(--line); stroke-width: 1; }
+.chart-svg .zero { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-svg .xlab { fill: var(--text-2); }
+
+.chart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 6px; }
+.chart-legend .lg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+.chart-legend .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--c, var(--text-3)); }
+
+.chart-svg .ln { stroke: var(--c); stroke-width: 2; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.chart-svg .dot { fill: var(--c); stroke: var(--bg-soft); stroke-width: 1.5; }
+.chart-svg .arc { stroke: var(--c); fill: none; }
+
+/* 柱色跟表格同一套语义：预算中性灰、花销走支出色、结余按正负 */
+.chart-svg .bar { stroke: none; }
+.chart-svg .bar.b-budget { fill: var(--text-3); }
+.chart-svg .bar.b-spend,
+.chart-svg .bar.b-expense,
+.chart-svg .bar.b-neg { fill: var(--loss); }
+.chart-svg .bar.b-income,
+.chart-svg .bar.b-pos { fill: var(--gain); }
+.chart-svg .bar.b-zero { fill: var(--line-strong); }
+
+/* 柱图的图例色块：柱子走的是 b-* 类，取不到 --c，这里把同一套颜色补到色块上 */
+.chart-legend .lg.b-income .sw,
+.chart-legend .lg.b-pos .sw { background: var(--gain); }
+.chart-legend .lg.b-spend .sw,
+.chart-legend .lg.b-expense .sw,
+.chart-legend .lg.b-neg .sw { background: var(--loss); }
+.chart-legend .lg.b-budget .sw { background: var(--text-3); }
+.chart-legend .lg.b-zero .sw { background: var(--line-strong); }
+
+/* 环形图：左边圆环、右边图例。圆环是固定尺寸，不跟着卡片拉宽 */
+.donut-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.chart-svg.donut { flex: none; width: 180px; height: 180px; }
+.chart-svg .donut-total { font-size: 15px; font-weight: 600; fill: var(--text); }
+.chart-svg .donut-cap { font-size: 10px; fill: var(--text-3); }
+
+.donut-legend { list-style: none; margin: 0; padding: 0; flex: 1 1 220px; min-width: 0; }
+.donut-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; }
+.donut-item .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--c, var(--text-3)); }
+.donut-item .nm {
+  flex: 1 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; color: var(--text-2);
+}
+.donut-item .vl { color: var(--text); font-variant-numeric: tabular-nums; }
+.donut-item .pc { width: 46px; text-align: right; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 620px) {
+  .charts { gap: 10px; }
+  .chart-card { padding: 12px 12px 10px; }
+  .chart-sub { display: none; }
+  .donut-wrap { gap: 12px; }
+}
