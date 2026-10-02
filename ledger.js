@@ -77,7 +77,8 @@
     budgetOpening: { id: null, amount: 0 },
     budgetEdit: null,    // 正在就地编辑的预算格：{ month, field }
     assets: [],          // 财产快照：每行 { id, name, month, app, start, end, note }
-    assetsEdit: null,    // 正在就地编辑的财产格：{ id, draft: { start, end } }
+    assetsEdit: null,    // 正在就地编辑的财产格：{ id, draft: { end } }
+    assetNoteEdit: null, // 正在就地编辑的资产项备注：{ app, name, draft, was }
     assetsForm: null,    // 财产的新增表单：{ kind: 'item' | 'month', ... }
     assetsYear: null,    // 财产视图当前看哪一年，新增月份时按它铺列
     hintOpen: false,     // 预算/财产视图的「说明」面板是否展开，默认收起
@@ -1074,6 +1075,18 @@
     return out;
   }
 
+  // 某个资产项当前的备注。各月记录里存的是同一份，写的时候整项一起写；
+  // 万一历史数据不一致，就取最新那个月里的非空值，别让某月漏填把整项盖成空
+  function assetItemNote(app, name) {
+    var rows = state.assets.filter(function (a) {
+      return a.app === app && a.name === name;
+    }).sort(function (a, b) { return monthKey(a.month) - monthKey(b.month); });
+    for (var i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].note) return rows[i].note;
+    }
+    return '';
+  }
+
   function buildAssets(year) {
     var months = assetMonths(year);
     if (!months.length) return { months: [], groups: [], totals: [] };
@@ -1089,15 +1102,16 @@
 
     var items = Object.keys(index).map(function (k) {
       var it = index[k];
+      var cells = months.map(function (m) { return it.byMonth[m] || null; });
       return {
         app: it.app,
         name: it.name,
+        // 备注属于资产项，不属于某个月：各月记录里存的是同一份，
+        // 展示和预填都走同一个取值口，免得两边对不上
+        note: assetItemNote(it.app, it.name),
         // 每列对应的那条记录（没有就是 null），就地编辑要拿它的 id 和原值
-        cells: months.map(function (m) { return it.byMonth[m] || null; }),
-        values: months.map(function (m) {
-          var c = it.byMonth[m];
-          return c ? c.end : null;
-        })
+        cells: cells,
+        values: cells.map(function (c) { return c ? c.end : null; })
       };
     });
 
@@ -1145,11 +1159,10 @@
     return '<span class="' + tone(d) + '">' + signed(d) + '</span>';
   }
 
-  // 明细格：平时只显月末，双击展开「月末 + 备注」小面板就地改。
-  // 备注跟预算的说明同一套：有就加虚线，悬停出气泡
-  function assetCell(item, cell) {
+  // 明细格：平时只显月末，双击展开输入框就地改。
+  // 备注不在这儿——它属于资产项，挂在首列的名字上
+  function assetCell(cell) {
     if (!cell) return '<td><span class="zero">—</span></td>';
-    var note = cell.note || '';
     var shown = '<span class="v">' + assetNum(cell.end) + '</span>';
     if (state.assetsEdit && state.assetsEdit.id === cell.id) {
       return '<td class="cmp-edit editing">' + shown +
@@ -1157,14 +1170,30 @@
           '<label><span>月末</span><input type="number" step="1" placeholder="0"' +
             ' value="' + (cell.end === null || cell.end === undefined ? '' : esc(String(cell.end))) + '"' +
             ' data-asset-num="end"></label>' +
-          '<label><span>备注</span><input type="text" placeholder="如「重点关注」"' +
-            ' value="' + esc(note) + '" data-asset-note="note"></label>' +
         '</span></td>';
     }
-    return '<td class="cmp-edit' + (note ? ' has-note' : '') + '"' +
-      ' data-asset-open="' + esc(cell.id) + '"' +
-      ' title="双击改月末">' + shown +
-      (note ? '<span class="tip">' + esc(note) + '</span>' : '') + '</td>';
+    return '<td class="cmp-edit" data-asset-open="' + esc(cell.id) +
+      '" title="双击改月末">' + shown + '</td>';
+  }
+
+  // 资产项的名字：备注是这一项维度的，所以虚线和气泡都挂在名字上，
+  // 双击名字进编辑，写一次就同步到它在各月的记录
+  function assetNameCell(item) {
+    if (state.assetNoteEdit &&
+        state.assetNoteEdit.app === item.app && state.assetNoteEdit.name === item.name) {
+      return '<span class="indent"></span>' +
+        '<span class="name">' + esc(item.name) + '</span>' +
+        '<span class="editor">' +
+          '<label><span>备注</span><input type="text" placeholder="如「重点关注」"' +
+            ' value="' + esc(state.assetNoteEdit.draft) + '" data-asset-note="note"></label>' +
+        '</span>';
+    }
+    return '<span class="indent"></span>' +
+      '<span class="name asset-note' + (item.note ? ' has-note' : '') + '"' +
+        ' data-asset-note-app="' + esc(item.app) + '"' +
+        ' data-asset-note-name="' + esc(item.name) + '"' +
+        ' title="双击写备注">' + esc(item.name) + '</span>' +
+      (item.note ? '<span class="tip">' + esc(item.note) + '</span>' : '');
   }
 
   function assetForm(form) {
@@ -1256,14 +1285,15 @@
 
       var itemRows = g.items.map(function (it) {
         return '<tr class="cmp-sub">' +
-          '<th class="cmp-item"><span class="cell">' +
-            '<span class="indent"></span>' +
-            '<span class="name">' + esc(it.name) + '</span>' +
+          '<th class="cmp-item' + (state.assetNoteEdit &&
+            state.assetNoteEdit.app === it.app && state.assetNoteEdit.name === it.name
+            ? ' editing' : '') + '"><span class="cell">' +
+            assetNameCell(it) +
             '<button type="button" class="asset-del" title="删掉这个资产项"' +
               ' data-asset-del-app="' + esc(it.app) + '"' +
               ' data-asset-del-name="' + esc(it.name) + '">×</button>' +
           '</span></th>' +
-          it.cells.map(function (c) { return assetCell(it, c); }).join('') +
+          it.cells.map(function (c) { return assetCell(c); }).join('') +
           '<td class="cmp-total">' + assetDelta(it.values) + '</td>' +
         '</tr>';
       }).join('');
@@ -1337,14 +1367,64 @@
       return isFinite(n) ? n : null;
     }
     var end = num(edit.draft.end);
-    var note = String(edit.draft.note == null ? '' : edit.draft.note).trim();
     var props = {};
     if (end !== row.end) props['月末'] = { number: end };
-    if (note !== (row.note || '')) {
-      props['备注'] = { rich_text: note ? [{ text: { content: note } }] : [] };
-    }
     if (!Object.keys(props).length) return render();
     saveAsset(edit.id, props);
+  }
+
+  // 双击资产项的名字改备注。备注是项目维度的，改一次要写回它在各月的所有记录，
+  // 否则换个月份看就又变回旧值
+  function startAssetNoteEdit(app, name, note) {
+    state.assetNoteEdit = { app: app, name: name, draft: note || '', was: note || '' };
+    render();
+    var input = typeof treeEl.querySelector === 'function'
+      ? treeEl.querySelector('input[data-asset-note]') : null;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }
+
+  function commitAssetNote() {
+    var edit = state.assetNoteEdit;
+    if (!edit) return;
+    state.assetNoteEdit = null;
+    var rows = state.assets.filter(function (a) {
+      return a.app === edit.app && a.name === edit.name;
+    });
+    var note = String(edit.draft == null ? '' : edit.draft).trim();
+    if (!rows.length || note === edit.was) return render();
+
+    var before = state.assets;
+    var props = { '备注': { rich_text: note ? [{ text: { content: note } }] : [] } };
+    // 先落本地再发请求；失败整体回滚
+    state.assets = state.assets.map(function (a) {
+      if (a.app !== edit.app || a.name !== edit.name) return a;
+      return Object.assign({}, a, { note: note });
+    });
+    render();
+    setLoading(true);
+
+    var done = 0;
+    function step(i) {
+      if (i >= rows.length) return Promise.resolve();
+      setAssetProgress('正在写备注 ' + (i + 1) + '/' + rows.length + ' 条…');
+      return notion('/pages/' + rows[i].id, {
+        method: 'PATCH', body: JSON.stringify({ properties: props })
+      }).then(function () { done = i + 1; return step(i + 1); });
+    }
+
+    step(0).then(function () {
+      setAssetProgress('');
+      setLoading(false);
+      toast('「' + edit.name + '」的备注已更新');
+    }).catch(function (err) {
+      state.assets = before;
+      setAssetProgress('');
+      render();
+      setLoading(false);
+      toast('备注只写到 ' + done + '/' + rows.length + ' 条：' + err.message, false);
+    });
   }
 
   function saveAsset(id, props) {
@@ -2453,6 +2533,11 @@
 
   // 双击明细行的标题或金额，就地变成输入框；预算格、财产格同样双击才进编辑
   treeEl.addEventListener('dblclick', function (event) {
+    var note = event.target.closest('[data-asset-note-app]');
+    if (note) {
+      return startAssetNoteEdit(note.dataset.assetNoteApp, note.dataset.assetNoteName,
+        assetItemNote(note.dataset.assetNoteApp, note.dataset.assetNoteName));
+    }
     var asset = event.target.closest('[data-asset-open]');
     if (asset) return startAssetEdit(asset.dataset.assetOpen);
     var budget = event.target.closest('[data-budget-open]');
@@ -2474,8 +2559,10 @@
     if (state.assetsEdit) {
       var box = event.target.closest('input[data-asset-num]');
       if (box) { state.assetsEdit.draft[box.dataset.assetNum] = box.value; return; }
-      var assetNote = event.target.closest('input[data-asset-note]');
-      if (assetNote) { state.assetsEdit.draft[assetNote.dataset.assetNote] = assetNote.value; return; }
+    }
+    if (state.assetNoteEdit) {
+      var noteBox = event.target.closest('input[data-asset-note]');
+      if (noteBox) { state.assetNoteEdit.draft = noteBox.value; return; }
     }
     if (state.assetsForm) {
       var field = event.target.closest('input[data-asset-field]');
@@ -2485,17 +2572,36 @@
 
   // 焦点彻底离开这个小面板才写回（在两个输入之间切换不算离开）
   treeEl.addEventListener('focusout', function (event) {
+    var next = event.relatedTarget;
+    // 资产项的备注面板挂在首列的 th 上，预算/财产的格子挂在 td 上，分开判断
+    var noteCell = event.target.closest('th.cmp-item.editing');
+    if (noteCell) {
+      if (next && typeof next.closest === 'function' &&
+          next.closest('th.cmp-item.editing') === noteCell) return;
+      return commitAssetNote();
+    }
     var cell = event.target.closest('td.cmp-edit.editing');
     if (!cell) return;
-    var next = event.relatedTarget;
     if (next && typeof next.closest === 'function' && next.closest('td.cmp-edit.editing') === cell) return;
     if (state.assetsEdit) return commitAssetEditor();
     if (state.budgetEdit) return commitBudgetEditor();
   });
 
   treeEl.addEventListener('keydown', function (event) {
+    if (state.assetNoteEdit) {
+      if (!event.target.closest('input[data-asset-note]')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        state.assetNoteEdit = null;
+        render();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        commitAssetNote();
+      }
+      return;
+    }
     if (state.assetsEdit) {
-      if (!event.target.closest('input[data-asset-num], input[data-asset-note]')) return;
+      if (!event.target.closest('input[data-asset-num]')) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         state.assetsEdit = null;
