@@ -565,7 +565,11 @@
   // entries 已经裁到某一年，这里只负责把该年的月份铺成列
   function renderCompare(entries) {
     var data = buildComparison(entries);
-    if (!data.months.length) return '';
+    if (!data.months.length) {
+      // 搜索没匹配时交给全局那颗提示，别在这儿再说一遍「这一年还没有记账」
+      if (state.search.trim()) return '';
+      return '<p class="cmp-hint">这一年还没有记账。对比表按月份铺列，先在「月度」里记几笔，这里就能横向比了。</p>';
+    }
 
     var head = '<tr><th class="cmp-item"><span class="cell">项目</span></th>' +
       data.months.map(function (m) {
@@ -850,7 +854,7 @@
   }
 
   function budgetHintText() {
-    return '<p class="budget-hint">' +
+    return '<p>' +
       '本月预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成；' +
       '本月结余 = 预算 − 本月花销 + 特殊收入计入。' +
       '本月花销 = 「娱乐支出」分类合计 + 「特殊支出」分类合计/2。' +
@@ -863,7 +867,8 @@
   function renderBudget(data, year) {
     if (!data || !data.rows.length) {
       pendingHint = '';
-      return '<p class="budget-hint">' +
+      if (state.search.trim()) return '';
+      return '<p class="cmp-hint">' +
         (year === null ? '还没有数据。' : year + ' 年还没有可推算的月份。') +
         '娱乐预算从 ' + esc(OPENING_MONTH) + ' 的结余往后滚，先在月份视图记几笔就有了。</p>';
     }
@@ -1079,7 +1084,7 @@
       if (months.indexOf(a.month) === -1 || !a.name) return;
       var key = a.app + '|' + a.name;
       var item = index[key] || (index[key] = { app: a.app, name: a.name, byMonth: {} });
-      item.byMonth[a.month] = { id: a.id, end: a.end };
+      item.byMonth[a.month] = { id: a.id, end: a.end, note: a.note || '' };
     });
 
     var items = Object.keys(index).map(function (k) {
@@ -1140,20 +1145,26 @@
     return '<span class="' + tone(d) + '">' + signed(d) + '</span>';
   }
 
-  // 明细格：平时只显月末，双击展开一个输入框就地改
+  // 明细格：平时只显月末，双击展开「月末 + 备注」小面板就地改。
+  // 备注跟预算的说明同一套：有就加虚线，悬停出气泡
   function assetCell(item, cell) {
     if (!cell) return '<td><span class="zero">—</span></td>';
-    var shown = assetNum(cell.end);
+    var note = cell.note || '';
+    var shown = '<span class="v">' + assetNum(cell.end) + '</span>';
     if (state.assetsEdit && state.assetsEdit.id === cell.id) {
       return '<td class="cmp-edit editing">' + shown +
         '<span class="editor">' +
           '<label><span>月末</span><input type="number" step="1" placeholder="0"' +
             ' value="' + (cell.end === null || cell.end === undefined ? '' : esc(String(cell.end))) + '"' +
             ' data-asset-num="end"></label>' +
+          '<label><span>备注</span><input type="text" placeholder="如「重点关注」"' +
+            ' value="' + esc(note) + '" data-asset-note="note"></label>' +
         '</span></td>';
     }
-    return '<td class="cmp-edit" data-asset-open="' + esc(cell.id) + '"' +
-      ' title="双击改月末">' + shown + '</td>';
+    return '<td class="cmp-edit' + (note ? ' has-note' : '') + '"' +
+      ' data-asset-open="' + esc(cell.id) + '"' +
+      ' title="双击改月末">' + shown +
+      (note ? '<span class="tip">' + esc(note) + '</span>' : '') + '</td>';
   }
 
   function assetForm(form) {
@@ -1205,7 +1216,7 @@
   }
 
   function assetsHintText() {
-    return '<p class="assets-hint">' +
+    return '<p>' +
       '每月一笔资产快照，格子里的数字就是那个月的月末余额；双击格子能改，回车或点到别处就存下。' +
       '「总资产（含公积金）」把公积金账户算进来，「总资产（不含公积金）」只看能动用的钱——' +
       '公积金取不出来，两个口径都留着。' +
@@ -1219,7 +1230,8 @@
     var data = buildAssets(year);
     if (!data.months.length) {
       pendingHint = '';
-      return '<p class="assets-hint">' +
+      if (state.search.trim()) return '';
+      return '<p class="cmp-hint">' +
         (year === null ? '还没有财产数据。' : year + ' 年还没有财产记录。') +
         '财产存在独立的「我的财产」数据源里，点「＋ 新增资产项」记第一行。</p>' +
         (state.assetsForm ? assetForm(state.assetsForm) : '');
@@ -1302,7 +1314,7 @@
   function startAssetEdit(id) {
     var row = state.assets.filter(function (a) { return a.id === id; })[0];
     if (!row) return;
-    state.assetsEdit = { id: id, draft: { end: row.end } };
+    state.assetsEdit = { id: id, draft: { end: row.end, note: row.note || '' } };
     render();
     var input = typeof treeEl.querySelector === 'function'
       ? treeEl.querySelector('input[data-asset-num]') : null;
@@ -1325,8 +1337,12 @@
       return isFinite(n) ? n : null;
     }
     var end = num(edit.draft.end);
+    var note = String(edit.draft.note == null ? '' : edit.draft.note).trim();
     var props = {};
     if (end !== row.end) props['月末'] = { number: end };
+    if (note !== (row.note || '')) {
+      props['备注'] = { rich_text: note ? [{ text: { content: note } }] : [] };
+    }
     if (!Object.keys(props).length) return render();
     saveAsset(edit.id, props);
   }
@@ -1338,6 +1354,11 @@
       if (a.id !== id) return a;
       var next = Object.assign({}, a);
       if ('月末' in props) next.end = props['月末'].number;
+      if ('备注' in props) {
+        next.note = props['备注'].rich_text.map(function (t) {
+          return (t.text && t.text.content) || '';
+        }).join('');
+      }
       return next;
     });
     render();
@@ -1577,13 +1598,12 @@
     var budgetData = buildBudget(yearEntries, year);
     var budgetLast = lastRealBudget(budgetData);
 
-    // 「新增月份账单」只在月度视图露面，别的视图空着时别叫用户去点看不见的按钮
-    var emptyTip = mode === 'tree'
-      ? '还没有数据，点上方「新增月份账单」开始记录。'
-      : '还没有数据，先在「月度」里记几笔。';
-    emptyEl.hidden = scoped.length > 0 || mode === 'assets';
+    // 空状态：月度用全局那颗；对比/预算/财产各自在表内讲自己为什么空。
+    // 只有「搜索没匹配」仍旧走全局，免得表内的解释跟搜索对不上
+    var emptyTip = '还没有数据，点上方「新增月份账单」开始记录。';
+    emptyEl.hidden = scoped.length > 0 || (mode !== 'tree' && !searching);
     if (mode === 'assets') {
-      // 财产跟账本走的是两套数据，账本为空不代表没财产，这里不摆「还没有数据」
+      // 财产跟账本走的是两套数据，账本为空不代表没财产，笔数那儿换成「财产」
       countEl.textContent = '财产';
     } else if (searching) {
       countEl.textContent = '匹配 ' + scoped.length + ' 笔';
@@ -2454,6 +2474,8 @@
     if (state.assetsEdit) {
       var box = event.target.closest('input[data-asset-num]');
       if (box) { state.assetsEdit.draft[box.dataset.assetNum] = box.value; return; }
+      var assetNote = event.target.closest('input[data-asset-note]');
+      if (assetNote) { state.assetsEdit.draft[assetNote.dataset.assetNote] = assetNote.value; return; }
     }
     if (state.assetsForm) {
       var field = event.target.closest('input[data-asset-field]');
@@ -2473,7 +2495,7 @@
 
   treeEl.addEventListener('keydown', function (event) {
     if (state.assetsEdit) {
-      if (!event.target.closest('input[data-asset-num]')) return;
+      if (!event.target.closest('input[data-asset-num], input[data-asset-note]')) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         state.assetsEdit = null;
