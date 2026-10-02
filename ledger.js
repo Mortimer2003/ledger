@@ -2219,6 +2219,12 @@
       c.classList.toggle('d1', cls === ' d1');
       c.classList.toggle('d2', cls === ' d2');
       c.classList.toggle('d3', cls === ' d3');
+      // data-center 要跟着滚动一起搬家：点击只认这个标记。
+      // 只挪 is-center 的话，横滑后「看着居中的那张」点不进详情，旧的居中卡反而能进
+      if (c.dataset) {
+        if (i === best) c.dataset.center = '1';
+        else delete c.dataset.center;
+      }
     });
     var name = galleryCardName(kids[best]);
     if (name && name !== state.galleryAt) {
