@@ -239,9 +239,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   box-shadow: 0 12px 30px rgba(0, 0, 0, .16);
 }
 .hint-pop[hidden] { display: none; }
-/* 气泡里不需要那两个说明块自带的内边距 */
-.hint-pop .budget-hint,
-.hint-pop .assets-hint { margin: 0; padding: 0; }
 
 /* ---------- 加载条 ---------- */
 .progress { position: relative; flex: none; height: 2px; overflow: hidden; }
@@ -508,8 +505,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .view-switch { flex: none; }
 
 /* ---------- 对比视图 ---------- */
-/* 对比表要横向铺开，去掉两侧留白，让月份列尽量占满窗口 */
-.tree.compare { padding: 0 0 28px; }
+/* 对比表要横向铺开，去掉两侧留白，让月份列尽量占满窗口。
+   上边距跟 .tree 基础值一致：有没有工具条，表格跟上方都隔同样一段，切视图不跳 */
+.tree.compare { padding: 10px 0 28px; }
 
 .cmp {
   border-collapse: separate;   /* sticky 表头/首列必须配 separate，collapse 下会错位 */
@@ -519,9 +517,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   font-size: 13px;
 }
 
+/* 三个表格视图统一用这一档内边距，行高才一致（预算原来单压到 5px，财产只有明细格是 5px） */
 .cmp th,
 .cmp td {
-  padding: 6px 10px;
+  padding: 5px 10px;
   text-align: right;
   white-space: nowrap;
   font-weight: 400;
@@ -585,12 +584,16 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp tbody tr.cmp-cat .name { font-size: 13.5px; font-weight: 600; }
 .cmp tbody tr.cmp-sub td { font-size: 12.5px; font-weight: 500; }
 .cmp tbody tr.cmp-sub .name { font-size: 13px; color: var(--text-2); }
+/* 派生汇总行（对比的「净额」、财产的两个「总计」）是同一种东西，共用一套样式 */
 .cmp tbody tr.cmp-net th,
-.cmp tbody tr.cmp-net td {
+.cmp tbody tr.cmp-net td,
+.cmp.assets tbody tr.assets-sum th,
+.cmp.assets tbody tr.assets-sum td {
   background: var(--bg-soft);
   font-weight: 600;
   border-top: 1px solid var(--line-strong);
 }
+.cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
 .cmp tbody tr.cmp-cat.is-toggle { cursor: pointer; }
 .cmp tbody tr:hover th,
 .cmp tbody tr:hover td { background: var(--row-hover); }
@@ -600,9 +603,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .chip.budget { border: 1px solid var(--line); }
 
 /* 底部多留一块：说明气泡和编辑面板都挂在格子下方，留白不够会被裁掉 */
-.tree.budget { padding: 0 0 110px; }
+.tree.budget { padding: 10px 0 110px; }
 
-.budget-hint {
+/* 表内空状态：对比/预算/财产三个表格视图共用同一条 */
+.cmp-hint {
   margin: 0;
   padding: 10px 14px 12px;
   color: var(--text-3);
@@ -610,8 +614,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   line-height: 1.7;
 }
 
-.cmp.budget th,
-.cmp.budget td { padding: 5px 10px; }
+/* 说明气泡里的正文：内边距由 .hint-pop 给，这里只清掉段落的默认外边距 */
+.hint-pop p { margin: 0; }
 
 .cmp.budget tbody tr.cmp-open th,
 .cmp.budget tbody tr.cmp-open td {
@@ -626,7 +630,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp.budget td.cmp-edit,
 .cmp.budget td.cmp-spend {
   position: relative;   /* 说明气泡和编辑面板都相对这一格定位 */
-  padding: 5px 10px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -662,8 +665,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   cursor: help;
 }
 
+/* 悬停气泡：预算的说明和财产的备注共用一套 */
 .cmp.budget td.cmp-edit .tip,
-.cmp.budget td.cmp-spend .tip {
+.cmp.budget td.cmp-spend .tip,
+.cmp.assets td.cmp-edit .tip {
   position: absolute;
   right: 0;
   top: calc(100% - 1px);
@@ -739,24 +744,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp.budget tbody tr.preview:hover > * { background: var(--bg); }
 
 /* ---------- 财产视图 ---------- */
-/* 跟对比视图一样要横向铺开，两侧留白去掉 */
-.tree.assets { padding: 0 0 28px; }
-
-.assets-hint {
-  margin: 0;
-  padding: 10px 14px 12px;
-  color: var(--text-3);
-  font-size: 12px;
-  line-height: 1.7;
-}
+/* 跟对比视图一样要横向铺开，两侧留白去掉。
+   底部留一块给编辑面板（只一行「月末 + 备注」，比预算窄些），否则改最后一行会被裁 */
+.tree.assets { padding: 10px 0 76px; }
 
 /* 总计行：跟分类行一样压深一档，再往上收一条实线，跟明细断开 */
-.cmp.assets tbody tr.assets-sum th,
-.cmp.assets tbody tr.assets-sum td {
-  background: var(--bg-soft);
-  font-weight: 600;
-  border-top: 1px solid var(--line-strong);
-}
 .cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
 
 /* 环比行：派生数，不是资产本身，压灰一档 */
@@ -767,13 +759,14 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .cmp.assets tbody tr.assets-delta .name { font-size: 13px; color: var(--text-2); }
 
-/* 工具条：左边进度、右边功能按钮，跟顶栏按钮一个调子。预算/财产两个视图共用 */
+/* 工具条：左边进度、右边功能按钮，跟顶栏按钮一个调子。各视图共用同一条。
+   下边距交给 .tree 的 padding-top，表格跟工具条、跟顶栏都隔同样一段 */
 .view-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   /* 跟 .tree 一样按 --gutter 对齐，工具条和内容左右边缘才在同一条竖线上 */
-  padding: 0 var(--gutter) 10px;
+  padding: 0 var(--gutter);
 }
 /* 这条是 flex，[hidden] 的默认规则压不住；里面的 .icon-btn / .hint-wrap 同理 */
 .view-bar[hidden] { display: none; }
@@ -858,16 +851,18 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .asset-del:focus-visible { opacity: 1; }
 .asset-del:hover { color: var(--danger); background: var(--hover); }
 
-/* 财产格：平时只显月末，双击展开一个输入框，跟预算格一个规矩 */
+/* 财产格：平时只显月末，双击展开「月末 + 备注」小面板，跟预算格一个规矩 */
 .cmp.assets td.cmp-edit {
   position: relative;
-  padding: 5px 10px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 .cmp.assets td.cmp-edit[data-asset-open] { cursor: text; }
 .cmp.assets td.cmp-edit[data-asset-open]:hover { box-shadow: inset 0 0 0 1px var(--line); }
 .cmp.assets td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
+/* 备注跟预算的说明同一套：数字下加虚线，悬停出气泡 */
+.cmp.assets td.cmp-edit.has-note .v { border-bottom: 1px dotted var(--text-3); cursor: help; }
+.cmp.assets td.cmp-edit.has-note:hover .tip { opacity: 1; visibility: visible; }
 .cmp.assets td.cmp-edit input {
   width: 84px;
   padding: 3px 6px;
@@ -881,6 +876,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   outline: none;
 }
 .cmp.assets td.cmp-edit input::placeholder { color: var(--text-3); }
+/* 备注比数字长，给它宽一点、左对齐 */
+.cmp.assets td.cmp-edit .editor input[data-asset-note] { width: 190px; text-align: left; }
 .cmp.assets td.cmp-edit .editor {
   position: absolute;
   right: 0;
