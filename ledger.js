@@ -1209,8 +1209,8 @@
             ' data-asset-num="end"></label>' +
         '</span></td>';
     }
-    return '<td class="cmp-edit" data-asset-open="' + esc(cell.id) +
-      '" title="双击改月末">' + shown + line + '</td>';
+    return '<td class="cmp-edit" data-asset-open="' + esc(cell.id) + '">' +
+      shown + line + '</td>';
   }
 
   // 资产项的名字：备注是这一项维度的，所以虚线和气泡都挂在名字上，
