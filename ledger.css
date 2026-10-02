@@ -272,6 +272,92 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .tree::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
+/* ---------- 月度画廊 ---------- */
+/* 一页横排三张竖卡：中间最大、两边依次变小，左右滚动切换居中的月份。
+   画廊自己铺满，所以左右/底部留白都归零，卡片直接贴边滑出去 */
+.tree.gallery { --tree-side: 0; --tree-bottom: 0; overflow: hidden; }
+.tree.detail { --tree-side: var(--gutter); --tree-bottom: 28px; }
+
+.gallery {
+  height: 100%;
+  /* 定位基准：居中/滑动都用卡片的 offsetLeft，得让画廊本身是 offsetParent */
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  /* 第一张和最后一张也能滚到正中间：两侧各留「半屏 − 半张卡」 */
+  padding: 0 max(0px, calc(50% - min(150px, 39vw)));
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.gallery::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+.gcard {
+  flex: none;
+  width: min(300px, 78vw);
+  height: min(520px, 100%);
+  scroll-snap-align: center;
+  /* 缩放走 transform，不动布局：滚起来不会因为卡片变宽变窄而抖 */
+  transform: scale(.6);
+  opacity: .2;
+  transition: transform .28s ease, opacity .28s ease;
+}
+/* 离中间越远越小：d2 → d1 → 居中依次放大，更远的（d3）维持最小最暗 */
+.gcard.d2 { transform: scale(.72); opacity: .4; }
+.gcard.d1 { transform: scale(.84); opacity: .62; }
+.gcard.is-center { transform: scale(1); opacity: 1; }
+
+.gcard-in {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-soft);
+  transition: border-color .28s ease, background .28s ease, box-shadow .28s ease;
+}
+.gcard.is-center .gcard-in {
+  border-color: var(--line-strong);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.gcard-year { font-size: 12px; color: var(--text-3); letter-spacing: .06em; }
+.gcard-mon { font-size: 46px; font-weight: 600; line-height: 1.1; }
+.gcard-mon span { font-size: 15px; font-weight: 500; color: var(--text-2); margin-left: 3px; }
+.gcard-net { font-size: 20px; font-weight: 600; margin-top: 10px; }
+.gcard-cap { font-size: 11px; color: var(--text-3); }
+
+.gcard-new .gcard-in { border-style: dashed; background: transparent; box-shadow: none; }
+.gcard-plus { font-size: 32px; line-height: 1; color: var(--text-3); }
+.gcard-new-label { font-size: 13px; color: var(--text-2); margin-top: 8px; }
+.gcard-new-month { font-size: 12px; color: var(--text-3); }
+
+/* 详情页顶栏：返回 + 月份 + 收支/净额，往上滚时吸住 */
+.mdetail-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.mdetail-name { font-size: 14.5px; font-weight: 600; }
+.mdetail-io { display: flex; gap: 10px; font-size: 12.5px; }
+.mdetail-net { font-size: 14.5px; font-weight: 600; }
+/* 详情里分类树直接铺开，不再需要挂在外层的那根缩进竖线 */
+.mdetail .children { margin-left: 0; padding-left: 0; border-left: 0; }
+
 .empty { margin: 40px 0; text-align: center; color: var(--text-3); font-size: 13px; }
 .empty[hidden] { display: none; }
 
