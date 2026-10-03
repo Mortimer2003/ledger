@@ -4,14 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261004-0221">
+<link rel="stylesheet" href="ledger.css?v=20261004-0230">
 
 </head>
 <body>
 <div class="app">
   <header class="topbar">
     <!-- 第一行：看哪一年、看哪一大类，加上跟数据、跟视图都无关的全局控件。
-         年份和三个主 tab（财产/收支/预算）贴在左侧固定区，搜索吃掉中间，刷新、设置收在右端 -->
+         年份和三个主 tab（财产/收支/预算）贴在左侧固定区，刷新、设置收在右端。
+         搜索框暂时隐藏（功能还没做完），整块留着，回头补完直接去掉 hidden -->
     <div class="bar bar-main">
       <div class="nav">
         <div id="cmp-bar" hidden></div>
@@ -21,7 +22,7 @@
           <button type="button" data-parent="budget">预算</button>
         </div>
       </div>
-      <div class="search">
+      <div class="search" hidden>
         <span class="mag">
           <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor"
                stroke-width="1.6" stroke-linecap="round">
@@ -260,7 +261,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261004-0221"></script>
+<script src="ledger.js?v=20261004-0230"></script>
 
 </body>
 </html>
