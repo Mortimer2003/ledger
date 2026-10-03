@@ -282,6 +282,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .gallery {
   height: 100%;
+  /* 卡片尺寸跟着窗口走：宽随视口宽、高随视口高，各自夹在上下限之间。
+     居中留白要按卡宽算（第一张/最后一张也能滚到正中间），所以卡宽抽成变量，
+     改尺寸只动这一处，padding 和卡片自动对齐 */
+  --gcard-w: clamp(200px, 30vw, 340px);
+  --gcard-h: clamp(280px, 58vh, 540px);
   /* 定位基准：居中/滑动都用卡片的 offsetLeft，得让画廊本身是 offsetParent */
   position: relative;
   display: flex;
@@ -291,7 +296,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
   /* 第一张和最后一张也能滚到正中间：两侧各留「半屏 − 半张卡」 */
-  padding: 0 max(0px, calc(50% - min(150px, 39vw)));
+  padding: 0 max(0px, calc(50% - var(--gcard-w) / 2));
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -299,8 +304,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .gcard {
   flex: none;
-  width: min(300px, 78vw);
-  height: min(520px, 100%);
+  width: var(--gcard-w);
+  height: min(var(--gcard-h), 100%);
   scroll-snap-align: center;
   /* 缩放走 transform，不动布局：滚起来不会因为卡片变宽变窄而抖 */
   transform: scale(.6);
@@ -319,7 +324,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 24px;
+  /* 内边距和主数字都按卡宽取比例，卡片被窗口放大/缩小时版式跟着缩放，不会一头空一头挤 */
+  padding: calc(var(--gcard-w) * .08);
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--bg-soft);
@@ -332,9 +338,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 
 .gcard-year { font-size: 12px; color: var(--text-3); letter-spacing: .06em; }
-.gcard-mon { font-size: 46px; font-weight: 600; line-height: 1.1; }
+.gcard-mon { font-size: clamp(30px, calc(var(--gcard-w) * .153), 52px); font-weight: 600; line-height: 1.1; }
 .gcard-mon span { font-size: 15px; font-weight: 500; color: var(--text-2); margin-left: 3px; }
-.gcard-net { font-size: 20px; font-weight: 600; margin-top: 10px; }
+.gcard-net { font-size: clamp(15px, calc(var(--gcard-w) * .067), 23px); font-weight: 600; margin-top: 10px; }
 .gcard-cap { font-size: 11px; color: var(--text-3); }
 
 .gcard-new .gcard-in { border-style: dashed; background: transparent; box-shadow: none; }
