@@ -1003,10 +1003,10 @@
     '</div>';
   }
 
-  // 顶栏读数取最后一个有数据的月份的结余
-  function lastRealBudget(data) {
-    if (!data || !data.rows.length) return null;
-    return data.rows[data.rows.length - 1];
+  // 顶栏读数取「下一个月」的预算：表尾那条预告行的预算就是下月可花的数，
+  // 比回头看上月结余更贴预算视图要回答的问题
+  function nextBudget(data) {
+    return data && data.preview ? data.preview.budget : null;
   }
 
   // 双击预算格才进编辑态
@@ -2045,7 +2045,8 @@
     // 预算只按年份过滤，不受搜索影响
     var yearEntries = year !== null ? scopeToYear(all, year) : all;
     var budgetData = buildBudget(yearEntries, year);
-    var budgetLast = lastRealBudget(budgetData);
+    var budgetNext = nextBudget(budgetData);
+    var isBudgetView = mode === 'budget' || mode === 'budgetCharts';
 
     // 空状态：月度用全局那颗；对比/预算/财产各自在表内讲自己为什么空。
     // 只有「搜索没匹配」仍旧走全局，免得表内的解释跟搜索对不上
@@ -2085,9 +2086,8 @@
         '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
         '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
         tone(net) + '">' + signed(net) + '</i></span>' +
-        (budgetLast
-          ? '<span class="chip budget"><b>娱乐结余</b><i class="' + tone(budgetLast.remain) + '">' +
-            signed(budgetLast.remain) + '</i></span>'
+        (isBudgetView && budgetNext !== null
+          ? '<span class="chip budget"><b>下月娱乐预算</b><i>' + money(budgetNext) + '</i></span>'
           : '');
     }
 
