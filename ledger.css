@@ -474,20 +474,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .row.lv3 .name { font-size: 13.5px; color: var(--text-2); }
 
 /* 纠偏条目：账本净额跟真实净额（财产差值）对不上时补的一行，摆在娱乐支出之后。
-   它不由账本数据算出，所以没有折叠、没有 ＋/删除，也不吃分类行的浅底——
-   一条虚线把它和上面的分类切开，读作「对不上的一笔」，不是一个分类 */
-.node.adjust { margin-top: 10px; }
-.node.adjust .row {
-  background: transparent;
-  border-top: 1px dashed var(--line-strong);
-  border-radius: 0;
-  cursor: default;
-  padding: 9px 8px 6px;
-}
-.node.adjust .row:hover { background: transparent; }
-.node.adjust .name { font-size: 13.5px; font-weight: 500; color: var(--text-2); }
+   它就是分类之后多出来的一笔，所以尺寸/底色/字体全部沿用分类行（.row.lv2），
+   只做三处细微区分：名字压灰、没有 ＋/删除、不响应悬停（尾部只留宽度，金额才对得齐） */
+.node.adjust .row { cursor: default; }
+.node.adjust .row:hover { background: var(--bg-soft); }
+.node.adjust .name { color: var(--text-2); }
 .node.adjust .adjust-note { flex: none; font-size: 11.5px; color: var(--text-3); }
-.node.adjust .amt { font-size: 14.5px; font-weight: 600; }
 
 .chev {
   flex: none;
@@ -501,6 +493,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 
 .chev.open { transform: rotate(90deg); }
+/* 占位用：不画箭头但占住那点宽度，让没有折叠箭头的行（无子类的分类、纠偏行）
+   名字仍与有箭头的行对齐 */
+.chev.ghost { visibility: hidden; }
 
 .row .name { flex: none; }
 .spacer { flex: 1; }
@@ -801,14 +796,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
 /* 纠偏行：账本净额跟真实净额的差额，是「净额」的组成部分、不是分类。
-   虚线跟上面的分类切开，底色留白，别跟下面那条实底的合计行抢 */
+   底色/字重跟分类行一致，只把名字压灰；上边线跟「净额」同一套，
+   两条派生行连成一个块，跟上面的分类分开 */
 .cmp tbody tr.cmp-adjust th,
 .cmp tbody tr.cmp-adjust td {
-  background: var(--bg);
-  border-top: 1px dashed var(--line-strong);
+  background: var(--bg-soft);
+  font-weight: 600;
+  border-top: 1px solid var(--line-strong);
 }
-.cmp tbody tr.cmp-adjust .name { font-size: 13.5px; font-weight: 500; color: var(--text-2); }
-.cmp tbody tr.cmp-adjust td { font-size: 13.5px; font-weight: 500; }
+.cmp tbody tr.cmp-adjust .name { font-size: 13.5px; font-weight: 600; color: var(--text-2); }
 .cmp tbody tr.cmp-cat.is-toggle { cursor: pointer; }
 .cmp tbody tr:hover th,
 .cmp tbody tr:hover td { background: var(--row-hover); }
