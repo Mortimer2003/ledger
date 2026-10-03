@@ -2240,14 +2240,16 @@
     var m = /^\d{4}年(\d{1,2})月$/.exec(month.name);
     var center = i === ci;
     // 预览细节每张月份卡都画一份，滚动时内容不会忽增忽减，两侧卡跟着缩放一起变小。
-    // 首月没有上个月可读，环比按缺数写「—」占位，各卡结构一致、行高不差
+    // 首月没有上个月可读，环比按缺数写「—」占位，各卡结构一致、行高不差。
+    // 环比得写明是「净额」的环比：紧跟收入/支出下面，只写「较上月」会被当成收支的变化
     var detail =
       '<div class="gcard-io">' +
         '<span><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
         '<span><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
       '</div>' +
-      '<div class="gcard-delta ' + (prevNet === null ? 'zero' : tone(net - prevNet)) + '">较上月 ' +
-        (prevNet === null ? '—' : signed(net - prevNet)) + '</div>';
+      '<div class="gcard-delta"><b>净额较上月</b>' +
+        '<i class="' + (prevNet === null ? 'zero' : tone(net - prevNet)) + '">' +
+        (prevNet === null ? '—' : signed(net - prevNet)) + '</i></div>';
     return '<article class="gcard' + galleryCls(i, ci) + '"' +
       ' data-gallery-month="' + esc(month.name) + '"' + (center ? ' data-center="1"' : '') + '>' +
       '<div class="gcard-in">' +
