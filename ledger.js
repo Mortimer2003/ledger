@@ -113,6 +113,9 @@
     locked: readLocked(),      // 锁定历史月份，默认开：只有各域最新一个月可编辑
     rangeFrom: readRange().from,   // 对比/财产视图的月份区间，默认整年（1–12）
     rangeTo: readRange().to,
+    rangeOpen: false,    // 月份区间弹层是否展开
+    rangeAnchor: null,   // 区间点了一半时先记下的起点，点第二下才成区间
+    rangeHover: null,    // 点区间时鼠标停在哪个月，用来预览要高亮的那一段
     hintOpen: false,     // 预算/财产视图的「说明」面板是否展开，默认收起
     pendingDelete: null,
     editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
@@ -763,25 +766,84 @@
     cmpBarEl.innerHTML = html;
   }
 
-  // 月份区间：起 / 止两个下拉，默认 1–12（整年）。只铺「有数据的月份」，所以默认不改变任何东西
-  function monthRangePick() {
-    var opts = function (sel) {
-      var out = '';
-      for (var n = 1; n <= 12; n++) {
-        out += '<option value="' + n + '"' + (n === sel ? ' selected' : '') + '>' + n + ' 月</option>';
-      }
-      return out;
-    };
-    return '<span class="range-pick" title="月份区间">' +
-      '<select class="range-select" data-range="from">' + opts(state.rangeFrom) + '</select>' +
-      '<span class="range-dash">–</span>' +
-      '<select class="range-select" data-range="to">' + opts(state.rangeTo) + '</select>' +
-    '</span>';
+  // 区间在胶囊上的写法：整年只说「全年」，单月说「8 月」，其余「7–9 月」
+  function rangeLabel() {
+    if (state.rangeFrom === 1 && state.rangeTo === 12) return '全年';
+    return state.rangeFrom === state.rangeTo
+      ? state.rangeFrom + ' 月'
+      : state.rangeFrom + '–' + state.rangeTo + ' 月';
   }
 
-  // 区间在文案里的写法：「7 月 – 9 月」
-  function rangeLabel() {
-    return state.rangeFrom + ' 月 – ' + state.rangeTo + ' 月';
+  // 月份区间：一颗胶囊顶着当前区间，点开是一条 12 格的月份条，两下成区间（点起、点止）。
+  // 弹层常驻 DOM，只是收起来；开合只翻 hidden，不整页重绘
+  function monthRangePick() {
+    var full = state.rangeFrom === 1 && state.rangeTo === 12;
+    var cells = '';
+    for (var n = 1; n <= 12; n++) {
+      cells += '<button type="button" class="rm" data-rm="' + n + '" aria-label="' + n + ' 月">' + n + '</button>';
+    }
+    return '<div class="range-pick">' +
+      '<button type="button" class="range-btn" data-range-toggle aria-haspopup="true" aria-expanded="false">' +
+        '<span class="range-text">' + esc(rangeLabel()) + '</span>' +
+        '<svg class="range-caret" viewBox="0 0 12 12" width="10" height="10" fill="none" ' +
+          'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M3 4.6 6 7.6 9 4.6"/></svg>' +
+      '</button>' +
+      '<div class="range-pop" data-range-pop hidden>' +
+        '<div class="range-grid">' + cells + '</div>' +
+        '<button type="button" class="range-all' + (full ? ' active' : '') + '" data-range-all>全年</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // 月份条的高亮：点到一半时，铺「起点 → 鼠标」这一段的预览；成区间后铺已选的那段。
+  // 整年时整条不铺——默认态就让它安安静静，免得 12 格全亮看不出重点
+  function paintRange() {
+    var full = state.rangeFrom === 1 && state.rangeTo === 12;
+    var lo, hi, show = true;
+    if (state.rangeAnchor !== null) {
+      var h = state.rangeHover === null ? state.rangeAnchor : state.rangeHover;
+      lo = Math.min(state.rangeAnchor, h);
+      hi = Math.max(state.rangeAnchor, h);
+    } else if (full) {
+      show = false; lo = hi = 0;
+    } else {
+      lo = state.rangeFrom; hi = state.rangeTo;
+    }
+    var cells = document.querySelectorAll('[data-rm]');
+    Array.prototype.forEach.call(cells, function (cell) {
+      var n = Number(cell.dataset.rm);
+      var on = show && n >= lo && n <= hi;
+      cell.classList.toggle('in', on && n !== lo && n !== hi);
+      cell.classList.toggle('edge', on && (n === lo || n === hi));
+    });
+  }
+
+  function openRange() {
+    state.rangeOpen = true;
+    state.rangeAnchor = null;
+    state.rangeHover = null;
+    var pick = document.querySelector('.range-pick');
+    var pop = document.querySelector('[data-range-pop]');
+    var btn = document.querySelector('[data-range-toggle]');
+    if (pick) pick.classList.add('open');
+    if (pop) pop.hidden = false;
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    paintRange();
+  }
+
+  // 收起弹层，顺手把选到一半的锚点清掉；高亮退回已选区间
+  function closeRange() {
+    state.rangeOpen = false;
+    state.rangeAnchor = null;
+    state.rangeHover = null;
+    var pick = document.querySelector('.range-pick');
+    var pop = document.querySelector('[data-range-pop]');
+    var btn = document.querySelector('[data-range-toggle]');
+    if (pick) pick.classList.remove('open');
+    if (pop) pop.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    paintRange();
   }
 
   // entries 已经裁到某一年，这里只负责把该年的月份铺成列
@@ -907,6 +969,7 @@
   function setView(view) {
     state.view = VIEWS.indexOf(view) === -1 ? 'tree' : view;
     state.hintOpen = false;   // 换视图就把说明收回去，默认不铺开
+    closeRange();             // 月份区间弹层同理，别跨视图挂着
     localStorage.setItem(KEY_VIEW, state.view);
     // 记住各自域下最后看的那种子视图，从别的主 tab 切回来时恢复
     if (INCOME_VIEWS.indexOf(state.view) !== -1) {
@@ -3765,14 +3828,47 @@
     }
   });
 
-  // 年份下拉和月份区间下拉都挂在同一条栏上，分开认
+  // 年份下拉挂在 #cmp-bar 上；月份区间走胶囊 + 弹层，各自认各自的
   cmpBarEl.addEventListener('change', function (event) {
     var sel = event.target.closest('select.year-select');
-    if (sel) return setCmpYear(sel.value === CMP_OTHER ? CMP_OTHER : Number(sel.value));
-    var range = event.target.closest('select.range-select');
-    if (!range) return;
-    if (range.dataset.range === 'from') setRange(range.value, state.rangeTo);
-    else setRange(state.rangeFrom, range.value);
+    if (sel) setCmpYear(sel.value === CMP_OTHER ? CMP_OTHER : Number(sel.value));
+  });
+
+  // 月份区间：点胶囊开合弹层；点第一个月定起点，点第二个月成区间；
+  // 「全年」一键复位。选到一半时鼠标划过的月份跟着亮，落点前先看清那一段
+  cmpBarEl.addEventListener('click', function (event) {
+    if (event.target.closest('[data-range-toggle]')) {
+      if (state.rangeOpen) closeRange(); else openRange();
+      return;
+    }
+    if (!event.target.closest('.range-pick')) return;
+    if (event.target.closest('[data-range-all]')) {
+      closeRange();
+      setRange(1, 12);
+      return;
+    }
+    var cell = event.target.closest('[data-rm]');
+    if (!cell) return;
+    var n = Number(cell.dataset.rm);
+    if (state.rangeAnchor === null) { state.rangeAnchor = n; paintRange(); return; }
+    var a = Math.min(state.rangeAnchor, n), b = Math.max(state.rangeAnchor, n);
+    closeRange();
+    setRange(a, b);
+  });
+
+  cmpBarEl.addEventListener('mouseover', function (event) {
+    if (state.rangeAnchor === null) return;
+    var cell = event.target.closest('[data-rm]');
+    var n = cell ? Number(cell.dataset.rm) : null;
+    if (n === state.rangeHover) return;
+    state.rangeHover = n;
+    paintRange();
+  });
+
+  cmpBarEl.addEventListener('mouseleave', function () {
+    if (state.rangeAnchor === null || state.rangeHover === null) return;
+    state.rangeHover = null;
+    paintRange();
   });
 
   // 顶栏那把锁：点一下在「锁定历史月份 / 全部可编辑」之间切
@@ -3782,6 +3878,7 @@
   btnHintEl.addEventListener('click', hintToggle);
   document.addEventListener('click', function (event) {
     if (state.hintOpen && !event.target.closest('.hint-wrap')) hintToggle();
+    if (state.rangeOpen && !event.target.closest('.range-pick')) closeRange();
   });
 
   document.getElementById('f-sign').addEventListener('click', function (event) {
@@ -3935,6 +4032,7 @@
       else if (!monthMaskEl.hidden) closeMonthBill();
       else if (!tagsEl.hidden) closeTags();
       else if (!setupEl.hidden) closeSetup();
+      else if (state.rangeOpen) closeRange();
       else if (state.hintOpen) hintToggle();
       else if (state.search) {
         searchEl.value = '';
