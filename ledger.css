@@ -486,9 +486,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-mon { font-size: clamp(30px, calc(var(--gc) * 15.3), 52px); font-weight: 600; line-height: 1.1; }
 .gcard-mon span { font-size: clamp(11px, calc(var(--gc) * 4.4), 16px); font-weight: 500; color: var(--text-2); margin-left: 3px; }
 .gcard-net { position: relative; font-size: clamp(15px, calc(var(--gc) * 6.7), 23px); font-weight: 600; margin-top: calc(var(--gc) * 3); }
-/* 卡片净额右上角的纠偏提醒：位置与圆点中心沿用 .adj-mark（相对数字的右上角），
-   只把圆点放大一号、描边换成卡片底色（居中卡是 --bg，两侧是 --bg-soft，两值很接近） */
-.gcard-mark::after { width: 8px; height: 8px; margin: -4px 0 0 -4px; box-shadow: 0 0 0 2px var(--bg); }
 .gcard-cap { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); color: var(--text-3); }
 
 /* 预览细节：收入/支出 + 净额环比。
@@ -600,8 +597,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
      固定 px 在大字号下会显得更高、更贴字，三处（详情 / 对比 / 画廊卡）就对不齐；
      em 跟着字号缩放，三处的相对位置才一致。
      减 8px 是按钮自身的半径：按钮 16px，中心才是那颗圆点 */
-  top: calc(-8px + 0.22em);
-  right: calc(-8px - 0.45em);
+  top: calc(-8px + 0.42em);
+  right: calc(-8px - 0.16em);
   width: 16px;
   height: 16px;
   padding: 0;
