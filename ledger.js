@@ -103,7 +103,6 @@
     pendingDelete: null,
     editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
     search: '',
-    savedCount: 0,
     sign: -1,
     signLocked: false,
     subOptions: [], // 数据源 schema 里的子类选项：[{ id, name }]
@@ -603,7 +602,7 @@
     if (!data.months.length) {
       // 搜索没匹配时交给全局那颗提示，别在这儿再说一遍「这一年还没有记账」
       if (state.search.trim()) return '';
-      return '<p class="cmp-hint">这一年还没有记账。对比表按月份铺列，先在「月度」里记几笔，这里就能横向比了。</p>';
+      return '<p class="cmp-hint">这一年还没有记账。对比表按月份铺列，先在「月度」视图录入，这里就能横向比。</p>';
     }
 
     var head = '<tr><th class="cmp-item"><span class="cell">项目</span></th>' +
@@ -948,7 +947,7 @@
       if (state.search.trim()) return '';
       return '<p class="cmp-hint">' +
         (year === null ? '还没有数据。' : year + ' 年还没有可推算的月份。') +
-        '娱乐预算从 ' + esc(OPENING_MONTH) + ' 的结余往后滚，先在月份视图记几笔就有了。</p>';
+        '娱乐预算从 ' + esc(OPENING_MONTH) + ' 的结余往后逐月推算，先在月度视图录入。</p>';
     }
 
     var head = '<tr>' +
@@ -2052,17 +2051,14 @@
     var emptyTip = '还没有数据，点画廊末尾的「新建下一个月」开始记录。';
     emptyEl.hidden = scoped.length > 0 || (mode !== 'tree' && !searching);
     if (ASSET_VIEWS.indexOf(mode) !== -1) {
-      // 财产跟账本走的是两套数据，账本为空不代表没财产，笔数那儿换成「财产」
+      // 财产跟账本走的是两套数据，账本为空不代表没财产，这一格只标数据域
       countEl.textContent = '财产';
-    } else if (searching) {
-      countEl.textContent = '匹配 ' + scoped.length + ' 笔';
-      if (!scoped.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
-    } else if (year !== null) {
-      countEl.textContent = scoped.length + ' 笔';
-      emptyEl.textContent = emptyTip;
     } else {
+      // 不报条数：范围已经由年份下拉和搜索框框定，条数是冗余信息
       countEl.textContent = '';
-      emptyEl.textContent = emptyTip;
+      emptyEl.textContent = searching && !scoped.length
+        ? '没有匹配「' + state.search.trim() + '」的记录。'
+        : emptyTip;
     }
 
     var income = sum(scoped.filter(function (e) { return e.amount > 0; }));
@@ -2076,6 +2072,11 @@
       totalsEl.innerHTML = at < 0 ? '' :
         '<span class="chip"><b>含公积金</b><i>' + money(assetTop.totals[0].values[at]) + '</i></span>' +
         '<span class="chip"><b>不含公积金</b><i>' + money(assetTop.totals[1].values[at]) + '</i></span>';
+    } else if (isBudgetView) {
+      // 预算视图只报下月能花多少：收支读数归收支视图，别在两处重复
+      totalsEl.innerHTML = budgetNext !== null
+        ? '<span class="chip budget"><b>下月娱乐预算</b><i>' + money(budgetNext) + '</i></span>'
+        : '';
     } else {
       // 顶栏净额也走真实口径：账本净额 + 财产覆盖到的各月纠偏合计。
       // 搜索时读的是命中集合，跟整月口径对不上，就不加纠偏
@@ -2084,10 +2085,7 @@
         '<span class="chip"><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
         '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
         '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
-        tone(net) + '">' + signed(net) + '</i></span>' +
-        (isBudgetView && budgetNext !== null
-          ? '<span class="chip budget"><b>下月娱乐预算</b><i>' + money(budgetNext) + '</i></span>'
-          : '');
+        tone(net) + '">' + signed(net) + '</i></span>';
     }
 
     // 月度视图分三态：搜索时铺可展开的月份列表（一次看全命中），
@@ -2686,8 +2684,6 @@
   }
 
   function openEditor(prefill) {
-    state.savedCount = 0;
-
     var categories = CATEGORY_ORDER.slice();
     state.entries.forEach(function (e) {
       if (e.category && categories.indexOf(e.category) === -1) categories.push(e.category);
@@ -2756,12 +2752,11 @@
       render();
       writeCache();
 
-      state.savedCount += 1;
       document.getElementById('f-item').value = '';
       document.getElementById('f-amount').value = '';
       var hint = document.getElementById('saved-hint');
       hint.hidden = false;
-      hint.textContent = '已保存 ' + state.savedCount + ' 笔 · 月份、分类、子类已保留，可继续录入';
+      hint.textContent = '已保存，月份、分类、子类已保留，可继续录入';
       document.getElementById('f-item').focus();
     }).catch(function (err) {
       toast(err.message, false);
@@ -2980,14 +2975,14 @@
         '</div>';
       }
       var ops = state.tagConfirm === name
-        ? '<span class="confirm">删除？' + (used ? used + ' 笔会清空子类' : '未在使用') + '</span>' +
+        ? '<span class="confirm">删除？' + (used ? '会清空子类' : '未在使用') + '</span>' +
           '<button type="button" class="op danger" data-tag-del-confirm="' + esc(name) + '">是</button>' +
           '<button type="button" class="op" data-tag-del-cancel="1">否</button>'
         : '<button type="button" class="op" data-tag-rename="' + esc(name) + '">改名</button>' +
           '<button type="button" class="op danger" data-tag-del="' + esc(name) + '">删除</button>';
       return '<div class="tag-row">' +
         '<span class="tag-name">' + esc(name) + '</span>' +
-        '<span class="tag-count">' + (used ? used + ' 笔' : '未使用') + '</span>' +
+        '<span class="tag-count">' + (used ? '使用中' : '未使用') + '</span>' +
         '<span class="spacer"></span>' +
         '<span class="ops pinned">' + ops + '</span>' +
       '</div>';
@@ -3051,7 +3046,7 @@
     function step() {
       if (done >= list.length) return Promise.resolve();
       var entry = list[done++];
-      tagStatus('正在处理 ' + done + '/' + list.length + ' 笔…');
+      tagStatus('正在处理…');
       return fn(entry).then(step);
     }
     return step();
@@ -3127,7 +3122,7 @@
       return putSubTagNames(names);
     }).then(function () {
       afterTagChange('已改名为「' + newName + '」' +
-        (affected.length ? '，' + affected.length + ' 笔已同步' : ''));
+        (affected.length ? '，已同步' : ''));
     }).catch(resyncAfterTagError).then(function () { setLoading(false); });
   }
 
@@ -3147,7 +3142,7 @@
       return putSubTagNames(subTagNames().filter(function (n) { return n !== name; }));
     }).then(function () {
       afterTagChange('已删除标签「' + name + '」' +
-        (affected.length ? '，' + affected.length + ' 笔已清空子类' : ''));
+        (affected.length ? '，已清空子类' : ''));
     }).catch(resyncAfterTagError).then(function () { setLoading(false); });
   }
 
