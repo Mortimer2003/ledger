@@ -53,8 +53,8 @@
   var BUDGET_VIEWS = ['budget', 'budgetCharts'];
   // 主 tab 各自的第一种子视图：切换主 tab 一律从它进，子 tab 的选择不落盘、不记忆
   var FIRST_VIEW = { assets: 'assets', income: 'tree', budget: 'budget' };
-  // 月份区间只在这几个视图里露出来：收支对比、财产明细/图表。月度/预算按整年铺，不给区间
-  var RANGE_VIEWS = ['compare', 'assets', 'assetCharts'];
+  // 月份区间是全局控件：第一行常驻、处处可选可改；但值只在对比、财产明细/图表里筛选内容
+  var RANGE_FILTER_VIEWS = ['compare', 'assets', 'assetCharts'];
   // 视图归哪个主 tab：决定哪个主 tab 高亮、哪条子 tab 露出来
   function parentOf(view) {
     if (ASSET_VIEWS.indexOf(view) !== -1) return 'assets';
@@ -747,10 +747,9 @@
       : '';
   }
 
-  // 月份区间条：只有当前视图这一年真有多个月份才摆——一个月没什么可收的。
+  // 月份区间条：全局常驻在第一行年份右侧，处处可见可改。
   // 同样按签名重建，避免重绘把弹层的开合和焦点弄丢
-  function renderRangeBar(months) {
-    var show = months.length > 1;
+  function renderRangeBar(months, show) {
     rangeBarEl.hidden = !show;
     var sig = show ? state.rangeFrom + '-' + state.rangeTo + '|' + months.join(',') : '';
     if (rangeBarEl.dataset.sig === sig) return;
@@ -763,11 +762,11 @@
   }
 
   // 月份条只摆「这一年真有数据的月份」：没数据的月份选了也是空表，摆上去只会让人白点一下。
-  // 对比视图看账本，财产明细/图表看财产数据源，各取各的
+  // 财产明细/图表看财产数据源，其余视图看账本
   function rangeMonths(mode, year, yearEntries) {
-    var names = mode === 'compare'
-      ? yearEntries.map(function (e) { return e.month || UNSET_MONTH; })
-      : assetMonths(year);
+    var names = (mode === 'assets' || mode === 'assetCharts')
+      ? assetMonths(year)
+      : yearEntries.map(function (e) { return e.month || UNSET_MONTH; });
     var seen = {}, out = [];
     names.forEach(function (name) {
       var n = monthNum(name);
@@ -2296,19 +2295,19 @@
     var year = years.length
       ? (years.indexOf(state.cmpYear) !== -1 ? state.cmpYear : years[0])
       : null;
-    // 只有对比、财产明细/图表给月份区间；区间一收，表列和顶栏读数一起跟着缩
+    // 月份区间条常驻第一行年份右侧；值只在对比、财产明细/图表里筛选内容
     renderCmpBar(years, year);
 
     var scoped = year !== null ? scopeToYear(entries, year) : entries;
-    // 对比视图的读数按区间再裁一道，跟表里铺出来的月份对齐；其余视图不受区间影响
-    var metricEntries = mode === 'compare'
-      ? scoped.filter(function (e) { return inMonthRange(e.month || UNSET_MONTH); })
-      : scoped;
+    // 对比视图的读数按区间再裁一道，跟表里铺出来的月份对齐；其余视图整年铺，不受区间影响
+    var metricEntries = RANGE_FILTER_VIEWS.indexOf(mode) === -1
+      ? scoped
+      : scoped.filter(function (e) { return inMonthRange(e.month || UNSET_MONTH); });
 
     // 预算只按年份过滤，不受搜索影响
     var yearEntries = year !== null ? scopeToYear(all, year) : all;
-    // 月份区间条要等年份定下来才知道有哪些月，且只摆真有数据的月份
-    renderRangeBar(RANGE_VIEWS.indexOf(mode) !== -1 ? rangeMonths(mode, year, yearEntries) : []);
+    // 区间条要等年份定下来才知道有哪些月；只在有年份时露出来
+    renderRangeBar(year !== null ? rangeMonths(mode, year, yearEntries) : [], year !== null);
     var budgetData = buildBudget(yearEntries, year);
     var budgetNext = nextBudget(budgetData);
     var isBudgetView = mode === 'budget' || mode === 'budgetCharts';
