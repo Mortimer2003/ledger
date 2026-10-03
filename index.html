@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261003-1423">
+<link rel="stylesheet" href="ledger.css?v=20261003-2231">
 
 </head>
 <body>
@@ -52,8 +52,8 @@
         </button>
       </div>
     </div>
-    <!-- 第二行：当前主 tab 下的子视图。收支挂 月度/对比，财产挂 明细/图表，
-         预算没有子视图所以两条都收起；右边是这一年的读数 -->
+    <!-- 第二行：当前主 tab 下的子视图。财产挂 明细/图表，收支挂 月度/对比，预算也挂 明细/图表，
+         三条只露当前主 tab 那一条；右边是这一年的读数 -->
     <div class="bar bar-sub">
       <div class="seg view-switch sub" id="view-sub">
         <button type="button" data-view="tree" class="active">月度</button>
@@ -62,6 +62,10 @@
       <div class="seg view-switch sub" id="view-sub-assets" hidden>
         <button type="button" data-view="assets" class="active">明细</button>
         <button type="button" data-view="assetCharts">图表</button>
+      </div>
+      <div class="seg view-switch sub" id="view-sub-budget" hidden>
+        <button type="button" data-view="budget" class="active">明细</button>
+        <button type="button" data-view="budgetCharts">图表</button>
       </div>
       <div class="metrics">
         <span class="count" id="count"></span>
@@ -234,7 +238,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261003-1423"></script>
+<script src="ledger.js?v=20261003-2231"></script>
 
 </body>
 </html>
