@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261003-1319">
+<link rel="stylesheet" href="ledger.css?v=20261003-1330">
 
 </head>
 <body>
@@ -51,14 +51,13 @@
         </button>
       </div>
     </div>
-    <!-- 第二行：这一大类下面的子视图。收支挂 月度/对比/预算/图表，财产挂 明细/图表，
+    <!-- 第二行：这一大类下面的子视图。收支挂 月度/对比/预算（图和表同视图），财产挂 明细/图表，
          两条只露当前父级那一条；右边是这一年的读数 -->
     <div class="bar bar-sub">
       <div class="seg view-switch sub" id="view-sub">
         <button type="button" data-view="tree" class="active">月度</button>
         <button type="button" data-view="compare">对比</button>
         <button type="button" data-view="budget">预算</button>
-        <button type="button" data-view="charts">图表</button>
       </div>
       <div class="seg view-switch sub" id="view-sub-assets" hidden>
         <button type="button" data-view="assets" class="active">明细</button>
@@ -97,12 +96,11 @@
       </div>
       <button type="button" class="btn primary" id="btn-asset-month" data-asset-tool="month" hidden>＋ 新增月份</button>
       <button type="button" class="btn ghost" id="btn-asset-item" data-asset-tool="item" hidden>＋ 新增资产项</button>
-      <button type="button" class="btn primary" id="btn-month" hidden>新增月份账单</button>
     </span>
   </div>
 
   <main class="tree" id="tree"></main>
-  <p class="empty" id="empty" hidden>还没有数据，点上方「新增月份账单」开始记录。</p>
+  <p class="empty" id="empty" hidden>还没有数据，点画廊末尾的「新建下一个月」开始记录。</p>
 </div>
 
 <div class="mask" id="setup" hidden>
@@ -233,7 +231,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261003-1319"></script>
+<script src="ledger.js?v=20261003-1330"></script>
 
 </body>
 </html>
