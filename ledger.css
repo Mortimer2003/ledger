@@ -289,9 +289,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
    画廊自己铺满，所以左右留白归零，卡片直接贴边滑出去。
    底部补 8px：工具条悬浮后不再占行，上方是「顶栏→树 8px + 画廊内边距 14px」，
    底部也留「画廊内边距 14px + 树 8px」，上下才对称。
+   纵向滚动留给矮窗口兜底：卡高有下限（见 --gcard-h-min），窗口矮到装不下时
+   画廊撑到下限高度、由这里纵向滚动，卡片不会被切掉。
    注意：外层 #tree 的模式类叫 gal，不能叫 gallery——否则下面 .gallery 那套
    布局规则会同时命中 #tree，把内层滚动容器挤成一张卡宽（只剩居中那张可见） */
-.tree.gal { --tree-side: 0; --tree-bottom: 8px; overflow: hidden; }
+.tree.gal { --tree-side: 0; --tree-bottom: 8px; overflow-x: hidden; overflow-y: auto; }
 .tree.detail { --tree-side: var(--gutter); --tree-bottom: 28px; }
 
 /* 表格视图的滚动容器整体退到内容列内，左右边缘跟顶栏、画廊、图表、工具条齐平。
@@ -316,6 +318,14 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
      上限 560px：窗口再高也就这么大，免得被拉成 1:2 的细长条
      （宽上限 340px 在 --gcard-w 那边） */
   --gcard-h: min(100%, 560px);
+  /* 卡片高度下限：字号有 px 地板，卡高也得有——矮窗口里卡高会被压到内容高度以下，
+     预览那两行先溢出卡片、再被画廊的 overflow-y: hidden 切掉。
+     按内容的自然高度定：宽卡约占卡宽 .98（340px 卡里内容实测约 309px），
+     窄卡时字号的 px 地板占比更大（200px 卡里约 210px = 105% 卡宽），所以再拿 240px 兜底 */
+  --gcard-h-min: max(calc(var(--gcard-w) * .98), 240px);
+  /* 画廊本身也得留出这条下限的高度（+上下各 14px 内边距），否则卡高够了下限、
+     画廊还是只有一屏高，照样把卡片切掉。矮窗口里画廊撑高、由 .tree.gal 纵向滚动 */
+  min-height: calc(var(--gcard-h-min) + 28px);
   /* 定位基准：居中/滑动都用卡片的 offsetLeft，得让画廊本身是 offsetParent */
   position: relative;
   display: flex;
@@ -336,6 +346,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   flex: none;
   width: var(--gcard-w);
   height: min(var(--gcard-h), 100%);
+  /* 窗口矮到装不下内容时，卡高停在下限上（内容不被压扁），多出来的高度交给画廊/树滚动 */
+  min-height: var(--gcard-h-min);
   scroll-snap-align: center;
   /* 三张卡都能点（居中进详情、两侧挪到中间），所以整张卡都用手型 */
   cursor: pointer;
