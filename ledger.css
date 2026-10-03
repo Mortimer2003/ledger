@@ -595,15 +595,21 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .adj-num { position: relative; display: inline-block; }
 .adj-mark {
   position: absolute;
-  /* 相对数字的右上角，往下往左收一点，贴住数字而不是浮在半空 */
-  top: -5px;
-  right: -5px;
+  /* 角标挂在数字的右上角：向右让开数字本身（不再压住末位数字），向上略高于字顶。
+     偏移一律用 em——画廊卡的净额字号（15~23px）比行内（13~14.5px）大得多，
+     固定 px 在大字号下会显得更高、更贴字，三处（详情 / 对比 / 画廊卡）就对不齐；
+     em 跟着字号缩放，三处的相对位置才一致。
+     减 8px 是按钮自身的半径：按钮 16px，中心才是那颗圆点 */
+  top: calc(-8px + 0.22em);
+  right: calc(-8px - 0.45em);
   width: 16px;
   height: 16px;
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: transparent;
+  /* 按钮默认不吃继承字号，em 会按 UA 的 13.3px 算，三处又不齐，必须显式继承 */
+  font: inherit;
   cursor: pointer;
 }
 .adj-mark::after {
