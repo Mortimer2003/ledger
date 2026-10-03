@@ -343,6 +343,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   transform: scale(.6);
   opacity: .2;
   transition: transform .28s ease, opacity .28s ease;
+  /* 卡片里所有字号和间距都按卡宽取比例：--gc 是卡宽的 1%。
+     以前只有月份数字和净额跟着卡宽走，其余是固定 px，窗口比例一变里外比例就飘
+     （宽而矮的窗口里主数字顶满、小字还是 11px）。字号另加 clamp 下限，窄卡上仍可读 */
+  --gc: calc(var(--gcard-w) / 100);
 }
 /* 离中间越远越小：d2 → d1 → 居中依次放大，更远的（d3）维持最小最暗 */
 .gcard.d2 { transform: scale(.72); opacity: .4; }
@@ -355,9 +359,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  /* 内边距和主数字都按卡宽取比例，卡片被窗口放大/缩小时版式跟着缩放，不会一头空一头挤 */
-  padding: calc(var(--gcard-w) * .08);
+  gap: calc(var(--gc) * 1.2);
+  padding: calc(var(--gc) * 8);
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--bg-soft);
@@ -369,31 +372,32 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   box-shadow: var(--shadow);
 }
 
-.gcard-year { font-size: 12px; color: var(--text-3); letter-spacing: .06em; }
-.gcard-mon { font-size: clamp(30px, calc(var(--gcard-w) * .153), 52px); font-weight: 600; line-height: 1.1; }
-.gcard-mon span { font-size: 15px; font-weight: 500; color: var(--text-2); margin-left: 3px; }
-.gcard-net { font-size: clamp(15px, calc(var(--gcard-w) * .067), 23px); font-weight: 600; margin-top: 10px; }
-.gcard-cap { font-size: 11px; color: var(--text-3); }
+/* 字号一律 clamp(下限, 卡宽百分比, 上限)：比例跟卡片走，窄卡有下限兜底 */
+.gcard-year { font-size: clamp(10px, calc(var(--gc) * 3.5), 13px); color: var(--text-3); letter-spacing: .06em; }
+.gcard-mon { font-size: clamp(30px, calc(var(--gc) * 15.3), 52px); font-weight: 600; line-height: 1.1; }
+.gcard-mon span { font-size: clamp(11px, calc(var(--gc) * 4.4), 16px); font-weight: 500; color: var(--text-2); margin-left: 3px; }
+.gcard-net { font-size: clamp(15px, calc(var(--gc) * 6.7), 23px); font-weight: 600; margin-top: calc(var(--gc) * 3); }
+.gcard-cap { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); color: var(--text-3); }
 
 /* 预览细节：收入/支出 + 净额环比。
    每张月份卡都画一份，滚动时内容不会忽增忽减；两侧卡跟着缩放一起变小变淡。
    首月的环比按缺数写「—」，各卡结构一致、行高不差 */
 .gcard-io {
   display: flex;
-  gap: calc(var(--gcard-w) * .11);
-  margin-top: calc(var(--gcard-w) * .05);
-  padding-top: calc(var(--gcard-w) * .05);
+  gap: calc(var(--gc) * 11);
+  margin-top: calc(var(--gc) * 5);
+  padding-top: calc(var(--gc) * 5);
   border-top: 1px solid var(--line);
 }
 .gcard-io span { display: flex; flex-direction: column; gap: 2px; }
-.gcard-io b { font-size: 11px; font-weight: 500; color: var(--text-3); }
-.gcard-io i { font-size: 14px; font-style: normal; font-weight: 600; }
-.gcard-delta { font-size: 11px; margin-top: 8px; }
+.gcard-io b { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); font-weight: 500; color: var(--text-3); }
+.gcard-io i { font-size: clamp(11px, calc(var(--gc) * 4.1), 15px); font-style: normal; font-weight: 600; }
+.gcard-delta { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); margin-top: calc(var(--gc) * 2.4); }
 
 .gcard-new .gcard-in { border-style: dashed; background: transparent; box-shadow: none; }
-.gcard-plus { font-size: 32px; line-height: 1; color: var(--text-3); }
-.gcard-new-label { font-size: 13px; color: var(--text-2); margin-top: 8px; }
-.gcard-new-month { font-size: 12px; color: var(--text-3); }
+.gcard-plus { font-size: clamp(24px, calc(var(--gc) * 9.4), 34px); line-height: 1; color: var(--text-3); }
+.gcard-new-label { font-size: clamp(11px, calc(var(--gc) * 3.8), 14px); color: var(--text-2); margin-top: calc(var(--gc) * 2.4); }
+.gcard-new-month { font-size: clamp(10px, calc(var(--gc) * 3.5), 13px); color: var(--text-3); }
 
 /* 详情页顶栏：返回 + 月份 + 收支/净额，往上滚时吸住 */
 .mdetail-bar {
