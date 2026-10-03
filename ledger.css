@@ -157,6 +157,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   top: calc(100% + 6px);
   left: 0;
   z-index: 40;
+  /* 必须给死宽度：绝对定位元素默认按包含块（那颗胶囊，才 60 多像素）收缩，
+     12 个月会被挤成一列。max-content 让它按内容撑开，再由 .range-grid 的
+     max-width 兜住，一行稳定 6 格 */
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--gutter));
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -479,9 +484,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-mon { font-size: clamp(30px, calc(var(--gc) * 15.3), 52px); font-weight: 600; line-height: 1.1; }
 .gcard-mon span { font-size: clamp(11px, calc(var(--gc) * 4.4), 16px); font-weight: 500; color: var(--text-2); margin-left: 3px; }
 .gcard-net { position: relative; font-size: clamp(15px, calc(var(--gc) * 6.7), 23px); font-weight: 600; margin-top: calc(var(--gc) * 3); }
-/* 卡片净额右上角的纠偏提醒：定位与圆点沿用 .adj-mark，只把描边换成卡片底色
-   （居中的卡是 --bg，两侧是 --bg-soft，两个值很接近，用哪一个都不突兀） */
-.gcard-mark { top: -7px; right: -10px; }
+/* 卡片净额右上角的纠偏提醒：位置与圆点中心沿用 .adj-mark（相对数字的右上角），
+   只把圆点放大一号、描边换成卡片底色（居中卡是 --bg，两侧是 --bg-soft，两值很接近） */
 .gcard-mark::after { width: 8px; height: 8px; margin: -4px 0 0 -4px; box-shadow: 0 0 0 2px var(--bg); }
 .gcard-cap { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); color: var(--text-3); }
 
@@ -577,17 +581,21 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .node.adjust .row:hover { background: var(--bg-soft); }
 .node.adjust .name { color: var(--text-2); }
 .node.adjust .adjust-note { flex: none; font-size: 11.5px; color: var(--text-3); }
-/* 纠偏备注：不再摊文字、也不再占第二行，改把提示收进金额本身——
+/* 纠偏备注：不摊文字、不占第二行，把提示收进金额本身——
    缺备注 → 金额右上角一颗小点（醒目，点一下就能写）；
    有备注 → 金额下压一道虚线（安静，悬停看全文、双击改）。
-   角标与气泡都绝对定位，宽高一律不占，行不会再被撑开。
-   定位就挂在金额自己身上，不动它的 flex/宽度，对齐照旧 */
+   角标与气泡都绝对定位，宽高一律不占，行不会被撑开。
+   定位挂在 .adj-num（只裹住数字，宽度 = 数字宽度）上，不能挂 .adj-amt：
+   它带着 min-width，在画廊卡里还是整行宽的容器，点在容器角上就飘到离数字很远的地方，
+   三处（详情 / 对比 / 画廊卡）也对不齐 */
 .adj-amt { position: relative; }
 .adj-amt.adj-has { border-bottom: 1px dotted var(--text-3); cursor: help; }
+.adj-num { position: relative; display: inline-block; }
 .adj-mark {
   position: absolute;
-  top: -8px;
-  right: -8px;
+  /* 相对数字的右上角，往下往左收一点，贴住数字而不是浮在半空 */
+  top: -5px;
+  right: -5px;
   width: 16px;
   height: 16px;
   padding: 0;
@@ -896,13 +904,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   border-right: 1px solid var(--line);
 }
 
-/* 合计列吸右。同样给明确宽度，否则首列钉住后，多出的宽度会分到这儿而不是月份列 */
+/* 合计列吸右。跟首列一样用 width:1% 收缩到内容宽度（「合计」加最长的一串数字），
+   余量让给月份列，不写死 px */
 .cmp .cmp-total {
   position: sticky;
   right: 0;
   z-index: 2;
-  width: 110px;
-  min-width: 92px;
+  width: 1%;
   border-left: 1px solid var(--line-strong);
   font-weight: 500;
 }
@@ -999,9 +1007,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 /* 说明气泡里的正文：内边距由 .hint-pop 给，这里只清掉段落的默认外边距 */
 .hint-pop p { margin: 0; }
-/* 两条明细说明都按「怎么算/是什么 → 口径 → 怎么改」分了三段，段间给一点呼吸，
-   但比浏览器的默认 1em 紧——气泡只有 540px 宽，松了会显得散 */
-.hint-pop p + p { margin-top: 7px; }
+/* 每段开头压一个黑体小标题，扫一眼就知道这段讲什么，不用整段读完 */
+.hint-pop b { color: var(--text); font-weight: 600; }
+/* 段落之间留一点呼吸，但比浏览器默认的 1em 紧——气泡只有 540px 宽，松了会显得散 */
+.hint-pop p + p { margin-top: 8px; }
 
 .cmp.budget tbody tr.cmp-open th,
 .cmp.budget tbody tr.cmp-open td {
@@ -1231,27 +1240,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   color: #fff;
 }
 .assets-form button:hover { opacity: .88; }
-
-/* 删除按钮：贴着名字，平时藏起来，鼠标落到行上才浮出来 */
-.asset-del {
-  flex: none;
-  margin-left: 2px;
-  padding: 0 4px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-3);
-  font: inherit;
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity .12s ease, background .12s ease, color .12s ease;
-}
-/* 平时不显，鼠标落到这一行才浮出来，别一排 × 明晃晃地杵着 */
-.cmp.assets tbody tr:hover .asset-del { opacity: 1; }
-.asset-del:focus-visible { opacity: 1; }
-.asset-del:hover { color: var(--danger); background: var(--hover); }
 
 /* 财产格：平时只显月末，双击展开「月末」输入框，跟预算格一个规矩 */
 .cmp.assets td.cmp-edit {
@@ -1599,7 +1587,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   /* 窄屏把操作位和缩进一起收窄，缩进线靠这几个变量跟着走 */
   :root { --tail: 30px; --ind-sub: 8px; --ind-leaf: 16px; }
   .view-switch button { padding: 4px 8px; }
-  .cmp .cmp-total { width: 88px; min-width: 78px; }
 }
 
 /* ---------- 图表视图 ---------- */
