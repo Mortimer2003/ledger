@@ -596,7 +596,7 @@
   }
 
   // entries 已经裁到某一年，这里只负责把该年的月份铺成列
-  function renderCompare(entries) {
+  function renderCompare(entries, realNets) {
     var data = buildComparison(entries);
     // 对比表能直接读、图自带图例，不再挂「说明」——说明只留给规则藏在背后的两个明细视图
     pendingHint = '';
@@ -640,8 +640,12 @@
       return catRow + subRows;
     }).join('');
 
-    // 分类有收有支，同一年内纵向加起来就是当月净额
+    // 分类有收有支，同一年内纵向加起来就是当月净额。
+    // 财产覆盖到的月份改读真实净额（财产差值），跟顶栏那颗年度净额同一口径——
+    // 不这么对齐，表里的净额合计就会比顶栏少掉一个纠偏
     var netValues = data.months.map(function (m, i) {
+      var real = realNetOf(m, realNets);
+      if (real !== null) return real;
       return sumArr(data.rows.map(function (r) { return r.values[i]; }));
     });
     var netRow = '<tr class="cmp-net">' +
@@ -2080,7 +2084,7 @@
       : mode === 'budgetCharts' || mode === 'assetCharts' ? ' charts'
       : mode === 'assets' ? ' assets' : monthly ? ' ' + (monthly === 'gallery' ? 'gal' : monthly) : '');
     treeEl.innerHTML = mode === 'compare'
-      ? renderCompare(scoped)
+      ? renderCompare(scoped, realNets)
       : mode === 'budget'
         ? renderBudget(budgetData, year)
         : mode === 'budgetCharts'
