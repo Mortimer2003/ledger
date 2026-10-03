@@ -225,6 +225,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .icon-btn.spin svg { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* 子 tab 右侧的视图级工具：标签 + 说明。两颗图标按钮是同一组，间距比栏内 12px 收一点，
+   但它们整体跟子 tab 保持栏内间距（.bar-sub 的 gap 管这一档） */
+.sub-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+/* 组内两颗按钮和 .hint-wrap 都是 flex，[hidden] 的默认规则压不住 */
+.sub-actions [hidden] { display: none; }
+
 /* 「说明」：按钮跟在子 tab 右侧，点开在按钮下方浮出气泡。
    浮层脱离文档流，既不单占一行、也不会把下面的表格顶下去 */
 .hint-wrap { position: relative; display: flex; flex: none; }
@@ -993,15 +999,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   flex: none;
   padding: 8px var(--gutter) 0;
 }
-/* 画廊里工具条不占行：悬浮在右上角，纵向留白就只剩画廊自己的 14px，上下对称。
-   这一条只有标签按钮（说明/新增都在别的视图），窄窄一颗压在卡外的空处，不遮内容 */
-.view-bar.float {
-  position: absolute;
-  top: 8px;
-  right: var(--gutter);
-  z-index: 10;
-  padding: 0;
-}
+/* 画廊里工具条不占行（整条收起），纵向留白就只剩画廊自己的 14px，上下对称 */
 /* 这条是 flex，[hidden] 的默认规则压不住；里面的 .icon-btn / .hint-wrap 同理 */
 .view-bar[hidden] { display: none; }
 .view-bar [hidden] { display: none; }
