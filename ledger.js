@@ -2182,9 +2182,30 @@
         '<button type="button" class="icon" data-add="' + esc('m:' + month.name) + '" title="在本月新增">＋</button>' +
       '</div>' +
       '<div class="children">' +
-        groupByCategory(month.list).map(function (c) { return renderCategory(month.name, c, true); }).join('') +
+        groupByCategory(month.list).map(function (c) { return renderCategory(month.name, c); }).join('') +
       '</div>' +
     '</div>';
+  }
+
+  // 进某月详情时，把该月的分类/子类默认摊开。
+  // 只补「还没定过」的键：用户手动收起过的，再进来仍保持收起，
+  // 这样既有默认展开的便利，又保留了折叠能力（早先用 forceOpen 参数把
+  // open 钉死成 true，点了没反应，等于不能折）
+  function expandMonth(month) {
+    groupByCategory(month.list).forEach(function (c) {
+      var ck = 'c:' + month.name + '|' + c.name;
+      if (!(ck in state.expanded)) state.expanded[ck] = true;
+      groupBySub(c.list).forEach(function (s) {
+        var sk = 's:' + month.name + '|' + c.name + '|' + s.name;
+        if (!(sk in state.expanded)) state.expanded[sk] = true;
+      });
+    });
+  }
+
+  // 按月份名摊开：点画廊居中卡进详情时用（拿不到 month 对象，只有名字）
+  function expandMonthByName(name) {
+    var months = groupByMonth(state.entries);
+    months.forEach(function (m) { if (m.name === name) expandMonth(m); });
   }
 
   // 把居中的那张卡滚到正中间。测试桩没有布局，直接跳过
@@ -2289,13 +2310,13 @@
       '</section>';
   }
 
-  function renderCategory(monthName, category, forceOpen) {
+  function renderCategory(monthName, category) {
     var key = 'c:' + monthName + '|' + category.name;
-    var open = forceOpen || isOpen(key);
+    var open = isOpen(key);
     var total = sum(category.list);
     var hasSub = category.list.some(function (e) { return e.sub; });
     var body = hasSub
-      ? groupBySub(category.list).map(function (s) { return renderSub(monthName, category.name, s, forceOpen); }).join('')
+      ? groupBySub(category.list).map(function (s) { return renderSub(monthName, category.name, s); }).join('')
       : category.list.slice().sort(byAmount).map(function (e) { return renderLeaf(e, false); }).join('');
     return '' +
       '<div class="node">' +
@@ -2310,9 +2331,9 @@
       '</div>';
   }
 
-  function renderSub(monthName, categoryName, sub, forceOpen) {
+  function renderSub(monthName, categoryName, sub) {
     var key = 's:' + monthName + '|' + categoryName + '|' + sub.name;
-    var open = forceOpen || isOpen(key);
+    var open = isOpen(key);
     var total = sum(sub.list);
     return '' +
       '<div class="node sub">' +
@@ -3040,7 +3061,11 @@
     // 画廊：点中间那张进详情/新建，点旁边那张把它挪到中间
     if (data.galleryBack) { state.monthOpen = null; return render(); }
     if (data.galleryMonth) {
-      if (data.center) { state.monthOpen = data.galleryMonth; return render(); }
+      if (data.center) {
+        state.monthOpen = data.galleryMonth;
+        expandMonthByName(data.galleryMonth);   // 进详情默认摊开，之后可逐层折叠
+        return render();
+      }
       return galleryGoTo(data.galleryMonth);
     }
     if (data.galleryNew) {
