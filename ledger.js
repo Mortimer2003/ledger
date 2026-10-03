@@ -596,24 +596,15 @@
   }
 
   // entries 已经裁到某一年，这里只负责把该年的月份铺成列
-  function compareHintText() {
-    return '<p>' +
-      '表格按月份横向铺列，同一分类落在同一行，一眼比出各月的差别；' +
-      '分类前面带箭头的可以点开收起子类。' +
-      '表下面那张「月度收入 / 支出」柱图跟着左上角选的年份走：' +
-      '每月两根柱就是表里当月收入合计和支出合计，中间那条横线是零线，' +
-      '柱子在线上是收入、线下是支出。</p>';
-  }
-
   function renderCompare(entries) {
     var data = buildComparison(entries);
+    // 对比表能直接读、图自带图例，不再挂「说明」——说明只留给规则藏在背后的两个明细视图
+    pendingHint = '';
     if (!data.months.length) {
       // 搜索没匹配时交给全局那颗提示，别在这儿再说一遍「这一年还没有记账」
       if (state.search.trim()) return '';
-      pendingHint = '';
       return '<p class="cmp-hint">这一年还没有记账。对比表按月份铺列，先在「月度」里记几笔，这里就能横向比了。</p>';
     }
-    pendingHint = compareHintText();
 
     var head = '<tr><th class="cmp-item"><span class="cell">项目</span></th>' +
       data.months.map(function (m) {
@@ -982,16 +973,8 @@
   }
 
   // 预算 › 图表：表里每行的三列画成三根柱，跟「明细」那张表同域
-  function budgetChartsHintText() {
-    return '<p>' +
-      '图跟着左上角选的年份走。' +
-      '每月三根柱就是「明细」表里的那三列：预算（灰）是算出来的可用额度、花销（绿）是实际花的、' +
-      '结余按正负着色，零线以上是剩的、以下是超支。' +
-      '鼠标停到柱子上能看到当月具体数字。</p>';
-  }
-
   function renderBudgetCharts(data) {
-    pendingHint = budgetChartsHintText();
+    pendingHint = '';
     return '<div class="charts">' +
       chartCard('预算 · 花销 · 结余', budgetSub(data), renderBudgetBars(data, chartWidth())) +
     '</div>';
@@ -1991,16 +1974,9 @@
     ]));
   }
 
-  // 图跟着它画的数据待在同一个域里：预算图进预算视图、收支图进对比视图，财产图仍在财产 › 图表
-  function assetChartsHintText() {
-    return '<p>' +
-      '两张图都跟着左上角选的年份走。' +
-      '「总资产走势」是含/不含公积金两条线，纵轴按实际区间取整，不是从 0 起——看的是趋势，不是比例。' +
-      '「各应用占比」取最新一个月，环心那个数就是含公积金的总资产。</p>';
-  }
-
+  // 图跟着它画的数据待在同一个域里：预算图进「预算 › 图表」、收支图进对比视图，财产图在「财产 › 图表」
   function renderAssetCharts(year) {
-    pendingHint = assetChartsHintText();
+    pendingHint = '';
     var w = chartWidth();
     var assets = buildAssets(year);
     return '<div class="charts">' +
