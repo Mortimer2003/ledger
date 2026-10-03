@@ -2084,7 +2084,7 @@
             ? renderAssetCharts(year)
             : mode === 'assets'
               ? renderAssets(year)
-              : renderMonthly(scoped, searching);
+              : renderMonthly(scoped, searching, year);
     if (monthly === 'gallery') galleryJump();
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
@@ -2105,18 +2105,55 @@
     }).join('');
   }
 
+  // 每个月的「真实净额」= 该月的财产差值（含公积金口径）：本月月末 − 上月月末。
+  // 首月没有上月可比、财产里没这个月、那个月又缺数，都不硬凑——这些月份不进表，
+  // 详情页就退回账本净额，也不显示纠偏条目
+  function realNetMap(year) {
+    var map = {};
+    if (year === null) return map;
+    var data = buildAssets(year);
+    for (var i = 1; i < data.months.length; i++) {
+      var cur = data.totals[0].values[i];
+      var prev = data.totals[0].values[i - 1];
+      if (cur === null || cur === undefined || prev === null || prev === undefined) continue;
+      map[data.months[i]] = cur - prev;
+    }
+    return map;
+  }
+
+  // 财产没覆盖到这个月就返回 null，调用方自己退回账本净额
+  function realNetOf(monthName, realNets) {
+    var v = realNets ? realNets[monthName] : null;
+    return v === undefined ? null : v;
+  }
+
+  // 纠偏条目：账本净额跟真实净额对不上时，把差额单列一条，摆在娱乐支出之后。
+  // 它不由账本数据算出来，所以不可编辑——没有 data-id，不挂 ＋，也不挂删除
+  function renderAdjust(diff) {
+    return '<div class="node adjust">' +
+      '<div class="row">' +
+        '<span class="name">净额纠偏</span>' +
+        '<span class="adjust-note">财产差值 − 账本净额</span>' +
+        '<span class="spacer"></span>' +
+        '<span class="amt ' + tone(diff) + '">' + signed(diff) + '</span>' +
+        '<span class="tail"></span>' +
+      '</div>' +
+    '</div>';
+  }
+
   // 月度视图分三态：搜索时铺可展开的月份列表（一次看全命中），
   // 点开某个月进详情，否则停在画廊
-  function renderMonthly(scoped, searching) {
+  function renderMonthly(scoped, searching, year) {
     if (searching) return groupByMonth(scoped).map(renderMonth).join('');
+    var realNets = realNetMap(year);
     var months = galleryMonths(scoped);
     if (state.monthOpen) {
       var open = null;
       months.forEach(function (m) { if (m.name === state.monthOpen) open = m; });
-      if (open) return renderMonthDetail(open);
+      if (open) return renderMonthDetail(open, realNets);
       state.monthOpen = null;   // 那个月没了（删空/换了年），退回画廊
     }
-    return renderGallery(months);
+    return renderGallery(months, realNets);
   }
 
   // 画廊里排的月份：只认规范月名，按时间升序（左边上个月、右边下个月）
@@ -2140,7 +2177,7 @@
     return d === 0 ? ' is-center' : d === 1 ? ' d1' : d === 2 ? ' d2' : ' d3';
   }
 
-  function renderGallery(months) {
+  function renderGallery(months, realNets) {
     var at = resolveGalleryAt(months);
     state.galleryAt = at;
     localStorage.setItem(KEY_GALLERY_AT, at);
@@ -2149,15 +2186,17 @@
     names.push(NEW_MONTH);
     var ci = names.indexOf(at);
     if (ci === -1) ci = names.length - 1;
-    var cards = months.map(function (m, i) { return galleryCard(m, i, ci); });
+    var cards = months.map(function (m, i) { return galleryCard(m, i, ci, realNets); });
     cards.push(galleryNewCard(months.length, ci));
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
   }
 
-  function galleryCard(month, i, ci) {
+  function galleryCard(month, i, ci, realNets) {
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
-    var net = income + expense;
+    // 卡片上读的是真实净额（财产差值），财产没覆盖到这个月才退回账本净额
+    var real = realNetOf(month.name, realNets);
+    var net = real === null ? income + expense : real;
     // 只认「…年…月」里的月，别让正则先咬到年份的「20」
     var m = /^\d{4}年(\d{1,2})月$/.exec(month.name);
     var center = i === ci;
@@ -2185,9 +2224,15 @@
   }
 
   // 点开某个月的详情：顶栏一行放返回、月份、收支和净额，下面就是那个月的分类树
-  function renderMonthDetail(month) {
+  function renderMonthDetail(month, realNets) {
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
+    var ledgerNet = income + expense;
+    // 收入、支出照旧读账本，净额换成真实净额（财产差值）；
+    // 两者的差额就是账本没记到的那笔，单列一条纠偏条目
+    var real = realNetOf(month.name, realNets);
+    var net = real === null ? ledgerNet : real;
+    var diff = real === null ? null : real - ledgerNet;
     return '<div class="mdetail">' +
       '<div class="mdetail-bar">' +
         '<button type="button" class="icon-btn" data-gallery-back="1" title="返回画廊">' +
@@ -2201,11 +2246,12 @@
           '<span class="neg">' + (expense ? '−' + money(expense) : '—') + '</span>' +
         '</span>' +
         '<span class="spacer"></span>' +
-        '<span class="mdetail-net ' + tone(income + expense) + '">净 ' + signed(income + expense) + '</span>' +
+        '<span class="mdetail-net ' + tone(net) + '">净 ' + signed(net) + '</span>' +
         '<button type="button" class="icon" data-add="' + esc('m:' + month.name) + '" title="在本月新增">＋</button>' +
       '</div>' +
       '<div class="children">' +
         groupByCategory(month.list).map(function (c) { return renderCategory(month.name, c); }).join('') +
+        (diff ? renderAdjust(diff) : '') +
       '</div>' +
     '</div>';
   }
