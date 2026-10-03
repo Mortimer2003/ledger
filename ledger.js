@@ -42,6 +42,8 @@
   var KEY_ASSET_CACHE = 'ledger.assetCache';
   var KEY_ADJUST_DS = 'ledger.adjustSourceId';
   var DEFAULT_ADJUST_DS = '3d928be4-78b4-471b-9190-99d04b6b0022';
+  var KEY_LOCKED = 'ledger.locked';
+  var KEY_RANGE = 'ledger.monthRange';
   // 纠偏超过这个数就提示补充备注：小额差异多半是零头，上千了就得说清来由
   var ADJUST_ALERT = 1000;
   var MAX_RETRY = 3;
@@ -53,6 +55,8 @@
   var INCOME_VIEWS = ['tree', 'compare'];
   var ASSET_VIEWS = ['assets', 'assetCharts'];
   var BUDGET_VIEWS = ['budget', 'budgetCharts'];
+  // 月份区间只在这几个视图里露出来：收支对比、财产明细/图表。月度/预算按整年铺，不给区间
+  var RANGE_VIEWS = ['compare', 'assets', 'assetCharts'];
   // 视图归哪个主 tab：决定哪个主 tab 高亮、哪条子 tab 露出来
   function parentOf(view) {
     if (ASSET_VIEWS.indexOf(view) !== -1) return 'assets';
@@ -106,6 +110,9 @@
     adjustEdit: null,    // 正在就地编辑的纠偏归因：{ month, draft, was }
     assetsForm: null,    // 财产的新增表单：{ kind: 'item' | 'month', ... }
     assetsYear: null,    // 财产视图当前看哪一年，新增月份时按它铺列
+    locked: readLocked(),      // 锁定历史月份，默认开：只有各域最新一个月可编辑
+    rangeFrom: readRange().from,   // 对比/财产视图的月份区间，默认整年（1–12）
+    rangeTo: readRange().to,
     hintOpen: false,     // 预算/财产视图的「说明」面板是否展开，默认收起
     pendingDelete: null,
     editing: null,  // 正在就地编辑的明细行：{ id, field: 'item' | 'amount' }
@@ -140,6 +147,7 @@
   var searchClearEl = document.getElementById('search-clear');
   var progressEl = document.getElementById('progress');
   var refreshBtn = document.getElementById('btn-refresh');
+  var btnLockEl = document.getElementById('btn-lock');
   var monthMaskEl = document.getElementById('month-mask');
   var monthInputEl = document.getElementById('m-month');
   var tplListEl = document.getElementById('tpl-list');
@@ -499,6 +507,111 @@
     return m ? Number(m[1]) : null;
   }
 
+  // ---------- 月份区间 ----------
+  // 起止都按「月号」算（1–12），落在哪一年由年份下拉决定；默认 1–12，即整年不筛
+  function readRange() {
+    var m = /^(\d{1,2})-(\d{1,2})$/.exec(localStorage.getItem(KEY_RANGE) || '');
+    var a = m ? Number(m[1]) : 1, b = m ? Number(m[2]) : 12;
+    a = Math.min(12, Math.max(1, a));
+    b = Math.min(12, Math.max(1, b));
+    return a <= b ? { from: a, to: b } : { from: b, to: a };
+  }
+
+  function monthNum(name) {
+    var m = /^\d{4}年(\d{1,2})月$/.exec(name || '');
+    return m ? Number(m[1]) : null;
+  }
+
+  // 只筛规范月名；「未标月份」这类解析不出月号的一律留着，不归区间管
+  function inMonthRange(name) {
+    var n = monthNum(name);
+    return n === null || (n >= state.rangeFrom && n <= state.rangeTo);
+  }
+
+  // ---------- 锁定历史月份 ----------
+  function readLocked() {
+    return localStorage.getItem(KEY_LOCKED) !== '0';   // 默认锁上
+  }
+
+  function latestOf(months) {
+    var best = null;
+    months.forEach(function (name) {
+      if (!name || yearOf(name) === null) return;
+      if (best === null || monthKey(name) > monthKey(best)) best = name;
+    });
+    return best;
+  }
+
+  function latestEntryMonth() {
+    return latestOf(state.entries.map(function (e) { return e.month; }));
+  }
+
+  function latestAssetMonth() {
+    return latestOf(state.assets.map(function (a) { return a.month; }));
+  }
+
+  function latestBudgetMonth() {
+    return latestOf(Object.keys(state.budget));
+  }
+
+  // 锁着的时候只有各域最新一个月能动，其余月份一律只读。
+  // 三个域各看各的最新月：账本、财产、预算的进度不一样，不能用一个全局的最新月去卡
+  function monthLocked(month, domain) {
+    if (!state.locked) return false;
+    var latest = domain === 'assets' ? latestAssetMonth()
+      : domain === 'budget' ? latestBudgetMonth()
+      : latestEntryMonth();
+    return !!latest && monthKey(month) !== monthKey(latest);
+  }
+
+  // 点到锁住的历史月份时统一给一句提示，别让操作没反应
+  function lockedToast() {
+    toast('历史月份已锁定，解锁后可编辑', false);
+  }
+
+  // 顶栏那把锁：锁上/解开只动一个开关，图标和提示跟着状态走
+  function syncLockButton() {
+    if (!btnLockEl) return;
+    btnLockEl.classList.toggle('active', state.locked);
+    btnLockEl.setAttribute('aria-pressed', state.locked ? 'true' : 'false');
+    btnLockEl.title = state.locked ? '已锁定历史月份，点击解锁' : '未锁定，点击锁定历史月份';
+    var shackle = btnLockEl.querySelector ? btnLockEl.querySelector('#lock-shackle') : null;
+    // 开着锁时把锁梁抬起一角，跟合上的锁一眼分得开
+    if (shackle) shackle.setAttribute('d', state.locked
+      ? 'M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7'
+      : 'M5.5 7V5.2a2.5 2.5 0 0 1 5 0');
+  }
+
+  function setLocked(on) {
+    state.locked = !!on;
+    localStorage.setItem(KEY_LOCKED, state.locked ? '1' : '0');
+    syncLockButton();
+    render();
+    toast(state.locked ? '已锁定历史月份，仅最新一个月可编辑' : '已解锁，所有月份都可编辑');
+  }
+
+  // 月份区间：起止都按 1–12 的月号存，跨年由年份下拉负责。
+  // 起止反了就换过来，别让用户选出空区间
+  function setRange(from, to) {
+    var a = Math.min(12, Math.max(1, Number(from) || 1));
+    var b = Math.min(12, Math.max(1, Number(to) || 12));
+    if (a > b) { var t = a; a = b; b = t; }
+    state.rangeFrom = a;
+    state.rangeTo = b;
+    localStorage.setItem(KEY_RANGE, a + '-' + b);
+    render();
+  }
+
+  // 'm:2026年09月' / 'c:2026年09月|分类' / 's:2026年09月|分类|子类' → 月份
+  function monthOfKey(key) {
+    return (String(key).split(':')[1] || '').split('|')[0];
+  }
+
+  function entryMonthOf(id) {
+    var hit = state.entries.filter(function (e) { return e.id === id; })[0];
+    return hit ? (hit.month || UNSET_MONTH) : null;
+  }
+
   function readCmpYear() {
     var raw = localStorage.getItem(KEY_CMP_YEAR);
     if (raw === CMP_OTHER) return CMP_OTHER;
@@ -563,7 +676,7 @@
     return values.reduce(function (acc, v) { return acc + v; }, 0);
   }
 
-  // 行 = 分类 + 子类两层，列 = 该年内的月份（正序）+ 合计
+  // 行 = 分类 + 子类两层，列 = 该年内的月份（正序，已按区间裁过）+ 合计
   function buildComparison(entries) {
     var seen = {}, months = [];
     entries.forEach(function (e) {
@@ -571,6 +684,7 @@
       if (!seen[m]) { seen[m] = true; months.push(m); }
     });
     months.sort(function (a, b) { return monthKey(a) - monthKey(b); });
+    months = months.filter(inMonthRange);
 
     var rows = groupByCategory(entries).map(function (cat) {
       var subs = cat.list.some(function (e) { return e.sub; })
@@ -614,16 +728,43 @@
   }
 
   // 年份改下拉选择：选项没变就不重建，免得每次 render 都把下拉框的焦点和展开状态弄丢
-  function renderCmpBar(years, active) {
-    cmpBarEl.hidden = !years.length;
-    var sig = years.join(',') + '|' + active;
+  function renderCmpBar(years, active, withRange) {
+    cmpBarEl.hidden = !years.length && !withRange;
+    var sig = years.join(',') + '|' + active + '|' +
+      (withRange ? state.rangeFrom + '-' + state.rangeTo : '');
     if (cmpBarEl.dataset.sig === sig) return;
     cmpBarEl.dataset.sig = sig;
-    cmpBarEl.innerHTML = '<select class="year-select" title="年份">' +
-      years.map(function (y) {
-        return '<option value="' + esc(String(y)) + '"' + (y === active ? ' selected' : '') + '>' +
-          (y === CMP_OTHER ? '未标月份' : y + ' 年') + '</option>';
-      }).join('') + '</select>';
+    var html = '';
+    if (years.length) {
+      html += '<select class="year-select" title="年份">' +
+        years.map(function (y) {
+          return '<option value="' + esc(String(y)) + '"' + (y === active ? ' selected' : '') + '>' +
+            (y === CMP_OTHER ? '未标月份' : y + ' 年') + '</option>';
+        }).join('') + '</select>';
+    }
+    if (withRange) html += monthRangePick();
+    cmpBarEl.innerHTML = html;
+  }
+
+  // 月份区间：起 / 止两个下拉，默认 1–12（整年）。只铺「有数据的月份」，所以默认不改变任何东西
+  function monthRangePick() {
+    var opts = function (sel) {
+      var out = '';
+      for (var n = 1; n <= 12; n++) {
+        out += '<option value="' + n + '"' + (n === sel ? ' selected' : '') + '>' + n + ' 月</option>';
+      }
+      return out;
+    };
+    return '<span class="range-pick" title="月份区间">' +
+      '<select class="range-select" data-range="from">' + opts(state.rangeFrom) + '</select>' +
+      '<span class="range-dash">–</span>' +
+      '<select class="range-select" data-range="to">' + opts(state.rangeTo) + '</select>' +
+    '</span>';
+  }
+
+  // 区间在文案里的写法：「7 月 – 9 月」
+  function rangeLabel() {
+    return state.rangeFrom + ' 月 – ' + state.rangeTo + ' 月';
   }
 
   // entries 已经裁到某一年，这里只负责把该年的月份铺成列
@@ -634,6 +775,10 @@
     if (!data.months.length) {
       // 搜索没匹配时交给全局那颗提示，别在这儿再说一遍「这一年还没有记账」
       if (state.search.trim()) return '';
+      if (entries.length) {
+        return '<p class="cmp-hint">该月份区间内没有记录。把「' + esc(rangeLabel()) +
+          '」放宽，或在「月度」视图里补记。</p>';
+      }
       return '<p class="cmp-hint">这一年还没有记账。对比表按月份铺列，先在「月度」视图录入。</p>';
     }
 
@@ -705,9 +850,11 @@
 
     return '<table class="cmp"><thead>' + head + '</thead><tbody>' +
       body + adjustRow + netRow + '</tbody></table>' +
-      // 图跟表同视图：两根柱就是表里每月的收入合计和支出合计
+      // 图跟表同视图、也同区间：两根柱就是表里每月的收入合计和支出合计
       '<div class="view-chart">' +
-        chartCard('月度收入 / 支出', '', renderIncomeBars(entries, chartWidth())) +
+        chartCard('月度收入 / 支出', '', renderIncomeBars(entries.filter(function (e) {
+          return inMonthRange(e.month || UNSET_MONTH);
+        }), chartWidth())) +
       '</div>';
   }
 
@@ -909,11 +1056,13 @@
       : { num: '特殊收入计入', note: '特殊收入计入说明', noteKey: 'noteSpecialIn' };
   }
 
-  // 平时是纯文本，有说明就带虚线下划线（悬停出气泡）；双击展开「数字 + 说明」小面板
+  // 平时是纯文本，有说明就带虚线下划线（悬停出气泡）；双击展开「数字 + 说明」小面板。
+  // 锁着且不是最新月时加 .locked：双击照样认得出，只是会提示先解锁
   function budgetInput(row, field) {
     var names = budgetFieldNames(field);
     var value = row.cfg[field] || 0;
     var note = row.cfg[names.noteKey] || '';
+    var locked = monthLocked(row.month, 'budget');
     var editing = state.budgetEdit &&
       state.budgetEdit.month === row.month && state.budgetEdit.field === field;
 
@@ -933,7 +1082,7 @@
         '</span></td>';
     }
 
-    return '<td class="cmp-edit' + (note ? ' has-note' : '') + '"' +
+    return '<td class="cmp-edit' + (note ? ' has-note' : '') + (locked ? ' locked' : '') + '"' +
       ' data-budget-open="' + esc(row.month) + '" data-field="' + field + '"' +
       '>' + shown + (note ? '<span class="tip">' + tipHtml(noteLines(note)) + '</span>' : '') + '</td>';
   }
@@ -1045,6 +1194,7 @@
 
   // 双击预算格才进编辑态
   function startBudgetEdit(month, field) {
+    if (monthLocked(month, 'budget')) return lockedToast();
     var row = state.budget[month];
     var names = budgetFieldNames(field);
     // 草稿先记下来，等焦点离开整个小面板再一次性比对、写回
@@ -1265,6 +1415,29 @@
     };
   }
 
+  // 把整年的财产数据裁到月份区间。buildAssets 始终算整年——账本的真实净额、新增月份
+  // 都要看全年，不能跟着视图的区间一起缩水；这里只裁「要铺出来的那几列」
+  function sliceAssets(data) {
+    var idx = [];
+    data.months.forEach(function (m, i) { if (inMonthRange(m)) idx.push(i); });
+    if (idx.length === data.months.length) return data;   // 整年，原样返回
+    function pick(arr) { return idx.map(function (i) { return arr[i]; }); }
+    return {
+      months: pick(data.months),
+      groups: data.groups.map(function (g) {
+        return {
+          app: g.app,
+          values: pick(g.values),
+          items: g.items.map(function (it) {
+            return { app: it.app, name: it.name, note: it.note,
+                     cells: pick(it.cells), values: pick(it.values) };
+          })
+        };
+      }),
+      totals: data.totals.map(function (t) { return { label: t.label, values: pick(t.values) }; })
+    };
+  }
+
   function assetNum(value) {
     return value === null || value === undefined
       ? '<span class="zero">—</span>' : money(value);
@@ -1295,8 +1468,10 @@
   }
 
   // 明细格：平时只显月末 + 环比小字，双击展开输入框就地改。
-  // 备注不在这儿——它属于资产项，挂在首列的名字上
-  function assetCell(cell, prev, isFirst) {
+  // 备注不在这儿——它属于资产项，挂在首列的名字上。
+  // locked 是「这个月不在可编辑范围里」（锁着且不是最新月）：保留 data-* 好让点击给出提示，
+  // 但加 .locked 把「可编辑」的悬停线索撤掉，看起来就知道动不了
+  function assetCell(cell, prev, isFirst, locked) {
     if (!cell) return '<td><span class="zero">—</span></td>';
     var line = assetDeltaLine(cell.end, prev ? prev.end : null, isFirst);
     var shown = '<span class="v">' + assetNum(cell.end) + '</span>';
@@ -1308,7 +1483,7 @@
             ' data-asset-num="end"></label>' +
         '</span></td>';
     }
-    return '<td class="cmp-edit" data-asset-open="' + esc(cell.id) + '">' +
+    return '<td class="cmp-edit' + (locked ? ' locked' : '') + '" data-asset-open="' + esc(cell.id) + '">' +
       shown + line + '</td>';
   }
 
@@ -1392,15 +1567,24 @@
 
   function renderAssets(year) {
     state.assetsYear = year;
-    var data = buildAssets(year);
+    var full = buildAssets(year);
+    var data = sliceAssets(full);
     if (!data.months.length) {
       pendingHint = '';
       if (state.search.trim()) return '';
+      if (full.months.length) {
+        return '<p class="cmp-hint">该月份区间内没有财产记录。把「' + esc(rangeLabel()) +
+          '」放宽即可看到其余月份。</p>' +
+          (state.assetsForm ? assetForm(state.assetsForm) : '');
+      }
       return '<p class="cmp-hint">' +
         (year === null ? '还没有财产数据。' : year + '年还没有财产记录。') +
         '财产来自独立的「我的财产」数据源，点「＋ 新增资产项」开始录入。</p>' +
         (state.assetsForm ? assetForm(state.assetsForm) : '');
     }
+
+    // 锁着的时候只有最新一个月那列能动，其余列整列置灰
+    var lockedCols = data.months.map(function (m) { return monthLocked(m, 'assets'); });
 
     var head = '<tr>' +
       '<th class="cmp-item"><span class="cell"><span class="name">资产项</span></span></th>' +
@@ -1429,7 +1613,7 @@
               ' data-asset-del-name="' + esc(it.name) + '">×</button>' +
           '</span></th>' +
           it.cells.map(function (c, i) {
-            return assetCell(c, i ? it.cells[i - 1] : null, i === 0);
+            return assetCell(c, i ? it.cells[i - 1] : null, i === 0, lockedCols[i]);
           }).join('') +
         '</tr>';
       }).join('');
@@ -1467,6 +1651,7 @@
   function startAssetEdit(id) {
     var row = state.assets.filter(function (a) { return a.id === id; })[0];
     if (!row) return;
+    if (monthLocked(row.month, 'assets')) return lockedToast();
     state.assetsEdit = { id: id, draft: { end: row.end, note: row.note || '' } };
     render();
     var input = typeof treeEl.querySelector === 'function'
@@ -2034,7 +2219,8 @@
   function renderAssetCharts(year) {
     pendingHint = '';
     var w = chartWidth();
-    var assets = buildAssets(year);
+    // 图跟明细同一份区间：区间一收，走势和占比都跟着只看那几个月
+    var assets = sliceAssets(buildAssets(year));
     return '<div class="charts">' +
       chartCard('总资产走势', assetTrendSub(assets, year), renderAssetTrend(assets, year, w)) +
       chartCard('各应用占比', assets.months.length
@@ -2066,9 +2252,14 @@
     var year = years.length
       ? (years.indexOf(state.cmpYear) !== -1 ? state.cmpYear : years[0])
       : null;
-    renderCmpBar(years, year);
+    // 只有对比、财产明细/图表给月份区间；区间一收，表列和顶栏读数一起跟着缩
+    renderCmpBar(years, year, RANGE_VIEWS.indexOf(mode) !== -1);
 
     var scoped = year !== null ? scopeToYear(entries, year) : entries;
+    // 对比视图的读数按区间再裁一道，跟表里铺出来的月份对齐；其余视图不受区间影响
+    var metricEntries = mode === 'compare'
+      ? scoped.filter(function (e) { return inMonthRange(e.month || UNSET_MONTH); })
+      : scoped;
 
     // 预算只按年份过滤，不受搜索影响
     var yearEntries = year !== null ? scopeToYear(all, year) : all;
@@ -2091,13 +2282,13 @@
         : emptyTip;
     }
 
-    var income = sum(scoped.filter(function (e) { return e.amount > 0; }));
-    var expense = sum(scoped.filter(function (e) { return e.amount < 0; }));
+    var income = sum(metricEntries.filter(function (e) { return e.amount > 0; }));
+    var expense = sum(metricEntries.filter(function (e) { return e.amount < 0; }));
     // 真实净额按月算，先把这一年的财产差值备好——纠偏条目、画廊卡片、顶栏读数共用这一份
     var realNets = realNetMap(year);
     if (ASSET_VIEWS.indexOf(mode) !== -1) {
-      // 财产视图不看收支，顶栏换成最新一个月的两个口径总资产
-      var assetTop = buildAssets(year);
+      // 财产视图不看收支，顶栏换成区间内最新一个月的两个口径总资产
+      var assetTop = sliceAssets(buildAssets(year));
       var at = assetTop.months.length - 1;
       totalsEl.innerHTML = at < 0 ? '' :
         '<span class="chip"><b>含公积金</b><i>' + money(assetTop.totals[0].values[at]) + '</i></span>' +
@@ -2110,7 +2301,7 @@
     } else {
       // 顶栏净额也走真实口径：账本净额 + 财产覆盖到的各月纠偏合计。
       // 搜索时读的是命中集合，跟整月口径对不上，就不加纠偏
-      var net = income + expense + (searching ? 0 : adjustTotal(realNets));
+      var net = income + expense + (searching ? 0 : adjustTotal(realNets, metricEntries));
       totalsEl.innerHTML =
         '<span class="chip"><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
         '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
@@ -2174,10 +2365,11 @@
     return map;
   }
 
-  // 这一年里各月纠偏的合计：Σ（真实净额 − 账本净额），只有财产覆盖到的月份才计入
-  function adjustTotal(realNets) {
+  // 这一年里各月纠偏的合计：Σ（真实净额 − 账本净额），只有财产覆盖到的月份才计入。
+  // entries 默认取全量，对比视图收窄区间时传进来的是裁过的那一份，读数才跟表列对齐
+  function adjustTotal(realNets, entries) {
     var total = 0;
-    groupByMonth(state.entries).forEach(function (m) {
+    groupByMonth(entries || state.entries).forEach(function (m) {
       var real = realNetOf(m.name, realNets);
       if (real !== null) total += real - sum(m.list);
     });
@@ -2443,7 +2635,8 @@
     '</article>';
   }
 
-  // 点开某个月的详情：顶栏一行放返回、月份、收支和净额，下面就是那个月的分类树
+  // 点开某个月的详情：顶栏一行放返回、月份、收支和净额，下面就是那个月的分类树。
+  // 锁着的时候，非最新月整页只读：撤掉 ＋/删除，双击也不进编辑
   function renderMonthDetail(month, realNets) {
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
@@ -2453,6 +2646,7 @@
     var real = realNetOf(month.name, realNets);
     var net = real === null ? ledgerNet : real;
     var diff = real === null ? null : real - ledgerNet;
+    var locked = monthLocked(month.name, 'ledger');
     return '<div class="mdetail">' +
       '<div class="mdetail-bar">' +
         '<button type="button" class="icon-btn" data-gallery-back="1" title="返回画廊">' +
@@ -2461,13 +2655,15 @@
           '<path d="M10 3.5 5.5 8 10 12.5"/></svg>' +
         '</button>' +
         '<span class="mdetail-name">' + esc(month.name) + '</span>' +
+        (locked ? '<span class="lock-tag" title="仅最新一个月可编辑，点顶栏锁形按钮解锁">已锁定</span>' : '') +
         '<span class="mdetail-io">' +
           '<span class="pos">' + (income ? '+' + money(income) : '—') + '</span>' +
           '<span class="neg">' + (expense ? '−' + money(expense) : '—') + '</span>' +
         '</span>' +
         '<span class="spacer"></span>' +
         '<span class="mdetail-net ' + tone(net) + '">净 ' + signed(net) + '</span>' +
-        '<button type="button" class="icon" data-add="' + esc('m:' + month.name) + '" title="在本月新增">＋</button>' +
+        (locked ? '' :
+          '<button type="button" class="icon" data-add="' + esc('m:' + month.name) + '" title="在本月新增">＋</button>') +
       '</div>' +
       '<div class="children">' +
         groupByCategory(month.list).map(function (c) { return renderCategory(month.name, c); }).join('') +
@@ -2591,7 +2787,10 @@
           amtCell(income, 'pos') +
           amtCell(expense, 'neg') +
           '<span class="net ' + tone(income + expense) + '">净 ' + signed(income + expense) + '</span>' +
-          '<span class="tail"><button type="button" class="icon" data-add="' + esc(key) + '" title="在本月新增">＋</button></span>' +
+          '<span class="tail">' +
+            (monthLocked(month.name, 'ledger') ? '' :
+              '<button type="button" class="icon" data-add="' + esc(key) + '" title="在本月新增">＋</button>') +
+          '</span>' +
         '</div>' +
         '<div class="children ' + (open ? '' : 'hidden') + '">' +
           groupByCategory(month.list).map(function (c) { return renderCategory(month.name, c); }).join('') +
@@ -2604,6 +2803,7 @@
     var open = isOpen(key);
     var total = sum(category.list);
     var hasSub = category.list.some(function (e) { return e.sub; });
+    var locked = monthLocked(monthName, 'ledger');
     var body = hasSub
       ? groupBySub(category.list).map(function (s) { return renderSub(monthName, category.name, s); }).join('')
       : category.list.slice().sort(byAmount).map(function (e) { return renderLeaf(e, false); }).join('');
@@ -2614,7 +2814,10 @@
           '<span class="name">' + highlight(category.name) + '</span>' +
           '<span class="spacer"></span>' +
           '<span class="amt ' + tone(total) + '">' + signed(total) + '</span>' +
-          '<span class="tail"><button type="button" class="icon" data-add="' + esc(key) + '" title="在此分类新增">＋</button></span>' +
+          '<span class="tail">' +
+            (locked ? '' :
+              '<button type="button" class="icon" data-add="' + esc(key) + '" title="在此分类新增">＋</button>') +
+          '</span>' +
         '</div>' +
         '<div class="children ' + (open ? '' : 'hidden') + '">' + body + '</div>' +
       '</div>';
@@ -2624,6 +2827,7 @@
     var key = 's:' + monthName + '|' + categoryName + '|' + sub.name;
     var open = isOpen(key);
     var total = sum(sub.list);
+    var locked = monthLocked(monthName, 'ledger');
     return '' +
       '<div class="node sub">' +
         '<div class="row lv3" data-toggle="' + esc(key) + '">' +
@@ -2631,7 +2835,10 @@
           '<span class="name">' + highlight(sub.name) + '</span>' +
           '<span class="spacer"></span>' +
           '<span class="amt ' + tone(total) + '">' + signed(total) + '</span>' +
-          '<span class="tail"><button type="button" class="icon" data-add="' + esc(key) + '" title="在此子类新增">＋</button></span>' +
+          '<span class="tail">' +
+            (locked ? '' :
+              '<button type="button" class="icon" data-add="' + esc(key) + '" title="在此子类新增">＋</button>') +
+          '</span>' +
         '</div>' +
         '<div class="children ' + (open ? '' : 'hidden') + '">' +
           sub.list.slice().sort(byAmount).map(function (e) { return renderLeaf(e, true); }).join('') +
@@ -2642,11 +2849,13 @@
   function renderLeaf(entry, inSub) {
     var field = state.editing && state.editing.id === entry.id ? state.editing.field : null;
     var confirming = state.pendingDelete === entry.id;
-    var ops = confirming
-      ? '<span class="confirm">删除这一笔？</span>' +
-        '<button type="button" class="op danger" data-del-confirm="' + esc(entry.id) + '">是</button>' +
-        '<button type="button" class="op" data-del-cancel="1">否</button>'
-      : '<button type="button" class="op" data-del="' + esc(entry.id) + '">删除</button>';
+    var locked = monthLocked(entry.month || UNSET_MONTH, 'ledger');
+    var ops = locked ? ''
+      : confirming
+        ? '<span class="confirm">删除这一笔？</span>' +
+          '<button type="button" class="op danger" data-del-confirm="' + esc(entry.id) + '">是</button>' +
+          '<button type="button" class="op" data-del-cancel="1">否</button>'
+        : '<button type="button" class="op" data-del="' + esc(entry.id) + '">删除</button>';
 
     var nameCell = field === 'item'
       ? '<input class="ie" id="ie-item" autocomplete="off" value="' + esc(entry.item || '') + '">'
@@ -2671,6 +2880,7 @@
 
   // ===== 就地编辑 =====
   function startEdit(id, field) {
+    if (monthLocked(entryMonthOf(id), 'ledger')) return lockedToast();
     state.editing = { id: id, field: field };
     render();
 
@@ -3374,10 +3584,20 @@
       else state.expanded[data.toggle] = true;
       return render();
     }
-    if (data.add) return openEditor(prefillFromKey(data.add));
-    if (data.del) { state.pendingDelete = data.del; return render(); }
+    if (data.add) {
+      if (monthLocked(monthOfKey(data.add), 'ledger')) return lockedToast();
+      return openEditor(prefillFromKey(data.add));
+    }
+    if (data.del) {
+      if (monthLocked(entryMonthOf(data.del), 'ledger')) return lockedToast();
+      state.pendingDelete = data.del;
+      return render();
+    }
     if (data.delCancel) { state.pendingDelete = null; return render(); }
-    if (data.delConfirm) return removeEntry(data.delConfirm);
+    if (data.delConfirm) {
+      if (monthLocked(entryMonthOf(data.delConfirm), 'ledger')) return lockedToast();
+      return removeEntry(data.delConfirm);
+    }
     if (data.assetDelApp) return removeAssetItem(data.assetDelApp, data.assetDelName);
     if (data.assetFormCancel) { state.assetsForm = null; return render(); }
     if (data.assetFormSave) return submitAssetForm();
@@ -3539,12 +3759,18 @@
     }
   });
 
-  // 年份下拉切换
+  // 年份下拉和月份区间下拉都挂在同一条栏上，分开认
   cmpBarEl.addEventListener('change', function (event) {
     var sel = event.target.closest('select.year-select');
-    if (!sel) return;
-    setCmpYear(sel.value === CMP_OTHER ? CMP_OTHER : Number(sel.value));
+    if (sel) return setCmpYear(sel.value === CMP_OTHER ? CMP_OTHER : Number(sel.value));
+    var range = event.target.closest('select.range-select');
+    if (!range) return;
+    if (range.dataset.range === 'from') setRange(range.value, state.rangeTo);
+    else setRange(state.rangeFrom, range.value);
   });
+
+  // 顶栏那把锁：点一下在「锁定历史月份 / 全部可编辑」之间切
+  btnLockEl.addEventListener('click', function () { setLocked(!state.locked); });
 
   // 「说明」：点按钮翻气泡，点别处收起（Esc 走下面的全局 keydown）
   btnHintEl.addEventListener('click', hintToggle);
@@ -3722,6 +3948,7 @@
   // ---------- 启动 ----------
   (function boot() {
     syncViewButtons();
+    syncLockButton();
     var cached = readCache();
     if (cached) {
       state.entries = cached.entries;
