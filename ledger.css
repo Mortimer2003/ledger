@@ -518,32 +518,39 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .node.adjust .row:hover { background: var(--bg-soft); }
 .node.adjust .name { color: var(--text-2); }
 .node.adjust .adjust-note { flex: none; font-size: 11.5px; color: var(--text-3); }
-/* 差额上千时的提醒：一颗浅底小胶囊，点一下就地填归因。
-   颜色用中性的 --text-2 而不是警示红——它只是提醒，不是错误 */
-.node.adjust .adjust-alert {
-  flex: none;
-  font: inherit;
-  font-size: 11.5px;
-  padding: 1px 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: var(--bg);
-  color: var(--text-2);
+/* 纠偏备注：不再摊文字、也不再占第二行，改把提示收进金额本身——
+   缺备注 → 金额右上角一颗小点（醒目，点一下就能写）；
+   有备注 → 金额下压一道虚线（安静，悬停看全文、双击改）。
+   角标与气泡都绝对定位，宽高一律不占，行不会再被撑开。
+   定位就挂在金额自己身上，不动它的 flex/宽度，对齐照旧 */
+.adj-amt { position: relative; }
+.adj-amt.adj-has { border-bottom: 1px dotted var(--text-3); cursor: help; }
+.adj-mark {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
   cursor: pointer;
 }
-.node.adjust .adjust-alert:hover { background: var(--hover); color: var(--text); }
-/* 已写的归因：摊在行里，虚线示意可改，双击编辑 */
-.node.adjust .adjust-attr {
-  flex: 0 1 auto;
-  min-width: 0;
-  font-size: 11.5px;
-  color: var(--text-2);
-  cursor: text;
-  border-bottom: 1px dashed var(--line-strong);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.adj-mark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-soft);
+  transition: transform .12s ease;
 }
+.adj-mark:hover::after { transform: scale(1.3); }
 /* 归因的输入框就地嵌在行里，不做浮层——这一行就在详情最底部，浮层会被滚动容器裁掉 */
 .node.adjust .editor { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
 .node.adjust .editor label { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -884,38 +891,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   border-top: 1px solid var(--line-strong);
 }
 .cmp tbody tr.cmp-adjust .name { font-size: 13.5px; font-weight: 600; color: var(--text-2); }
-/* 纠偏格：金额一行，备注/提醒一行。备注截断、悬停出气泡看全文，双击改 */
+/* 纠偏格：只放金额，角标/虚线挂在金额上（见 .adj-amt/.adj-mark），
+   备注走悬停气泡，不再单开一行把行高和列宽撑开 */
 .cmp td.cmp-adj { position: relative; }
-.cmp td.cmp-adj .adj-note {
-  display: block;
-  margin-top: 1px;
-  font-size: 10.5px;
-  font-weight: 400;
-  color: var(--text-3);
-  text-align: left;
-  border-bottom: 1px dashed var(--line-strong);
-  cursor: text;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cmp td.cmp-adj .adj-prompt {
-  display: block;
-  width: 100%;
-  margin-top: 2px;
-  padding: 1px 4px;
-  font: inherit;
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 1.3;
-  text-align: left;
-  color: var(--text-3);
-  border: 1px dashed var(--line-strong);
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-}
-.cmp td.cmp-adj .adj-prompt:hover { color: var(--text); background: var(--hover); }
 .cmp td.cmp-adj .editor {
   position: absolute;
   right: 0;
@@ -1026,11 +1004,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   cursor: help;
 }
 
-/* 悬停气泡：预算的说明、财产的备注（首列名字上）、对比视图的纠偏备注共用一套 */
+/* 悬停气泡：预算的说明、财产的备注（首列名字上）、纠偏备注（详情页 + 对比视图）共用一套 */
 .cmp.budget td.cmp-edit .tip,
 .cmp.budget td.cmp-spend .tip,
 .cmp.assets .cmp-item .tip,
-.cmp td.cmp-adj .tip {
+.cmp td.cmp-adj .tip,
+.node.adjust .tip {
   position: absolute;
   right: 0;
   top: calc(100% - 1px);
@@ -1056,7 +1035,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .cmp.budget td.cmp-edit.has-note:hover .tip,
 .cmp.budget td.cmp-spend:hover .tip,
-.cmp td.cmp-adj.has-note:hover .tip { opacity: 1; visibility: visible; }
+.cmp td.cmp-adj .adj-amt:hover .tip,
+.node.adjust .adj-amt:hover .tip { opacity: 1; visibility: visible; }
+
+/* 纠偏条目在详情页最底部，气泡朝下会被滚动容器裁掉，改成往上翻 */
+.node.adjust .tip { top: auto; bottom: calc(100% - 1px); }
 
 /* 编辑面板：数字 + 说明两行，浮在格子下方 */
 .cmp.budget td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
