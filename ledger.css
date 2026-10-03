@@ -426,6 +426,22 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .row.lv2:hover { background: var(--line); }
 .row.lv3 .name { font-size: 13.5px; color: var(--text-2); }
 
+/* 纠偏条目：账本净额跟真实净额（财产差值）对不上时补的一行，摆在娱乐支出之后。
+   它不由账本数据算出，所以没有折叠、没有 ＋/删除，也不吃分类行的浅底——
+   一条虚线把它和上面的分类切开，读作「对不上的一笔」，不是一个分类 */
+.node.adjust { margin-top: 10px; }
+.node.adjust .row {
+  background: transparent;
+  border-top: 1px dashed var(--line-strong);
+  border-radius: 0;
+  cursor: default;
+  padding: 9px 8px 6px;
+}
+.node.adjust .row:hover { background: transparent; }
+.node.adjust .name { font-size: 13.5px; font-weight: 500; color: var(--text-2); }
+.node.adjust .adjust-note { flex: none; font-size: 11.5px; color: var(--text-3); }
+.node.adjust .amt { font-size: 14.5px; font-weight: 600; }
+
 .chev {
   flex: none;
   width: 0;
