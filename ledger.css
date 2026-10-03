@@ -1172,8 +1172,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .seg[hidden] { display: none; }
 
-/* 两级视图：父级「收支 / 财产」是标准胶囊；子级「月度 / 对比 / 预算」小一号、边框更浅，
-   一眼看出是下一层，也不跟后面无边框的年份胶囊混成一条 */
+/* 两级视图：主 tab「财产 / 收支 / 预算」是标准胶囊；子级「月度 / 对比」「明细 / 图表」
+   小一号、边框更浅，一眼看出是下一层，也不跟后面无边框的年份胶囊混成一条。
+   预算没有子视图，切过去时两条子 tab 都收起 */
 .seg.sub { border-color: var(--line); }
 .seg.sub button { font-size: 12.5px; padding: 3px 10px; }
 
