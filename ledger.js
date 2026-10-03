@@ -2048,6 +2048,8 @@
 
     var income = sum(scoped.filter(function (e) { return e.amount > 0; }));
     var expense = sum(scoped.filter(function (e) { return e.amount < 0; }));
+    // 真实净额按月算，先把这一年的财产差值备好——纠偏条目、画廊卡片、顶栏读数共用这一份
+    var realNets = realNetMap(year);
     if (ASSET_VIEWS.indexOf(mode) !== -1) {
       // 财产视图不看收支，顶栏换成最新一个月的两个口径总资产
       var assetTop = buildAssets(year);
@@ -2056,11 +2058,14 @@
         '<span class="chip"><b>含公积金</b><i>' + money(assetTop.totals[0].values[at]) + '</i></span>' +
         '<span class="chip"><b>不含公积金</b><i>' + money(assetTop.totals[1].values[at]) + '</i></span>';
     } else {
+      // 顶栏净额也走真实口径：账本净额 + 财产覆盖到的各月纠偏合计。
+      // 搜索时读的是命中集合，跟整月口径对不上，就不加纠偏
+      var net = income + expense + (searching ? 0 : adjustTotal(realNets));
       totalsEl.innerHTML =
         '<span class="chip"><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
         '<span class="chip"><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
         '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
-        tone(income + expense) + '">' + signed(income + expense) + '</i></span>' +
+        tone(net) + '">' + signed(net) + '</i></span>' +
         (budgetLast
           ? '<span class="chip budget"><b>娱乐结余</b><i class="' + tone(budgetLast.remain) + '">' +
             signed(budgetLast.remain) + '</i></span>'
@@ -2084,7 +2089,7 @@
             ? renderAssetCharts(year)
             : mode === 'assets'
               ? renderAssets(year)
-              : renderMonthly(scoped, searching, year);
+              : renderMonthly(scoped, searching, realNets);
     if (monthly === 'gallery') galleryJump();
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
@@ -2121,6 +2126,16 @@
     return map;
   }
 
+  // 这一年里各月纠偏的合计：Σ（真实净额 − 账本净额），只有财产覆盖到的月份才计入
+  function adjustTotal(realNets) {
+    var total = 0;
+    groupByMonth(state.entries).forEach(function (m) {
+      var real = realNetOf(m.name, realNets);
+      if (real !== null) total += real - sum(m.list);
+    });
+    return total;
+  }
+
   // 财产没覆盖到这个月就返回 null，调用方自己退回账本净额
   function realNetOf(monthName, realNets) {
     var v = realNets ? realNets[monthName] : null;
@@ -2143,9 +2158,8 @@
 
   // 月度视图分三态：搜索时铺可展开的月份列表（一次看全命中），
   // 点开某个月进详情，否则停在画廊
-  function renderMonthly(scoped, searching, year) {
+  function renderMonthly(scoped, searching, realNets) {
     if (searching) return groupByMonth(scoped).map(renderMonth).join('');
-    var realNets = realNetMap(year);
     var months = galleryMonths(scoped);
     if (state.monthOpen) {
       var open = null;
