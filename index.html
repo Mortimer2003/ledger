@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261004-0131">
+<link rel="stylesheet" href="ledger.css?v=20261004-0152">
 
 </head>
 <body>
@@ -48,6 +48,14 @@
             <circle cx="5.5" cy="4.5" r="1.5" fill="var(--bg)"/>
             <circle cx="10.5" cy="8" r="1.5" fill="var(--bg)"/>
             <circle cx="6.5" cy="11.5" r="1.5" fill="var(--bg)"/>
+          </svg>
+        </button>
+        <!-- 锁定历史月份：默认锁上，只有各域最新一个月可编辑。锁上时按钮加 .active -->
+        <button type="button" class="icon-btn active" id="btn-lock" title="已锁定历史月份，点击解锁" aria-pressed="true">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3.5" y="7" width="9" height="6.5" rx="1.4"/>
+            <path id="lock-shackle" d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/>
           </svg>
         </button>
       </div>
@@ -248,7 +256,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261004-0131"></script>
+<script src="ledger.js?v=20261004-0152"></script>
 
 </body>
 </html>
