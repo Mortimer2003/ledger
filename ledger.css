@@ -1339,6 +1339,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .c4 { --c: var(--chart-4); }
 .c5 { --c: var(--chart-5); }
 
+/* 图并进对比/预算视图后跟在表下面。表是满宽铺的（--tree-side: 0，sticky 列要贴边），
+   但图不该贴到窗口边，所以这里自己收回正文列宽并居中——跟工具条、内容边缘对齐。
+   宽度用 min(100%, --col) 而不是 padding，是为了跟 chartWidth() 的算法（min(容器宽, 960) − 34）
+   严丝合缝：窄屏时不会因为两侧各减一次 --gutter 而把图挤出去 */
+.view-chart { width: min(100%, var(--col)); margin: 14px auto 0; }
+
 .charts { display: flex; flex-direction: column; gap: 14px; padding-bottom: 8px; }
 
 .chart-card {
