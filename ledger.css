@@ -404,7 +404,17 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-io span { display: flex; flex-direction: column; gap: 2px; }
 .gcard-io b { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); font-weight: 500; color: var(--text-3); }
 .gcard-io i { font-size: clamp(11px, calc(var(--gc) * 4.1), 15px); font-style: normal; font-weight: 600; }
-.gcard-delta { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); margin-top: calc(var(--gc) * 2.4); }
+/* 环比的标签与数值跟上面那行「收入/支出」同一套排法：灰标签 + 上色数值。
+   标签必须写明是「净额较上月」——这行紧跟在收支下面，只写「较上月」会被读成收支的变化 */
+.gcard-delta {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--gc) * 3);
+  margin-top: calc(var(--gc) * 2.4);
+  font-size: clamp(10px, calc(var(--gc) * 3.2), 12px);
+}
+.gcard-delta b { font-weight: 500; color: var(--text-3); }
+.gcard-delta i { font-style: normal; font-weight: 600; }
 
 .gcard-new .gcard-in { border-style: dashed; background: transparent; box-shadow: none; }
 .gcard-plus { font-size: clamp(24px, calc(var(--gc) * 9.4), 34px); line-height: 1; color: var(--text-3); }
