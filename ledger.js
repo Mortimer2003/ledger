@@ -2216,12 +2216,21 @@
     names.push(NEW_MONTH);
     var ci = names.indexOf(at);
     if (ci === -1) ci = names.length - 1;
-    var cards = months.map(function (m, i) { return galleryCard(m, i, ci, realNets); });
+    // 环比读上个月的净额，先把各月净额按同一个口径算一遍
+    var nets = months.map(function (m) {
+      var inc = sum(m.list.filter(function (e) { return e.amount > 0; }));
+      var exp = sum(m.list.filter(function (e) { return e.amount < 0; }));
+      var real = realNetOf(m.name, realNets);
+      return real === null ? inc + exp : real;
+    });
+    var cards = months.map(function (m, i) {
+      return galleryCard(m, i, ci, realNets, i > 0 ? nets[i - 1] : null);
+    });
     cards.push(galleryNewCard(months.length, ci));
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
   }
 
-  function galleryCard(month, i, ci, realNets) {
+  function galleryCard(month, i, ci, realNets, prevNet) {
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
     // 卡片上读的是真实净额（财产差值），财产没覆盖到这个月才退回账本净额
@@ -2230,6 +2239,16 @@
     // 只认「…年…月」里的月，别让正则先咬到年份的「20」
     var m = /^\d{4}年(\d{1,2})月$/.exec(month.name);
     var center = i === ci;
+    // 预览细节只画在居中卡上：两侧卡缩到 .6 倍，这些小字本来就读不出来
+    var detail = center
+      ? '<div class="gcard-io">' +
+          '<span><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
+          '<span><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
+        '</div>' +
+        (prevNet === null ? '' :
+          '<div class="gcard-delta ' + tone(net - prevNet) + '">较上月 ' +
+          signed(net - prevNet) + '</div>')
+      : '';
     return '<article class="gcard' + galleryCls(i, ci) + '"' +
       ' data-gallery-month="' + esc(month.name) + '"' + (center ? ' data-center="1"' : '') + '>' +
       '<div class="gcard-in">' +
@@ -2237,6 +2256,7 @@
         '<div class="gcard-mon">' + esc(m ? m[1] : month.name) + '<span>月</span></div>' +
         '<div class="gcard-net ' + tone(net) + '">' + signed(net) + '</div>' +
         '<div class="gcard-cap">净额</div>' +
+        detail +
       '</div>' +
     '</article>';
   }
