@@ -41,12 +41,20 @@
   var KEY_ASSET_CACHE = 'ledger.assetCache';
   var MAX_RETRY = 3;
 
-  // 视图白名单，顺序跟顶栏按钮一致。两个父级各有自己的一条子 tab：
-  // 「收支」下是 月度/对比/预算，「财产」下是 明细/图表——图跟它画的数据合在同一个视图里
-  // （预算图并进预算视图、收支图并进对比视图），不再单开一个「图表」页
+  // 视图白名单，顺序跟顶栏按钮一致。
+  // 三个主 tab：财产 / 收支 / 预算。「收支」下挂 月度/对比，「财产」下挂 明细/图表——
+  // 图跟它画的数据合在同一个视图里（预算图并进预算视图、收支图并进对比视图），
+  // 不再单开一个「图表」页；预算只有一个视图，所以没有子 tab
   var VIEWS = ['tree', 'compare', 'budget', 'assets', 'assetCharts'];
-  var INCOME_VIEWS = ['tree', 'compare', 'budget'];
+  var INCOME_VIEWS = ['tree', 'compare'];
   var ASSET_VIEWS = ['assets', 'assetCharts'];
+  var BUDGET_VIEWS = ['budget'];
+  // 视图归哪个主 tab：决定哪个主 tab 高亮、哪条子 tab 露出来
+  function parentOf(view) {
+    if (ASSET_VIEWS.indexOf(view) !== -1) return 'assets';
+    if (BUDGET_VIEWS.indexOf(view) !== -1) return 'budget';
+    return 'income';
+  }
 
   // ---------- 娱乐预算 ----------
   // 每月 1500 打底，每个法定节假日再加 100，结余（含超支）逐月往后累加。
@@ -659,14 +667,13 @@
     render();
   }
 
-  // 父级只标「收支 / 财产」，子级标当前那一个
+  // 主 tab 只标「财产 / 收支 / 预算」，子 tab 标当前那一个
 
   // ===== 视图切换 =====
-  // 两个父级各挂一条子 tab：收支是 月度/对比/预算/图表，财产是 明细/图表。
-  // 谁在前台由当前视图决定，另一条整条收起
+  // 三条子 tab 里只露当前主 tab 的那一条：收支是 月度/对比，财产是 明细/图表，
+  // 预算没有子视图，两条都收起
   function syncViewButtons() {
-    var isAsset = ASSET_VIEWS.indexOf(state.view) !== -1;
-    var parent = isAsset ? 'assets' : 'income';
+    var parent = parentOf(state.view);
     Array.prototype.forEach.call(document.querySelectorAll('#view-parent button'), function (btn) {
       btn.classList.toggle('active', btn.dataset.parent === parent);
     });
@@ -676,15 +683,16 @@
     Array.prototype.forEach.call(document.querySelectorAll('#view-sub-assets button'), function (btn) {
       btn.classList.toggle('active', btn.dataset.view === state.view);
     });
-    document.getElementById('view-sub').hidden = isAsset;
-    document.getElementById('view-sub-assets').hidden = !isAsset;
+    document.getElementById('view-sub').hidden = parent !== 'income';
+    document.getElementById('view-sub-assets').hidden = parent !== 'assets';
   }
 
   function setView(view) {
     state.view = VIEWS.indexOf(view) === -1 ? 'tree' : view;
     state.hintOpen = false;   // 换视图就把说明收回去，默认不铺开
     localStorage.setItem(KEY_VIEW, state.view);
-    // 记住各自域下最后看的那种子视图，从另一个父级切回来时恢复
+    // 记住各自域下最后看的那种子视图，从另一个主 tab 切回来时恢复。
+    // 预算只有一个视图，不用记
     if (INCOME_VIEWS.indexOf(state.view) !== -1) {
       state.incomeView = state.view;
       localStorage.setItem(KEY_INCOME_VIEW, state.view);
@@ -3280,11 +3288,13 @@
   });
 
   document.getElementById('btn-cancel').addEventListener('click', closeEditor);
-  // 父级「收支 / 财产」：各回到自己域下上次看的那种子视图
+  // 主 tab「财产 / 收支 / 预算」：收支、财产各回到自己域下上次看的那种子视图；
+  // 预算只有一个视图，直接切过去
   document.getElementById('view-parent').addEventListener('click', function (event) {
     var btn = event.target.closest('button[data-parent]');
     if (!btn) return;
-    setView(btn.dataset.parent === 'assets' ? state.assetView : state.incomeView);
+    var p = btn.dataset.parent;
+    setView(p === 'assets' ? state.assetView : p === 'budget' ? 'budget' : state.incomeView);
   });
   // 两条子 tab 各挂一份，点谁都是切到 data-view 指定的视图
   function onSubViewClick(event) {
