@@ -480,6 +480,47 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .node.adjust .row:hover { background: var(--bg-soft); }
 .node.adjust .name { color: var(--text-2); }
 .node.adjust .adjust-note { flex: none; font-size: 11.5px; color: var(--text-3); }
+/* 差额上千时的提醒：一颗浅底小胶囊，点一下就地填归因。
+   颜色用中性的 --text-2 而不是警示红——它只是提醒，不是错误 */
+.node.adjust .adjust-alert {
+  flex: none;
+  font: inherit;
+  font-size: 11.5px;
+  padding: 1px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.node.adjust .adjust-alert:hover { background: var(--hover); color: var(--text); }
+/* 已写的归因：摊在行里，虚线示意可改，双击编辑 */
+.node.adjust .adjust-attr {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-2);
+  cursor: text;
+  border-bottom: 1px dashed var(--line-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 归因的输入框就地嵌在行里，不做浮层——这一行就在详情最底部，浮层会被滚动容器裁掉 */
+.node.adjust .editor { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
+.node.adjust .editor label { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.node.adjust .editor label > span { flex: none; font-size: 11.5px; color: var(--text-3); }
+.node.adjust .editor input {
+  font: inherit;
+  font-size: 12.5px;
+  width: min(280px, 38vw);
+  padding: 2px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+.node.adjust .editor input:focus { outline: none; border-color: var(--accent); }
 
 .chev {
   flex: none;
