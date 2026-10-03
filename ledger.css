@@ -357,8 +357,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .mdetail-name { font-size: 14.5px; font-weight: 600; }
 .mdetail-io { display: flex; gap: 10px; font-size: 12.5px; }
 .mdetail-net { font-size: 14.5px; font-weight: 600; }
-/* 详情里分类树直接铺开，不再需要挂在外层的那根缩进竖线 */
-.mdetail .children { margin-left: 0; padding-left: 0; border-left: 0; }
+/* 详情页的分类树跟月度手风琴里那套缩进保持一致：层级靠 .children 的
+   margin/padding 逐层错开，所以这里不能去动它——之前用后代选择器
+   `.mdetail .children` 把所有层级的缩进一次性清零，整棵树被压平了 */
 
 .empty { margin: 40px 0; text-align: center; color: var(--text-3); font-size: 13px; }
 .empty[hidden] { display: none; }
