@@ -16,6 +16,8 @@
   --gain: #d44c47;
   --loss: #0f7b6c;
   --danger: #d44c47;
+  /* 纠偏提醒的黄：既不是收入的红、也不是支出的绿，一眼能认出是「还差一句备注」 */
+  --warn: #d9a23a;
   --shadow: 0 1px 2px rgba(15, 15, 15, .05), 0 6px 16px rgba(15, 15, 15, .05);
   --radius: 8px;
   /* 金额列的层级缩进：--tail 是右侧操作位宽度，缩进线的位置由这几个值算出来 */
@@ -47,6 +49,7 @@
   --gain: #ff7369;
   --loss: #4dab9a;
   --danger: #ff7369;
+  --warn: #e3b64a;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 16px rgba(0, 0, 0, .32);
 }
 
@@ -199,6 +202,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 /* 搜索框吃掉第二行的剩余宽度，否则左侧输入框和右侧按钮之间会空出一大片 */
 .search { position: relative; flex: 1 1 150px; min-width: 110px; max-width: 640px; }
+/* 搜索暂时收起（功能还没做完）：整块隐藏，刷新/设置/锁定照旧靠右 */
+.search[hidden] { display: none; }
 
 .search input {
   width: 100%;
@@ -473,7 +478,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-year { font-size: clamp(10px, calc(var(--gc) * 3.5), 13px); color: var(--text-3); letter-spacing: .06em; }
 .gcard-mon { font-size: clamp(30px, calc(var(--gc) * 15.3), 52px); font-weight: 600; line-height: 1.1; }
 .gcard-mon span { font-size: clamp(11px, calc(var(--gc) * 4.4), 16px); font-weight: 500; color: var(--text-2); margin-left: 3px; }
-.gcard-net { font-size: clamp(15px, calc(var(--gc) * 6.7), 23px); font-weight: 600; margin-top: calc(var(--gc) * 3); }
+.gcard-net { position: relative; font-size: clamp(15px, calc(var(--gc) * 6.7), 23px); font-weight: 600; margin-top: calc(var(--gc) * 3); }
+/* 卡片净额右上角的纠偏提醒：定位与圆点沿用 .adj-mark，只把描边换成卡片底色
+   （居中的卡是 --bg，两侧是 --bg-soft，两个值很接近，用哪一个都不突兀） */
+.gcard-mark { top: -7px; right: -10px; }
+.gcard-mark::after { width: 8px; height: 8px; margin: -4px 0 0 -4px; box-shadow: 0 0 0 2px var(--bg); }
 .gcard-cap { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); color: var(--text-3); }
 
 /* 预览细节：收入/支出 + 净额环比。
@@ -596,7 +605,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   height: 6px;
   margin: -3px 0 0 -3px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--warn);
   box-shadow: 0 0 0 2px var(--bg-soft);
   transition: transform .12s ease;
 }
