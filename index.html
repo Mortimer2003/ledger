@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261003-2247">
+<link rel="stylesheet" href="ledger.css?v=20261003-2304">
 
 </head>
 <body>
@@ -67,6 +67,19 @@
         <button type="button" data-view="budget" class="active">明细</button>
         <button type="button" data-view="budgetCharts">图表</button>
       </div>
+      <!-- 说明按钮跟在当前主 tab 的子 tab 右侧。三条子 tab 只露一条、其余 display:none，
+           所以这一个 DOM 落在三条之后，就正好贴住当前那条子 tab -->
+      <div class="hint-wrap" id="hint-wrap" hidden>
+        <button type="button" class="icon-btn" id="btn-hint" title="说明" aria-expanded="false">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round">
+            <circle cx="8" cy="8" r="6"/>
+            <path d="M8 7.4v4"/>
+            <circle cx="8" cy="5" r=".85" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+        <div class="hint-pop" id="hint-pop" hidden></div>
+      </div>
       <div class="metrics">
         <span class="count" id="count"></span>
         <div class="totals" id="totals"></div>
@@ -89,17 +102,6 @@
             <circle cx="5.4" cy="5.4" r=".9"/>
           </svg>
         </button>
-        <div class="hint-wrap" id="hint-wrap" hidden>
-          <button type="button" class="icon-btn" id="btn-hint" title="说明" aria-expanded="false">
-            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-                 stroke-width="1.5" stroke-linecap="round">
-              <circle cx="8" cy="8" r="6"/>
-              <path d="M8 7.4v4"/>
-              <circle cx="8" cy="5" r=".85" fill="currentColor" stroke="none"/>
-            </svg>
-          </button>
-          <div class="hint-pop" id="hint-pop" hidden></div>
-        </div>
         <button type="button" class="btn primary" id="btn-asset-month" data-asset-tool="month" hidden>＋ 新增月份</button>
         <button type="button" class="btn ghost" id="btn-asset-item" data-asset-tool="item" hidden>＋ 新增资产项</button>
       </span>
@@ -238,7 +240,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261003-2247"></script>
+<script src="ledger.js?v=20261003-2304"></script>
 
 </body>
 </html>
