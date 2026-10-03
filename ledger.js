@@ -648,6 +648,21 @@
       if (real !== null) return real;
       return sumArr(data.rows.map(function (r) { return r.values[i]; }));
     });
+    // 纠偏行：账本净额跟真实净额的差额，只有财产覆盖到的月份才有值。
+    // 摆在「净额」上面，这样表里读得通：分类合计 + 纠偏 = 净额
+    var adjustValues = data.months.map(function (m, i) {
+      var real = realNetOf(m, realNets);
+      if (real === null) return 0;
+      return real - sumArr(data.rows.map(function (r) { return r.values[i]; }));
+    });
+    var adjustRow = adjustValues.some(function (v) { return v; })
+      ? '<tr class="cmp-adjust">' +
+          '<th class="cmp-item"><span class="cell"><span class="name">净额纠偏</span></span></th>' +
+          adjustValues.map(function (v) { return '<td>' + cmpCell(v) + '</td>'; }).join('') +
+          '<td class="cmp-total">' + cmpCell(sumArr(adjustValues)) + '</td>' +
+        '</tr>'
+      : '';
+
     var netRow = '<tr class="cmp-net">' +
       '<th class="cmp-item"><span class="cell"><span class="name">净额</span></span></th>' +
       netValues.map(function (v) { return '<td>' + cmpCell(v) + '</td>'; }).join('') +
@@ -655,7 +670,7 @@
     '</tr>';
 
     return '<table class="cmp"><thead>' + head + '</thead><tbody>' +
-      body + netRow + '</tbody></table>' +
+      body + adjustRow + netRow + '</tbody></table>' +
       // 图跟表同视图：两根柱就是表里每月的收入合计和支出合计
       '<div class="view-chart">' +
         chartCard('月度收入 / 支出', '', renderIncomeBars(entries, chartWidth())) +
