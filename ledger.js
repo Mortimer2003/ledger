@@ -2239,16 +2239,16 @@
     // 只认「…年…月」里的月，别让正则先咬到年份的「20」
     var m = /^\d{4}年(\d{1,2})月$/.exec(month.name);
     var center = i === ci;
-    // 预览细节只画在居中卡上：两侧卡缩到 .6 倍，这些小字本来就读不出来
-    var detail = center
-      ? '<div class="gcard-io">' +
-          '<span><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
-          '<span><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
-        '</div>' +
-        (prevNet === null ? '' :
-          '<div class="gcard-delta ' + tone(net - prevNet) + '">较上月 ' +
-          signed(net - prevNet) + '</div>')
-      : '';
+    // 预览细节画在每张月份卡上，显隐交给 CSS 跟 .is-center 走：
+    // 居中卡是滚出来的（gallerySync 只 toggle 类名），渲染时判一次会把它钉在旧卡上。
+    // 首月没有上个月可读，环比按缺数写「—」占位，各卡结构一致、行高不差
+    var detail =
+      '<div class="gcard-io">' +
+        '<span><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
+        '<span><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
+      '</div>' +
+      '<div class="gcard-delta ' + (prevNet === null ? 'zero' : tone(net - prevNet)) + '">较上月 ' +
+        (prevNet === null ? '—' : signed(net - prevNet)) + '</div>';
     return '<article class="gcard' + galleryCls(i, ci) + '"' +
       ' data-gallery-month="' + esc(month.name) + '"' + (center ? ' data-center="1"' : '') + '>' +
       '<div class="gcard-in">' +
