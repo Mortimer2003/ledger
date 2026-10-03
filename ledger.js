@@ -32,6 +32,7 @@
   var KEY_VIEW = 'ledger.view';
   var KEY_INCOME_VIEW = 'ledger.incomeView';
   var KEY_ASSET_VIEW = 'ledger.assetView';
+  var KEY_BUDGET_VIEW = 'ledger.budgetView';
   var KEY_GALLERY_AT = 'ledger.galleryAt';
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
@@ -42,13 +43,12 @@
   var MAX_RETRY = 3;
 
   // 视图白名单，顺序跟顶栏按钮一致。
-  // 三个主 tab：财产 / 收支 / 预算。「收支」下挂 月度/对比，「财产」下挂 明细/图表——
-  // 图跟它画的数据合在同一个视图里（预算图并进预算视图、收支图并进对比视图），
-  // 不再单开一个「图表」页；预算只有一个视图，所以没有子 tab
-  var VIEWS = ['tree', 'compare', 'budget', 'assets', 'assetCharts'];
+  // 三个主 tab：财产 / 收支 / 预算。收支挂 月度/对比，财产挂 明细/图表，预算挂 明细/图表——
+  // 图跟它画的数据同域，所以财产图和预算图各自待在自家「图表」子视图里
+  var VIEWS = ['tree', 'compare', 'budget', 'budgetCharts', 'assets', 'assetCharts'];
   var INCOME_VIEWS = ['tree', 'compare'];
   var ASSET_VIEWS = ['assets', 'assetCharts'];
-  var BUDGET_VIEWS = ['budget'];
+  var BUDGET_VIEWS = ['budget', 'budgetCharts'];
   // 视图归哪个主 tab：决定哪个主 tab 高亮、哪条子 tab 露出来
   function parentOf(view) {
     if (ASSET_VIEWS.indexOf(view) !== -1) return 'assets';
@@ -86,8 +86,9 @@
     cmpCollapsed: {}, // 对比视图里收起的分类（默认展开）
     cmpYear: readCmpYear(), // 对比视图当前看哪一年；null = 跟随最新年份
     view: readView(),
-    incomeView: readIncomeView(), // 「收支」下最后看的那种子视图，从财产切回来时用
+    incomeView: readIncomeView(), // 「收支」下最后看的那种子视图，从别的主 tab 切回来时用
     assetView: readAssetView(),   // 「财产」下最后看的那种子视图（明细/图表）
+    budgetView: readBudgetView(), // 「预算」下最后看的那种子视图（明细/图表）
     galleryAt: readGalleryAt(), // 月度画廊里居中的月份；null/失效时用最新一个月
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
     budget: {},          // 月份 -> { id, specialIn, bonus }
@@ -514,6 +515,11 @@
     return ASSET_VIEWS.indexOf(raw) === -1 ? 'assets' : raw;
   }
 
+  function readBudgetView() {
+    var raw = localStorage.getItem(KEY_BUDGET_VIEW);
+    return BUDGET_VIEWS.indexOf(raw) === -1 ? 'budget' : raw;
+  }
+
   // 画廊里居中的月份：记着上次停在哪一张，重开还在那儿
   function readGalleryAt() {
     return localStorage.getItem(KEY_GALLERY_AT) || null;
@@ -670,8 +676,7 @@
   // 主 tab 只标「财产 / 收支 / 预算」，子 tab 标当前那一个
 
   // ===== 视图切换 =====
-  // 三条子 tab 里只露当前主 tab 的那一条：收支是 月度/对比，财产是 明细/图表，
-  // 预算没有子视图，两条都收起
+  // 三条子 tab 里只露当前主 tab 的那一条：收支是 月度/对比，财产是 明细/图表，预算也是 明细/图表
   function syncViewButtons() {
     var parent = parentOf(state.view);
     Array.prototype.forEach.call(document.querySelectorAll('#view-parent button'), function (btn) {
@@ -683,22 +688,28 @@
     Array.prototype.forEach.call(document.querySelectorAll('#view-sub-assets button'), function (btn) {
       btn.classList.toggle('active', btn.dataset.view === state.view);
     });
+    Array.prototype.forEach.call(document.querySelectorAll('#view-sub-budget button'), function (btn) {
+      btn.classList.toggle('active', btn.dataset.view === state.view);
+    });
     document.getElementById('view-sub').hidden = parent !== 'income';
     document.getElementById('view-sub-assets').hidden = parent !== 'assets';
+    document.getElementById('view-sub-budget').hidden = parent !== 'budget';
   }
 
   function setView(view) {
     state.view = VIEWS.indexOf(view) === -1 ? 'tree' : view;
     state.hintOpen = false;   // 换视图就把说明收回去，默认不铺开
     localStorage.setItem(KEY_VIEW, state.view);
-    // 记住各自域下最后看的那种子视图，从另一个主 tab 切回来时恢复。
-    // 预算只有一个视图，不用记
+    // 记住各自域下最后看的那种子视图，从别的主 tab 切回来时恢复
     if (INCOME_VIEWS.indexOf(state.view) !== -1) {
       state.incomeView = state.view;
       localStorage.setItem(KEY_INCOME_VIEW, state.view);
     } else if (ASSET_VIEWS.indexOf(state.view) !== -1) {
       state.assetView = state.view;
       localStorage.setItem(KEY_ASSET_VIEW, state.view);
+    } else if (BUDGET_VIEWS.indexOf(state.view) !== -1) {
+      state.budgetView = state.view;
+      localStorage.setItem(KEY_BUDGET_VIEW, state.view);
     }
     syncViewButtons();
     render();
@@ -966,12 +977,24 @@
       '<td class="cmp-total">' + money(data.preview.budget) + '</td></tr>' : '';
 
     pendingHint = budgetHintText();
-    // 图跟表同视图：预算、花销、结余三根柱就是这张表每行的三列，画在表下方一起看
     return '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
-      openingRow + body + previewRow + '</tbody></table>' +
-      '<div class="view-chart">' +
-        chartCard('预算 · 花销 · 结余', budgetSub(data), renderBudgetBars(data, chartWidth())) +
-      '</div>';
+      openingRow + body + previewRow + '</tbody></table>';
+  }
+
+  // 预算 › 图表：表里每行的三列画成三根柱，跟「明细」那张表同域
+  function budgetChartsHintText() {
+    return '<p>' +
+      '图跟着左上角选的年份走。' +
+      '每月三根柱就是「明细」表里的那三列：预算（灰）是算出来的可用额度、花销（绿）是实际花的、' +
+      '结余按正负着色，零线以上是剩的、以下是超支。' +
+      '鼠标停到柱子上能看到当月具体数字。</p>';
+  }
+
+  function renderBudgetCharts(data) {
+    pendingHint = budgetChartsHintText();
+    return '<div class="charts">' +
+      chartCard('预算 · 花销 · 结余', budgetSub(data), renderBudgetBars(data, chartWidth())) +
+    '</div>';
   }
 
   // 顶栏读数取最后一个有数据的月份的结余
@@ -2063,17 +2086,20 @@
     // 点开某个月进详情页，否则停在画廊
     var monthly = mode === 'tree' && !searching ? (state.monthOpen ? 'detail' : 'gallery') : '';
     treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
-      : mode === 'budget' ? ' budget' : mode === 'assetCharts' ? ' charts'
+      : mode === 'budget' ? ' budget'
+      : mode === 'budgetCharts' || mode === 'assetCharts' ? ' charts'
       : mode === 'assets' ? ' assets' : monthly ? ' ' + (monthly === 'gallery' ? 'gal' : monthly) : '');
     treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped)
       : mode === 'budget'
         ? renderBudget(budgetData, year)
-        : mode === 'assetCharts'
-          ? renderAssetCharts(year)
-          : mode === 'assets'
-            ? renderAssets(year)
-            : renderMonthly(scoped, searching);
+        : mode === 'budgetCharts'
+          ? renderBudgetCharts(budgetData)
+          : mode === 'assetCharts'
+            ? renderAssetCharts(year)
+            : mode === 'assets'
+              ? renderAssets(year)
+              : renderMonthly(scoped, searching);
     if (monthly === 'gallery') galleryJump();
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
@@ -3288,15 +3314,14 @@
   });
 
   document.getElementById('btn-cancel').addEventListener('click', closeEditor);
-  // 主 tab「财产 / 收支 / 预算」：收支、财产各回到自己域下上次看的那种子视图；
-  // 预算只有一个视图，直接切过去
+  // 主 tab「财产 / 收支 / 预算」：各回到自己域下上次看的那种子视图
   document.getElementById('view-parent').addEventListener('click', function (event) {
     var btn = event.target.closest('button[data-parent]');
     if (!btn) return;
     var p = btn.dataset.parent;
-    setView(p === 'assets' ? state.assetView : p === 'budget' ? 'budget' : state.incomeView);
+    setView(p === 'assets' ? state.assetView : p === 'budget' ? state.budgetView : state.incomeView);
   });
-  // 两条子 tab 各挂一份，点谁都是切到 data-view 指定的视图
+  // 三条子 tab 各挂一份，点谁都是切到 data-view 指定的视图
   function onSubViewClick(event) {
     var btn = event.target.closest('button[data-view]');
     if (!btn) return;
@@ -3309,6 +3334,7 @@
   }
   document.getElementById('view-sub').addEventListener('click', onSubViewClick);
   document.getElementById('view-sub-assets').addEventListener('click', onSubViewClick);
+  document.getElementById('view-sub-budget').addEventListener('click', onSubViewClick);
   refreshBtn.addEventListener('click', function () { refresh(); });
   document.getElementById('btn-settings').addEventListener('click', function () { openSetup(); });
 
