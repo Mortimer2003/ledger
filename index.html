@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261004-0046">
+<link rel="stylesheet" href="ledger.css?v=20261004-0056">
 
 </head>
 <body>
@@ -67,18 +67,28 @@
         <button type="button" data-view="budget" class="active">明细</button>
         <button type="button" data-view="budgetCharts">图表</button>
       </div>
-      <!-- 说明按钮跟在当前主 tab 的子 tab 右侧。三条子 tab 只露一条、其余 display:none，
-           所以这一个 DOM 落在三条之后，就正好贴住当前那条子 tab -->
-      <div class="hint-wrap" id="hint-wrap" hidden>
-        <button type="button" class="icon-btn" id="btn-hint" title="说明" aria-expanded="false">
+      <!-- 视图级工具跟在当前主 tab 的子 tab 右侧：标签（只服务账本的月度视图）、说明。
+           三条子 tab 只露一条、其余 display:none，所以这一个 DOM 落在三条之后，
+           就正好贴住当前那条子 tab -->
+      <div class="sub-actions">
+        <button type="button" class="icon-btn" id="btn-tags" title="子类标签" hidden>
           <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-               stroke-width="1.5" stroke-linecap="round">
-            <circle cx="8" cy="8" r="6"/>
-            <path d="M8 7.4v4"/>
-            <circle cx="8" cy="5" r=".85" fill="currentColor" stroke="none"/>
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2.5 7.2V2.5h4.7l6.3 6.3-4.7 4.7z"/>
+            <circle cx="5.4" cy="5.4" r=".9"/>
           </svg>
         </button>
-        <div class="hint-pop" id="hint-pop" hidden></div>
+        <div class="hint-wrap" id="hint-wrap" hidden>
+          <button type="button" class="icon-btn" id="btn-hint" title="说明" aria-expanded="false">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+                 stroke-width="1.5" stroke-linecap="round">
+              <circle cx="8" cy="8" r="6"/>
+              <path d="M8 7.4v4"/>
+              <circle cx="8" cy="5" r=".85" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+          <div class="hint-pop" id="hint-pop" hidden></div>
+        </div>
       </div>
       <div class="metrics">
         <span class="count" id="count"></span>
@@ -91,17 +101,11 @@
 
   <!-- 正文舞台：工具条和滚动容器叠在一起，工具条才能悬浮在内容右上角而不占一行 -->
   <div class="stage">
-    <!-- 视图级工具：只对当前视图有意义的操作（标签/说明/各种新增），跟正文同一列 -->
+    <!-- 视图级工具：只对当前视图有意义的操作。标签跟着子 tab 搬去了顶栏，
+         这里只剩财产那几个新增按钮 -->
     <div class="view-bar" id="view-bar" hidden>
       <span class="view-progress" id="asset-progress" hidden></span>
       <span class="view-bar-tools">
-        <button type="button" class="icon-btn" id="btn-tags" title="子类标签" hidden>
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2.5 7.2V2.5h4.7l6.3 6.3-4.7 4.7z"/>
-            <circle cx="5.4" cy="5.4" r=".9"/>
-          </svg>
-        </button>
         <button type="button" class="btn primary" id="btn-asset-month" data-asset-tool="month" hidden>＋ 新增月份</button>
         <button type="button" class="btn ghost" id="btn-asset-item" data-asset-tool="item" hidden>＋ 新增资产项</button>
       </span>
@@ -240,7 +244,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261004-0046"></script>
+<script src="ledger.js?v=20261004-0056"></script>
 
 </body>
 </html>
