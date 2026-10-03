@@ -588,6 +588,31 @@
     return '<span class="' + tone(value) + '">' + signed(value) + '</span>';
   }
 
+  // 对比视图里的纠偏格：金额一行，备注一行。跟详情页同一套规矩——
+  // 差额超 1000 且没备注就催一句，写了就把那句话摊在金额下面（双击改）
+  function cmpAdjustCell(monthName, value) {
+    var note = adjustNoteOf(monthName);
+    var editing = state.adjustEdit && state.adjustEdit.month === monthName;
+    var extra;
+    if (editing) {
+      extra = '<span class="editor">' +
+        '<label><span>备注</span><input type="text" placeholder="说明这笔差额的来源"' +
+          ' value="' + esc(state.adjustEdit.draft) + '" data-adjust-note="note"></label>' +
+      '</span>';
+    } else if (note) {
+      extra = '<span class="adj-note" data-adjust-open="' + esc(monthName) + '">' + esc(note) + '</span>';
+    } else if (Math.abs(value) > ADJUST_ALERT) {
+      extra = '<button type="button" class="adj-prompt" data-adjust-alert="' + esc(monthName) + '">' +
+        '差额较大，补充备注</button>';
+    } else {
+      extra = '';
+    }
+    return '<td class="cmp-adj' + (note && !editing ? ' has-note' : '') + '">' +
+      cmpCell(value) + extra +
+      (note && !editing ? '<span class="tip">' + tipHtml([note]) + '</span>' : '') +
+    '</td>';
+  }
+
   // 年份改下拉选择：选项没变就不重建，免得每次 render 都把下拉框的焦点和展开状态弄丢
   function renderCmpBar(years, active) {
     cmpBarEl.hidden = !years.length;
@@ -667,7 +692,7 @@
             '<span class="chev ghost"></span>' +
             '<span class="name">净额纠偏</span>' +
           '</span></th>' +
-          adjustValues.map(function (v) { return '<td>' + cmpCell(v) + '</td>'; }).join('') +
+          data.months.map(function (m, i) { return cmpAdjustCell(m, adjustValues[i]); }).join('') +
           '<td class="cmp-total">' + cmpCell(sumArr(adjustValues)) + '</td>' +
         '</tr>'
       : '';
@@ -2180,7 +2205,8 @@
   function compareHintText() {
     return '<p>' +
         '「净额」取真实净额，即当月的财产差值（含公积金口径）；财产未覆盖的月份退回账本净额。<br>' +
-        '「净额纠偏」行列在分类与净额之间，读作：分类合计 + 纠偏 = 净额。只有财产覆盖到的月份才有值。' +
+        '「净额纠偏」行列在分类与净额之间，读作：分类合计 + 纠偏 = 净额。只有财产覆盖到的月份才有值；' +
+        '差额超过 1,000 的月份可在该格补充备注，双击备注文字可修改。<br>' +
       '</p><p>' +
         '此表只读，改数请到「月度」视图。' +
       '</p>';
@@ -3430,11 +3456,11 @@
   // 焦点彻底离开这个小面板才写回（在两个输入之间切换不算离开）
   treeEl.addEventListener('focusout', function (event) {
     var next = event.relatedTarget;
-    // 纠偏归因的编辑框挂在 .node.adjust 里，跟下面两种面板都不在一处，先单独认
-    var adjEditor = event.target.closest('.node.adjust .editor');
+    // 纠偏备注的编辑框：详情页挂在 .node.adjust 里，对比视图挂在纠偏格里，两处都先单独认
+    var adjEditor = event.target.closest('.node.adjust .editor, td.cmp-adj .editor');
     if (adjEditor) {
       if (next && typeof next.closest === 'function' &&
-          next.closest('.node.adjust .editor') === adjEditor) return;
+          next.closest('.node.adjust .editor, td.cmp-adj .editor') === adjEditor) return;
       return commitAdjustNote();
     }
     // 资产项的备注面板挂在首列的 th 上，预算/财产的格子挂在 td 上，分开判断
