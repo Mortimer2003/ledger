@@ -62,6 +62,10 @@ body {
 
 .app { display: flex; flex-direction: column; height: 100%; }
 
+/* 正文舞台：工具条与滚动容器叠在一起（定位基准）。
+   工具条在画廊里走 .float 绝对定位，才能悬浮在右上角而不占一行 */
+.stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
 /* 数字输入框不要浏览器自带的上下步进按钮 */
 input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 input[type="number"]::-webkit-outer-spin-button,
@@ -274,10 +278,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 /* ---------- 月度画廊 ---------- */
 /* 一页横排三张竖卡：中间最大、两边依次变小，左右滚动切换居中的月份。
-   画廊自己铺满，所以左右/底部留白都归零，卡片直接贴边滑出去。
+   画廊自己铺满，所以左右留白归零，卡片直接贴边滑出去。
+   底部补 8px：工具条悬浮后不再占行，上方是「顶栏→树 8px + 画廊内边距 14px」，
+   底部也留「画廊内边距 14px + 树 8px」，上下才对称。
    注意：外层 #tree 的模式类叫 gal，不能叫 gallery——否则下面 .gallery 那套
    布局规则会同时命中 #tree，把内层滚动容器挤成一张卡宽（只剩居中那张可见） */
-.tree.gal { --tree-side: 0; --tree-bottom: 0; overflow: hidden; }
+.tree.gal { --tree-side: 0; --tree-bottom: 8px; overflow: hidden; }
 .tree.detail { --tree-side: var(--gutter); --tree-bottom: 28px; }
 
 .gallery {
@@ -890,8 +896,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp.assets td,
 .cmp.assets th { vertical-align: baseline; }
 
-/* 视图级工具：正文顶上单独一行，只对当前视图有意义（标签/说明/各种新增）。
-   左端留给进度提示，右端是按钮；跟正文一样按 --gutter 对齐。
+/* 视图级工具：只对当前视图有意义（标签/说明/各种新增）。
+   表格视图里它是正文顶上单独一行，左端留给进度提示、右端是按钮，跟正文一样按 --gutter 对齐。
    上下留白都收成 8px：上方接顶栏、下方交给 .tree 的 padding-top，按钮不再被架在半空 */
 .view-bar {
   display: flex;
@@ -899,6 +905,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   gap: 8px;
   flex: none;
   padding: 8px var(--gutter) 0;
+}
+/* 画廊里工具条不占行：悬浮在右上角，纵向留白就只剩画廊自己的 14px，上下对称。
+   这一条只有标签按钮（说明/新增都在别的视图），窄窄一颗压在卡外的空处，不遮内容 */
+.view-bar.float {
+  position: absolute;
+  top: 8px;
+  right: var(--gutter);
+  z-index: 10;
+  padding: 0;
 }
 /* 这条是 flex，[hidden] 的默认规则压不住；里面的 .icon-btn / .hint-wrap 同理 */
 .view-bar[hidden] { display: none; }
