@@ -282,11 +282,16 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .gallery {
   height: 100%;
-  /* 卡片尺寸跟着窗口走：宽随视口宽、高随视口高，各自夹在上下限之间。
+  /* 卡片宽度跟着窗口走，夹在上下限之间。
      居中留白要按卡宽算（第一张/最后一张也能滚到正中间），所以卡宽抽成变量，
      改尺寸只动这一处，padding 和卡片自动对齐 */
   --gcard-w: clamp(200px, 30vw, 340px);
-  --gcard-h: clamp(280px, 58vh, 540px);
+  /* 卡片高度直接吃满画廊的可用高度（上面那条 14px 内边距是它唯一的留白），
+     不再挂 58vh：挂 vh 的话，窗口矮 1px 卡片只矮 0.58px、留白矮 0.21px，
+     留白缩得比卡片慢得多，看着就像「卡小了、间距没动」。
+     改成填满后，窗口怎么变，上下留白都恒定 14px。
+     只留一个上限，免得嵌在很高的窗口里被拉成一根细长条 */
+  --gcard-h: min(100%, 680px);
   /* 定位基准：居中/滑动都用卡片的 offsetLeft，得让画廊本身是 offsetParent */
   position: relative;
   display: flex;
@@ -295,8 +300,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  /* 第一张和最后一张也能滚到正中间：两侧各留「半屏 − 半张卡」 */
-  padding: 0 max(0px, calc(50% - var(--gcard-w) / 2));
+  /* 横向：第一张和最后一张也能滚到正中间，两侧各留「半屏 − 半张卡」。
+     纵向：上下各 14px 是卡片唯一要留的空，卡片 height:100% 就贴着这条线 */
+  padding: 14px max(0px, calc(50% - var(--gcard-w) / 2));
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
