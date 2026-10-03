@@ -40,6 +40,10 @@
   var KEY_ASSETS_DS = 'ledger.assetsSourceId';
   var DEFAULT_ASSETS_DS = 'aa5d7d6d-9349-4af1-a193-91c2af0eb26f';
   var KEY_ASSET_CACHE = 'ledger.assetCache';
+  var KEY_ADJUST_DS = 'ledger.adjustSourceId';
+  var DEFAULT_ADJUST_DS = '3d928be4-78b4-471b-9190-99d04b6b0022';
+  // 纠偏超过这个数就提醒补一句归因：小额差异多半是零头，上千了就得说清「钱去哪了」
+  var ADJUST_ALERT = 1000;
   var MAX_RETRY = 3;
 
   // 视图白名单，顺序跟顶栏按钮一致。
@@ -77,7 +81,8 @@
     token: localStorage.getItem(KEY_TOKEN) || '',
     dataSourceId: localStorage.getItem(KEY_DS) || DEFAULT_DATA_SOURCE,
     budgetSourceId: localStorage.getItem(KEY_BUDGET_DS) || DEFAULT_BUDGET_DS,
-    assetsSourceId: localStorage.getItem(KEY_ASSETS_DS) || DEFAULT_ASSETS_DS
+    assetsSourceId: localStorage.getItem(KEY_ASSETS_DS) || DEFAULT_ASSETS_DS,
+    adjustSourceId: localStorage.getItem(KEY_ADJUST_DS) || DEFAULT_ADJUST_DS
   };
 
   var state = {
@@ -97,6 +102,8 @@
     assets: [],          // 财产快照：每行 { id, name, month, app, start, end, note }
     assetsEdit: null,    // 正在就地编辑的财产格：{ id, draft: { end } }
     assetNoteEdit: null, // 正在就地编辑的资产项备注：{ app, name, draft, was }
+    adjust: {},          // 月份 -> { id, note }：纠偏归因，独立数据源，只存人工补的那句话
+    adjustEdit: null,    // 正在就地编辑的纠偏归因：{ month, draft, was }
     assetsForm: null,    // 财产的新增表单：{ kind: 'item' | 'month', ... }
     assetsYear: null,    // 财产视图当前看哪一年，新增月份时按它铺列
     hintOpen: false,     // 预算/财产视图的「说明」面板是否展开，默认收起
@@ -2157,7 +2164,8 @@
   function treeHintText() {
     return '<p>' +
         '净额取真实净额，即当月的财产差值（含公积金口径，本月月末 − 上月月末）；财产未覆盖的月份退回账本净额。<br>' +
-        '「净额纠偏」为真实净额与账本净额的差额，列在分类之后。它不计入收入与支出，也不可编辑；' +
+        '「净额纠偏」为真实净额与账本净额的差额，列在分类之后。金额本身不可编辑，也不计入收入与支出；' +
+        '差额满 1,000 时提示补一句归因，点提示或双击归因文字即可填写。<br>' +
         '顶栏净额 = 账本净额 + 各月纠偏合计。' +
       '</p><p>' +
         '收入为红、支出为绿，金额按万分位。' +
@@ -2184,16 +2192,121 @@
     return v === undefined ? null : v;
   }
 
+  // ---------- 净额纠偏的归因 ----------
+  // 纠偏是算出来的，不落库；这里只存人工补的那句「钱去哪了」，
+  // 每月一行，跟「娱乐预算」同一个套路：独立数据源 + 月份做行名
+  function normalizeAdjust(page) {
+    var props = page.properties || {};
+    var title = (props['月份'] && props['月份'].title) || [];
+    var month = title.map(function (t) { return t.plain_text || ''; }).join('');
+    return { id: page.id, month: month, note: richText(props['归因']) };
+  }
+
+  function fetchAdjust() {
+    var rows = [];
+    function step(cursor) {
+      var payload = { page_size: 100 };
+      if (cursor) payload.start_cursor = cursor;
+      return notion('/data_sources/' + settings.adjustSourceId + '/query', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }).then(function (page) {
+        rows = rows.concat((page.results || []).map(normalizeAdjust));
+        return page.has_more ? step(page.next_cursor) : rows;
+      });
+    }
+    return step(null).then(function (list) {
+      var map = {};
+      list.forEach(function (r) { if (r.month) map[r.month] = r; });
+      state.adjust = map;
+      return list;
+    });
+  }
+
+  function adjustNoteOf(monthName) {
+    var row = state.adjust[monthName];
+    return row && row.note ? row.note : '';
+  }
+
+  function saveAdjust(monthName, note) {
+    var row = state.adjust[monthName];
+    var snapshot = row ? Object.assign({}, row) : null;
+    // 先落本地再发请求，免得往返期间闪回旧值；失败整体回滚
+    state.adjust[monthName] = { id: row ? row.id : null, month: monthName, note: note };
+    state.adjustEdit = null;
+    render();
+
+    var props = { '归因': { rich_text: note ? [{ text: { content: note } }] : [] } };
+    var request = row && row.id
+      ? notion('/pages/' + row.id, { method: 'PATCH', body: JSON.stringify({ properties: props }) })
+      : notion('/pages', {
+          method: 'POST',
+          body: JSON.stringify({
+            parent: { type: 'data_source_id', data_source_id: settings.adjustSourceId },
+            properties: Object.assign(
+              { '月份': { title: [{ text: { content: monthName } }] } }, props)
+          })
+        });
+
+    return request.then(function (page) {
+      state.adjust[monthName] = normalizeAdjust(page);
+      render();
+    }).catch(function (err) {
+      if (snapshot) state.adjust[monthName] = snapshot;
+      else delete state.adjust[monthName];
+      render();
+      toast(err.message, false);
+    });
+  }
+
+  function startAdjustEdit(monthName) {
+    if (state.adjustEdit && state.adjustEdit.month === monthName) return;
+    var note = adjustNoteOf(monthName);
+    state.adjustEdit = { month: monthName, draft: note, was: note };
+    render();
+  }
+
+  function commitAdjustNote() {
+    var edit = state.adjustEdit;
+    if (!edit) return;
+    var note = String(edit.draft || '').trim();
+    if (note === edit.was) {
+      state.adjustEdit = null;
+      return render();
+    }
+    saveAdjust(edit.month, note);
+  }
+
   // 纠偏条目：账本净额跟真实净额对不上时，把差额单列一条，摆在娱乐支出之后。
   // 它就是分类之后多出来的一笔，所以结构、尺寸、底色一律沿用分类行（.row.lv2），
   // 只做三处细微区分：名字压灰、没有 ＋/删除（尾部只留宽度保证金额对齐）、不响应悬停。
-  // 折叠箭头位置留一个隐形占位，名字才跟分类名对齐
-  function renderAdjust(diff) {
+  // 折叠箭头位置留一个隐形占位，名字才跟分类名对齐。
+  // 差额超过 1000 就催一句归因（点了或双击都能写），写完就把那句话挂在这儿
+  function renderAdjust(diff, monthName) {
+    var note = adjustNoteOf(monthName);
+    var editing = state.adjustEdit && state.adjustEdit.month === monthName;
+    var attr;
+    if (editing) {
+      attr = '<span class="editor">' +
+        '<label><span>归因</span><input type="text" placeholder="这笔差额是什么"' +
+          ' value="' + esc(state.adjustEdit.draft) + '" data-adjust-note="note"></label>' +
+      '</span>';
+    } else if (note) {
+      // 归因直接摊在行里，不再挂悬停气泡——气泡也是同一句话，多一层反而要多点一下
+      attr = '<span class="adjust-attr" data-adjust-open="' + esc(monthName) + '">' +
+        esc(note) + '</span>';
+    } else if (Math.abs(diff) > ADJUST_ALERT) {
+      attr = '<button type="button" class="adjust-alert" data-adjust-alert="' + esc(monthName) + '">' +
+        '差额较大，补一句归因</button>';
+    } else {
+      attr = '';
+    }
     return '<div class="node adjust">' +
       '<div class="row lv2">' +
         '<span class="chev ghost"></span>' +
         '<span class="name">净额纠偏</span>' +
         '<span class="adjust-note">财产差值 − 账本净额</span>' +
+        attr +
         '<span class="spacer"></span>' +
         '<span class="amt ' + tone(diff) + '">' + signed(diff) + '</span>' +
         '<span class="tail"></span>' +
@@ -2332,7 +2445,7 @@
       '</div>' +
       '<div class="children">' +
         groupByCategory(month.list).map(function (c) { return renderCategory(month.name, c); }).join('') +
-        (diff ? renderAdjust(diff) : '') +
+        (diff ? renderAdjust(diff, month.name) : '') +
       '</div>' +
     '</div>';
   }
@@ -2610,7 +2723,9 @@
       // 预算读不到不影响记账，顶栏那颗读数会自己消失
       fetchBudget().catch(function () { return null; }),
       // 财产是独立数据源，读不到也只是财产视图空着，账本照常
-      fetchAssets().catch(function () { return null; })
+      fetchAssets().catch(function () { return null; }),
+      // 纠偏归因同理：读不到就不催归因，纠偏那条照常算出来
+      fetchAdjust().catch(function () { return null; })
     ]).then(function (results) {
       state.entries = results[0];
       state.pendingDelete = null;
@@ -2988,6 +3103,7 @@
     document.getElementById('s-ds').value = settings.dataSourceId;
     document.getElementById('s-budget').value = settings.budgetSourceId;
     document.getElementById('s-assets').value = settings.assetsSourceId;
+    document.getElementById('s-adjust').value = settings.adjustSourceId;
     document.getElementById('s-cancel').hidden = !state.entries.length && !settings.token;
     var errEl = document.getElementById('s-err');
     errEl.hidden = !message;
@@ -3202,9 +3318,12 @@
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
       '[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel],' +
+      '[data-adjust-alert],' +
       '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center]');
     if (!target) return;
     var data = target.dataset;
+    // 纠偏的归因：提醒胶囊点一下就进编辑；已有归因的话双击文字改（dblclick 里处理）
+    if (data.adjustAlert) return startAdjustEdit(data.adjustAlert);
     // 画廊：点中间那张进详情/新建，点旁边那张把它挪到中间
     if (data.galleryBack) { state.monthOpen = null; return render(); }
     if (data.galleryMonth) {
@@ -3265,6 +3384,8 @@
 
   // 双击明细行的标题或金额，就地变成输入框；预算格、财产格同样双击才进编辑
   treeEl.addEventListener('dblclick', function (event) {
+    var adj = event.target.closest('[data-adjust-open]');
+    if (adj) return startAdjustEdit(adj.dataset.adjustOpen);
     var note = event.target.closest('[data-asset-note-app]');
     if (note) {
       return startAssetNoteEdit(note.dataset.assetNoteApp, note.dataset.assetNoteName,
@@ -3296,6 +3417,10 @@
       var noteBox = event.target.closest('input[data-asset-note]');
       if (noteBox) { state.assetNoteEdit.draft = noteBox.value; return; }
     }
+    if (state.adjustEdit) {
+      var adjBox = event.target.closest('input[data-adjust-note]');
+      if (adjBox) { state.adjustEdit.draft = adjBox.value; return; }
+    }
     if (state.assetsForm) {
       var field = event.target.closest('input[data-asset-field]');
       if (field) state.assetsForm[field.dataset.assetField] = field.value;
@@ -3305,6 +3430,13 @@
   // 焦点彻底离开这个小面板才写回（在两个输入之间切换不算离开）
   treeEl.addEventListener('focusout', function (event) {
     var next = event.relatedTarget;
+    // 纠偏归因的编辑框挂在 .node.adjust 里，跟下面两种面板都不在一处，先单独认
+    var adjEditor = event.target.closest('.node.adjust .editor');
+    if (adjEditor) {
+      if (next && typeof next.closest === 'function' &&
+          next.closest('.node.adjust .editor') === adjEditor) return;
+      return commitAdjustNote();
+    }
     // 资产项的备注面板挂在首列的 th 上，预算/财产的格子挂在 td 上，分开判断
     var noteCell = event.target.closest('th.cmp-item.editing');
     if (noteCell) {
@@ -3320,6 +3452,18 @@
   });
 
   treeEl.addEventListener('keydown', function (event) {
+    if (state.adjustEdit) {
+      if (!event.target.closest('input[data-adjust-note]')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        state.adjustEdit = null;
+        return render();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        return commitAdjustNote();
+      }
+      return;
+    }
     if (state.assetNoteEdit) {
       if (!event.target.closest('input[data-asset-note]')) return;
       if (event.key === 'Escape') {
@@ -3473,6 +3617,7 @@
     var ds = document.getElementById('s-ds').value.trim();
     var budgetDs = document.getElementById('s-budget').value.trim();
     var assetsDs = document.getElementById('s-assets').value.trim();
+    var adjustDs = document.getElementById('s-adjust').value.trim();
     var errEl = document.getElementById('s-err');
     if (!token) { errEl.hidden = false; errEl.textContent = '请填写集成令牌'; return; }
     if (!ds) { errEl.hidden = false; errEl.textContent = '请填写数据源 ID'; return; }
@@ -3481,6 +3626,7 @@
     settings.dataSourceId = ds;
     settings.budgetSourceId = budgetDs;
     settings.assetsSourceId = assetsDs || DEFAULT_ASSETS_DS;
+    settings.adjustSourceId = adjustDs || DEFAULT_ADJUST_DS;
     var saveBtn = document.getElementById('s-save');
     saveBtn.disabled = true;
     setLoading(true);
@@ -3490,6 +3636,7 @@
       localStorage.setItem(KEY_DS, ds);
       localStorage.setItem(KEY_BUDGET_DS, budgetDs);
       localStorage.setItem(KEY_ASSETS_DS, settings.assetsSourceId);
+      localStorage.setItem(KEY_ADJUST_DS, settings.adjustSourceId);
       render();
       writeCache();
       closeSetup();
@@ -3497,6 +3644,7 @@
       fetchSubOptions().catch(function () { return null; });
       fetchBudget().catch(function () { return null; })
         .then(function () { return fetchAssets().catch(function () { return null; }); })
+        .then(function () { return fetchAdjust().catch(function () { return null; }); })
         .then(render);
     }).catch(function (err) {
       errEl.hidden = false;
