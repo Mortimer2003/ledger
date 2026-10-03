@@ -656,7 +656,10 @@
     });
     var adjustRow = adjustValues.some(function (v) { return v; })
       ? '<tr class="cmp-adjust">' +
-          '<th class="cmp-item"><span class="cell"><span class="name">净额纠偏</span></span></th>' +
+          '<th class="cmp-item"><span class="cell">' +
+            '<span class="chev ghost"></span>' +
+            '<span class="name">净额纠偏</span>' +
+          '</span></th>' +
           adjustValues.map(function (v) { return '<td>' + cmpCell(v) + '</td>'; }).join('') +
           '<td class="cmp-total">' + cmpCell(sumArr(adjustValues)) + '</td>' +
         '</tr>'
@@ -2182,10 +2185,13 @@
   }
 
   // 纠偏条目：账本净额跟真实净额对不上时，把差额单列一条，摆在娱乐支出之后。
-  // 它不由账本数据算出来，所以不可编辑——没有 data-id，不挂 ＋，也不挂删除
+  // 它就是分类之后多出来的一笔，所以结构、尺寸、底色一律沿用分类行（.row.lv2），
+  // 只做三处细微区分：名字压灰、没有 ＋/删除（尾部只留宽度保证金额对齐）、不响应悬停。
+  // 折叠箭头位置留一个隐形占位，名字才跟分类名对齐
   function renderAdjust(diff) {
     return '<div class="node adjust">' +
-      '<div class="row">' +
+      '<div class="row lv2">' +
+        '<span class="chev ghost"></span>' +
         '<span class="name">净额纠偏</span>' +
         '<span class="adjust-note">财产差值 − 账本净额</span>' +
         '<span class="spacer"></span>' +
