@@ -89,7 +89,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* 第一行：年份 + 收支/财产 贴左，搜索吃掉中间，刷新、设置收在右端。
    这一行放的都是跟数据、跟视图都无关的东西，切视图不动 */
 .bar-main > .nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-#cmp-bar { flex: none; }
+/* 年份 + 月份区间同住这条栏，排成一行 */
+#cmp-bar { flex: none; display: flex; align-items: center; gap: 6px; }
+#cmp-bar[hidden] { display: none; }
 
 /* 第二行：子视图（月度/对比/预算）贴左，读数贴右 */
 .bar-sub > .metrics { justify-content: flex-end; flex-wrap: wrap; }
@@ -117,6 +119,31 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .year-select:hover { background-color: var(--hover); }
 .year-select:focus-visible { outline: none; border-color: var(--accent); }
 .year-select option { color: var(--text); background: var(--bg); }
+
+/* 月份区间：起 / 止两个小下拉，跟在年份下拉后面。外形沿用年份那颗胶囊，
+   只是小一号——它管的是「这一年里看哪几个月」，比年份低一档 */
+.range-pick { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.range-select {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 3px 20px 3px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background-color: var(--bg-soft);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%238a8f98' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.6 6 7.6 9 4.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 10px;
+  color: var(--text);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.range-select:hover { background-color: var(--hover); }
+.range-select:focus-visible { outline: none; border-color: var(--accent); }
+.range-select option { color: var(--text); background: var(--bg); }
+.range-dash { color: var(--text-3); font-size: 12px; }
 
 .count { font-size: 12px; color: var(--text-3); white-space: nowrap; }
 
@@ -223,6 +250,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .icon-btn:hover { background: var(--hover); color: var(--text); }
 .icon-btn.spin svg { animation: spin .8s linear infinite; }
+/* 锁定开关：锁着时给个浅底，跟旁边两颗纯描边的图标按钮区分开 */
+.icon-btn.active { background: var(--bg-soft); color: var(--text); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* 子 tab 右侧的视图级工具：标签 + 说明。两颗图标按钮是同一组，间距比栏内 12px 收一点，
@@ -440,6 +469,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   border-bottom: 1px solid var(--line);
 }
 .mdetail-name { font-size: 14.5px; font-weight: 600; }
+/* 详情页顶栏的「已锁定」小标：非最新月才有，跟月份名并排 */
+.lock-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
 .mdetail-io { display: flex; gap: 10px; font-size: 12.5px; }
 .mdetail-net { font-size: 14.5px; font-weight: 600; }
 /* 详情页的分类树跟月度手风琴里那套缩进保持一致：层级靠 .children 的
@@ -956,6 +994,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   background: var(--hover);
 }
 
+/* 锁住的历史月份格：撤掉「可编辑」的悬停线索，看起来就知道动不了；
+   data-* 还留着，双击照样给一句提示 */
+.cmp.budget td.cmp-edit.locked { cursor: default; }
+.cmp.budget td.cmp-edit.locked:hover { box-shadow: none; background: transparent; }
+
 .cmp.budget td.cmp-edit input {
   width: 84px;
   padding: 3px 6px;
@@ -1180,6 +1223,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   box-shadow: inset 0 0 0 1px var(--line-strong);
   background: var(--hover);
 }
+/* 锁住的历史月份格：同预算，撤掉可编辑的悬停线索 */
+.cmp.assets td.cmp-edit.locked { cursor: default; }
+.cmp.assets td.cmp-edit.locked:hover { box-shadow: none; background: transparent; }
 .cmp.assets td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
 .cmp.assets td.cmp-edit input {
   width: 84px;
