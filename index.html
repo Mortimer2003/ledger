@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261004-0105">
+<link rel="stylesheet" href="ledger.css?v=20261004-0121">
 
 </head>
 <body>
@@ -139,6 +139,10 @@
       <label for="s-assets">财产数据源 ID <span class="opt">可选</span></label>
       <input id="s-assets" autocomplete="off" spellcheck="false">
     </div>
+    <div class="field">
+      <label for="s-adjust">纠偏归因数据源 ID <span class="opt">可选</span></label>
+      <input id="s-adjust" autocomplete="off" spellcheck="false">
+    </div>
     <p class="err" id="s-err" hidden></p>
     <div class="modal-actions">
       <button type="button" class="btn ghost" id="s-cancel" hidden>取消</button>
@@ -244,7 +248,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261004-0105"></script>
+<script src="ledger.js?v=20261004-0121"></script>
 
 </body>
 </html>
