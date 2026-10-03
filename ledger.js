@@ -602,7 +602,7 @@
     if (!data.months.length) {
       // 搜索没匹配时交给全局那颗提示，别在这儿再说一遍「这一年还没有记账」
       if (state.search.trim()) return '';
-      return '<p class="cmp-hint">这一年还没有记账。对比表按月份铺列，先在「月度」视图录入，这里就能横向比。</p>';
+      return '<p class="cmp-hint">这一年还没有记账。对比表按月份铺列，先在「月度」视图录入。</p>';
     }
 
     var head = '<tr><th class="cmp-item"><span class="cell">项目</span></th>' +
@@ -946,8 +946,8 @@
       pendingHint = '';
       if (state.search.trim()) return '';
       return '<p class="cmp-hint">' +
-        (year === null ? '还没有数据。' : year + ' 年还没有可推算的月份。') +
-        '娱乐预算从 ' + esc(OPENING_MONTH) + ' 的结余往后逐月推算，先在月度视图录入。</p>';
+        (year === null ? '还没有数据。' : year + '年还没有可推算的月份。') +
+        '娱乐预算自 ' + esc(OPENING_MONTH) + ' 的结余起逐月推算，先在「月度」视图录入。</p>';
     }
 
     var head = '<tr>' +
@@ -1367,8 +1367,8 @@
       pendingHint = '';
       if (state.search.trim()) return '';
       return '<p class="cmp-hint">' +
-        (year === null ? '还没有财产数据。' : year + ' 年还没有财产记录。') +
-        '财产存在独立的「我的财产」数据源里，点「＋ 新增资产项」记第一行。</p>' +
+        (year === null ? '还没有财产数据。' : year + '年还没有财产记录。') +
+        '财产来自独立的「我的财产」数据源，点「＋ 新增资产项」开始录入。</p>' +
         (state.assetsForm ? assetForm(state.assetsForm) : '');
     }
 
