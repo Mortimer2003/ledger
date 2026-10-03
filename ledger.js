@@ -597,8 +597,8 @@
   // entries 已经裁到某一年，这里只负责把该年的月份铺成列
   function renderCompare(entries, realNets) {
     var data = buildComparison(entries);
-    // 对比表能直接读、图自带图例，不再挂「说明」——说明只留给规则藏在背后的两个明细视图
-    pendingHint = '';
+    // 汇总口径和「净额纠偏」行都得说明白：净额走的是财产差值，不是表内各分类之和
+    pendingHint = compareHintText();
     if (!data.months.length) {
       // 搜索没匹配时交给全局那颗提示，别在这儿再说一遍「这一年还没有记账」
       if (state.search.trim()) return '';
@@ -1332,19 +1332,14 @@
       save + '</div>';
   }
 
-  // 视图级工具是各视图共用的同一个 DOM，就挂在正文顶上；各视图只显隐自己那几个按钮，
-  // 所以「新增」类操作不管在哪个视图都在同一处，不会一个跑顶栏一个跑正文。
-  // 画廊里工具条改悬浮（.float）：不占行，标签按钮落在右上角，上下留白才对称。
-  // 说明按钮不在这儿——它跟着子 tab 住在顶栏第二行，所以预算这种只有说明的视图整条工具条收起
-  function renderViewBar(mode, isGallery) {
-    var isTree = mode === 'tree';
+  // 正文工具条只剩财产那几个新增按钮：标签跟着子 tab 搬进了顶栏，
+  // 收支/预算视图整条收起，不占行（画廊里的上下留白也因此对称）
+  function renderViewBar(mode) {
     var isAssets = mode === 'assets';
-    btnTagsEl.hidden = !isTree;
     btnAssetItemEl.hidden = !isAssets;
     // 一个资产月都没有时铺不了新月，按钮先收着
     btnAssetMonthEl.hidden = !isAssets || !assetMonthsInView().length;
-    viewBarEl.className = 'view-bar' + (isGallery ? ' float' : '');
-    viewBarEl.hidden = !(isTree || isAssets);
+    viewBarEl.hidden = !isAssets;
   }
 
   function assetsHintText() {
@@ -2110,7 +2105,9 @@
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
     renderHint(pendingHint);
-    renderViewBar(mode, monthly === 'gallery');
+    // 标签只服务账本的月度视图，跟说明按钮同住在子 tab 右侧
+    btnTagsEl.hidden = mode !== 'tree';
+    renderViewBar(mode);
 
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -2152,6 +2149,36 @@
     return total;
   }
 
+  // 收支 › 月度：讲账本本身怎么读、净额走什么口径
+  function treeHintText() {
+    // 三段固定骨架：是什么 → 口径 → 怎么改，跟预算/财产那两条对齐
+    return '<p>' +
+        '月份以卡片横排，居中那张最大最实；点居中卡片进该月详情，点左右两侧的卡片把它滑到中间。<br>' +
+        '详情按「分类 → 子类 → 明细」三级铺开，分类行与子类行可折叠。' +
+      '</p><p>' +
+        '收入为红、支出为绿，金额按万分位。<br>' +
+        '净额取真实净额，即当月的财产差值（含公积金口径，本月月末 − 上月月末）；财产未覆盖的月份退回账本净额。<br>' +
+        '「净额纠偏」为真实净额与账本净额的差额，列在分类之后。它不计入收入与支出，也不可编辑；' +
+        '顶栏净额 = 账本净额 + 各月纠偏合计。' +
+      '</p><p>' +
+        '双击明细的金额或名称就地编辑，回车或失焦保存，Esc 取消。<br>' +
+        '分类行与子类行行尾的 ＋ 在该处新增，明细行行尾的 × 删除。<br>' +
+        '子类标签在所有分类之间共享，由左侧的标签按钮管理。' +
+      '</p>';
+  }
+
+  // 收支 › 对比：讲汇总口径、纠偏行怎么读
+  function compareHintText() {
+    return '<p>' +
+        '多月横向铺开，以年为界，只汇总年份下拉选中的这一年。分类与子类两层，表头吸顶、首列吸左。' +
+      '</p><p>' +
+        '「净额」取真实净额，即当月的财产差值（含公积金口径）；财产未覆盖的月份退回账本净额。<br>' +
+        '「净额纠偏」行列在分类与净额之间，读作：分类合计 + 纠偏 = 净额。只有财产覆盖到的月份才有值。' +
+      '</p><p>' +
+        '此表只读，改数请到「月度」视图；点分类行可收起该分类下的子类。' +
+      '</p>';
+  }
+
   // 财产没覆盖到这个月就返回 null，调用方自己退回账本净额
   function realNetOf(monthName, realNets) {
     var v = realNets ? realNets[monthName] : null;
@@ -2175,6 +2202,7 @@
   // 月度视图分三态：搜索时铺可展开的月份列表（一次看全命中），
   // 点开某个月进详情，否则停在画廊
   function renderMonthly(scoped, searching, realNets) {
+    pendingHint = treeHintText();
     if (searching) return groupByMonth(scoped).map(renderMonth).join('');
     var months = galleryMonths(scoped);
     if (state.monthOpen) {
