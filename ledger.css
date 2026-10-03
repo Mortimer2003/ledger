@@ -91,9 +91,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* 第一行：年份 + 收支/财产 贴左，搜索吃掉中间，刷新、设置收在右端。
    这一行放的都是跟数据、跟视图都无关的东西，切视图不动 */
 .bar-main > .nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-/* 年份 + 月份区间同住这条栏，排成一行 */
+/* 年份下拉打头，跟视图切换一起组成「看哪一年、看什么」的导航区 */
 #cmp-bar { flex: none; display: flex; align-items: center; gap: 6px; }
 #cmp-bar[hidden] { display: none; }
+/* 月份区间条住在第二行：视图级工具之后、读数之前。
+   它变宽只会挤中间的空白，左边的子 tab 和右边的读数都不动 */
+#range-bar { flex: none; display: flex; align-items: center; }
+#range-bar[hidden] { display: none; }
 
 /* 第二行：子视图（月度/对比/预算）贴左，读数贴右 */
 .bar-sub > .metrics { justify-content: flex-end; flex-wrap: wrap; }
@@ -157,8 +161,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   box-shadow: var(--shadow);
 }
 .range-pop[hidden] { display: none; }
-.range-grid { display: grid; grid-template-columns: repeat(6, 30px); gap: 4px; }
+/* 月份条只摆有数据的月份，所以格数不定：按行折，一行最多 6 格（6×30 + 5×4 = 200） */
+.range-grid { display: flex; flex-wrap: wrap; gap: 4px; max-width: 200px; }
 .rm {
+  width: 30px;
   font: inherit;
   font-size: 12px;
   font-weight: 600;
