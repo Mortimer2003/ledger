@@ -753,6 +753,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   border-top: 1px solid var(--line-strong);
 }
 .cmp.assets tbody tr.assets-sum .name { font-size: 13.5px; font-weight: 600; }
+/* 纠偏行：账本净额跟真实净额的差额，是「净额」的组成部分、不是分类。
+   虚线跟上面的分类切开，底色留白，别跟下面那条实底的合计行抢 */
+.cmp tbody tr.cmp-adjust th,
+.cmp tbody tr.cmp-adjust td {
+  background: var(--bg);
+  border-top: 1px dashed var(--line-strong);
+}
+.cmp tbody tr.cmp-adjust .name { font-size: 13.5px; font-weight: 500; color: var(--text-2); }
+.cmp tbody tr.cmp-adjust td { font-size: 13.5px; font-weight: 500; }
 .cmp tbody tr.cmp-cat.is-toggle { cursor: pointer; }
 .cmp tbody tr:hover th,
 .cmp tbody tr:hover td { background: var(--row-hover); }
