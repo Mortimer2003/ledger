@@ -702,28 +702,45 @@
     return '<span class="' + tone(value) + '">' + signed(value) + '</span>';
   }
 
-  // 对比视图里的纠偏格：金额一行，备注一行。跟详情页同一套规矩——
-  // 差额超 1000 且没备注就催一句，写了就把那句话摊在金额下面（双击改）
-  function cmpAdjustCell(monthName, value) {
+  // 纠偏金额：把「补备注」的提示收进金额本身，不再占第二行、也不再摊一句文字。
+  //   缺备注 → 金额右上角一颗小点，点一下就能写；
+  //   有备注 → 金额下压一道虚线，悬停看全文、双击改。
+  //   角标与气泡都绝对定位，宽度高度一律不占，行不会被撑开
+  function adjustAmountHtml(value, monthName, spanCls, plain) {
     var note = adjustNoteOf(monthName);
-    var editing = state.adjustEdit && state.adjustEdit.month === monthName;
-    var extra;
-    if (editing) {
-      extra = '<span class="editor">' +
-        '<label><span>备注</span><input type="text" placeholder="说明这笔差额的来源"' +
-          ' value="' + esc(state.adjustEdit.draft) + '" data-adjust-note="note"></label>' +
-      '</span>';
-    } else if (note) {
-      extra = '<span class="adj-note" data-adjust-open="' + esc(monthName) + '">' + esc(note) + '</span>';
-    } else if (Math.abs(value) > ADJUST_ALERT) {
-      extra = '<button type="button" class="adj-prompt" data-adjust-alert="' + esc(monthName) + '">' +
-        '差额较大，补充备注</button>';
-    } else {
-      extra = '';
+    var needs = !note && value != null && Math.abs(value) > ADJUST_ALERT;
+    var open = note && !plain;
+    var classes = (spanCls ? spanCls + ' ' : '') + 'adj-amt ' + (value ? tone(value) : 'zero') +
+      (open ? ' adj-has' : '');
+    var inner = value ? signed(value) : '—';
+    if (!plain) {
+      if (needs) {
+        inner += '<button type="button" class="adj-mark" data-adjust-alert="' + esc(monthName) +
+          '" aria-label="差额较大，点击补充备注"></button>';
+      }
+      if (note) inner += '<span class="tip">' + tipHtml([note]) + '</span>';
+      else if (needs) inner += '<span class="tip">差额较大，点击补充备注</span>';
     }
-    return '<td class="cmp-adj' + (note && !editing ? ' has-note' : '') + '">' +
-      cmpCell(value) + extra +
-      (note && !editing ? '<span class="tip">' + tipHtml([note]) + '</span>' : '') +
+    return '<span class="' + classes + '"' +
+      (open ? ' data-adjust-open="' + esc(monthName) + '"' : '') + '>' + inner + '</span>';
+  }
+
+  // 对比视图里的纠偏格：只放金额（角标/虚线挂在金额上）+ 悬停气泡，
+  // 不再单开一行写备注，行高和列宽回到跟普通格子一样
+  function cmpAdjustCell(monthName, value) {
+    var editing = state.adjustEdit && state.adjustEdit.month === monthName;
+    var note = adjustNoteOf(monthName);
+    var cls = editing ? ' editing'
+      : note ? ' has-note'
+      : (value != null && Math.abs(value) > ADJUST_ALERT) ? ' needs-note' : '';
+    var editor = editing
+      ? '<span class="editor">' +
+          '<label><span>备注</span><input type="text" placeholder="说明这笔差额的来源"' +
+            ' value="' + esc(state.adjustEdit.draft) + '" data-adjust-note="note"></label>' +
+        '</span>'
+      : '';
+    return '<td class="cmp-adj' + cls + '">' +
+      adjustAmountHtml(value, monthName, '', editing) + editor +
     '</td>';
   }
 
@@ -2499,34 +2516,23 @@
   // 它就是分类之后多出来的一笔，所以结构、尺寸、底色一律沿用分类行（.row.lv2），
   // 只做三处细微区分：名字压灰、没有 ＋/删除（尾部只留宽度保证金额对齐）、不响应悬停。
   // 折叠箭头位置留一个隐形占位，名字才跟分类名对齐。
-  // 差额超过 1000 就提示补充备注（点了或双击都能写），写完就把那句话挂在这儿
+  // 差额超过 1000 就在金额角上点一颗小点催补备注，写完换成金额下的一道虚线
   function renderAdjust(diff, monthName) {
-    var note = adjustNoteOf(monthName);
     var editing = state.adjustEdit && state.adjustEdit.month === monthName;
-    var attr;
-    if (editing) {
-      attr = '<span class="editor">' +
-        '<label><span>备注</span><input type="text" placeholder="说明这笔差额的来源"' +
-          ' value="' + esc(state.adjustEdit.draft) + '" data-adjust-note="note"></label>' +
-      '</span>';
-    } else if (note) {
-      // 归因直接摊在行里，不再挂悬停气泡——气泡也是同一句话，多一层反而要多点一下
-      attr = '<span class="adjust-attr" data-adjust-open="' + esc(monthName) + '">' +
-        esc(note) + '</span>';
-    } else if (Math.abs(diff) > ADJUST_ALERT) {
-      attr = '<button type="button" class="adjust-alert" data-adjust-alert="' + esc(monthName) + '">' +
-        '差额较大，补充备注</button>';
-    } else {
-      attr = '';
-    }
+    var editor = editing
+      ? '<span class="editor">' +
+          '<label><span>备注</span><input type="text" placeholder="说明这笔差额的来源"' +
+            ' value="' + esc(state.adjustEdit.draft) + '" data-adjust-note="note"></label>' +
+        '</span>'
+      : '';
     return '<div class="node adjust">' +
       '<div class="row lv2">' +
         '<span class="chev ghost"></span>' +
         '<span class="name">净额纠偏</span>' +
         '<span class="adjust-note">财产差值 − 账本净额</span>' +
-        attr +
+        editor +
         '<span class="spacer"></span>' +
-        '<span class="amt ' + tone(diff) + '">' + signed(diff) + '</span>' +
+        adjustAmountHtml(diff, monthName, 'amt', editing) +
         '<span class="tail"></span>' +
       '</div>' +
     '</div>';
