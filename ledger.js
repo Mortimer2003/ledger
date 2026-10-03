@@ -42,7 +42,7 @@
   var KEY_ASSET_CACHE = 'ledger.assetCache';
   var KEY_ADJUST_DS = 'ledger.adjustSourceId';
   var DEFAULT_ADJUST_DS = '3d928be4-78b4-471b-9190-99d04b6b0022';
-  // 纠偏超过这个数就提醒补一句归因：小额差异多半是零头，上千了就得说清「钱去哪了」
+  // 纠偏超过这个数就提示补充备注：小额差异多半是零头，上千了就得说清来由
   var ADJUST_ALERT = 1000;
   var MAX_RETRY = 3;
 
@@ -2165,7 +2165,7 @@
     return '<p>' +
         '净额取真实净额，即当月的财产差值（含公积金口径，本月月末 − 上月月末）；财产未覆盖的月份退回账本净额。<br>' +
         '「净额纠偏」为真实净额与账本净额的差额，列在分类之后。金额本身不可编辑，也不计入收入与支出；' +
-        '差额满 1,000 时提示补一句归因，点提示或双击归因文字即可填写。<br>' +
+        '差额超过 1,000 时提示补充备注，点提示或双击备注文字即可填写。<br>' +
         '顶栏净额 = 账本净额 + 各月纠偏合计。' +
       '</p><p>' +
         '收入为红、支出为绿，金额按万分位。' +
@@ -2281,14 +2281,14 @@
   // 它就是分类之后多出来的一笔，所以结构、尺寸、底色一律沿用分类行（.row.lv2），
   // 只做三处细微区分：名字压灰、没有 ＋/删除（尾部只留宽度保证金额对齐）、不响应悬停。
   // 折叠箭头位置留一个隐形占位，名字才跟分类名对齐。
-  // 差额超过 1000 就催一句归因（点了或双击都能写），写完就把那句话挂在这儿
+  // 差额超过 1000 就提示补充备注（点了或双击都能写），写完就把那句话挂在这儿
   function renderAdjust(diff, monthName) {
     var note = adjustNoteOf(monthName);
     var editing = state.adjustEdit && state.adjustEdit.month === monthName;
     var attr;
     if (editing) {
       attr = '<span class="editor">' +
-        '<label><span>归因</span><input type="text" placeholder="这笔差额是什么"' +
+        '<label><span>备注</span><input type="text" placeholder="说明这笔差额的来源"' +
           ' value="' + esc(state.adjustEdit.draft) + '" data-adjust-note="note"></label>' +
       '</span>';
     } else if (note) {
@@ -2297,7 +2297,7 @@
         esc(note) + '</span>';
     } else if (Math.abs(diff) > ADJUST_ALERT) {
       attr = '<button type="button" class="adjust-alert" data-adjust-alert="' + esc(monthName) + '">' +
-        '差额较大，补一句归因</button>';
+        '差额较大，补充备注</button>';
     } else {
       attr = '';
     }
