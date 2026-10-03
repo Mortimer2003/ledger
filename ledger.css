@@ -375,14 +375,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-net { font-size: clamp(15px, calc(var(--gcard-w) * .067), 23px); font-weight: 600; margin-top: 10px; }
 .gcard-cap { font-size: 11px; color: var(--text-3); }
 
-/* 居中卡的预览细节：收入/支出 + 净额环比。
-   细节画在每张月份卡上，但只有居中那张可见——居中卡是滚出来的，
-   渲染时判一次 is-center 会让细节留在旧卡上。用 visibility 而非 display：
-   空间一直占着，居中卡换人时版式不跳 */
-.gcard-io,
-.gcard-delta { visibility: hidden; }
-.gcard.is-center .gcard-io,
-.gcard.is-center .gcard-delta { visibility: visible; }
+/* 预览细节：收入/支出 + 净额环比。
+   每张月份卡都画一份，滚动时内容不会忽增忽减；两侧卡跟着缩放一起变小变淡。
+   首月的环比按缺数写「—」，各卡结构一致、行高不差 */
 .gcard-io {
   display: flex;
   gap: calc(var(--gcard-w) * .11);
