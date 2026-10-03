@@ -375,6 +375,20 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-net { font-size: clamp(15px, calc(var(--gcard-w) * .067), 23px); font-weight: 600; margin-top: 10px; }
 .gcard-cap { font-size: 11px; color: var(--text-3); }
 
+/* 居中卡的预览细节：收入/支出 + 净额环比。
+   两侧卡缩到 .6 倍后这些字号读不出来，所以只画在居中卡上（渲染时就按 is-center 判掉） */
+.gcard-io {
+  display: flex;
+  gap: calc(var(--gcard-w) * .11);
+  margin-top: calc(var(--gcard-w) * .05);
+  padding-top: calc(var(--gcard-w) * .05);
+  border-top: 1px solid var(--line);
+}
+.gcard-io span { display: flex; flex-direction: column; gap: 2px; }
+.gcard-io b { font-size: 11px; font-weight: 500; color: var(--text-3); }
+.gcard-io i { font-size: 14px; font-style: normal; font-weight: 600; }
+.gcard-delta { font-size: 11px; margin-top: 8px; }
+
 .gcard-new .gcard-in { border-style: dashed; background: transparent; box-shadow: none; }
 .gcard-plus { font-size: 32px; line-height: 1; color: var(--text-3); }
 .gcard-new-label { font-size: 13px; color: var(--text-2); margin-top: 8px; }
