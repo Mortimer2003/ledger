@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261004-0256">
+<link rel="stylesheet" href="ledger.css?v=20261004-0308">
 
 </head>
 <body>
@@ -16,6 +16,9 @@
     <div class="bar bar-main">
       <div class="nav">
         <div id="cmp-bar" hidden></div>
+        <!-- 月份区间：住在第一行年份右侧，全局常驻、宽度固定。
+             值只在对比/财产明细/财产图表里筛选内容，其余视图照样可选可改 -->
+        <div id="range-bar" hidden></div>
         <div class="seg view-switch" id="view-parent">
           <button type="button" data-parent="assets">财产</button>
           <button type="button" data-parent="income" class="active">收支</button>
@@ -99,10 +102,6 @@
           </svg>
         </button>
       </div>
-      <!-- 月份区间：只筛当前视图铺哪几个月，所以跟子 tab 一起住在第二行。
-           摆在视图级工具之后、读数之前——它变宽只会挤中间的空白，
-           左边的子 tab 和右边的读数都不动，切视图也不会跳位 -->
-      <div id="range-bar" hidden></div>
       <div class="metrics">
         <span class="count" id="count"></span>
         <div class="totals" id="totals"></div>
@@ -261,7 +260,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261004-0256"></script>
+<script src="ledger.js?v=20261004-0308"></script>
 
 </body>
 </html>
