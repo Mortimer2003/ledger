@@ -29,10 +29,6 @@
   var KEY_TOKEN = 'ledger.token';
   var KEY_DS = 'ledger.dataSourceId';
   var KEY_CACHE = 'ledger.cache';
-  var KEY_VIEW = 'ledger.view';
-  var KEY_INCOME_VIEW = 'ledger.incomeView';
-  var KEY_ASSET_VIEW = 'ledger.assetView';
-  var KEY_BUDGET_VIEW = 'ledger.budgetView';
   var KEY_GALLERY_AT = 'ledger.galleryAt';
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
@@ -55,6 +51,8 @@
   var INCOME_VIEWS = ['tree', 'compare'];
   var ASSET_VIEWS = ['assets', 'assetCharts'];
   var BUDGET_VIEWS = ['budget', 'budgetCharts'];
+  // 主 tab 各自的第一种子视图：切换主 tab 一律从它进，子 tab 的选择不落盘、不记忆
+  var FIRST_VIEW = { assets: 'assets', income: 'tree', budget: 'budget' };
   // 月份区间只在这几个视图里露出来：收支对比、财产明细/图表。月度/预算按整年铺，不给区间
   var RANGE_VIEWS = ['compare', 'assets', 'assetCharts'];
   // 视图归哪个主 tab：决定哪个主 tab 高亮、哪条子 tab 露出来
@@ -94,10 +92,8 @@
     expanded: {},   // 记录手动展开的节点，默认全部收起
     cmpCollapsed: {}, // 对比视图里收起的分类（默认展开）
     cmpYear: readCmpYear(), // 对比视图当前看哪一年；null = 跟随最新年份
-    view: readView(),
-    incomeView: readIncomeView(), // 「收支」下最后看的那种子视图，从别的主 tab 切回来时用
-    assetView: readAssetView(),   // 「财产」下最后看的那种子视图（明细/图表）
-    budgetView: readBudgetView(), // 「预算」下最后看的那种子视图（明细/图表）
+    // 视图不落盘：每次打开都从「收支 › 月度」进；切主 tab 也一律回各自的第一种子视图
+    view: 'tree',
     galleryAt: readGalleryAt(), // 月度画廊里居中的月份；null/失效时用最新一个月
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
     budget: {},          // 月份 -> { id, specialIn, bonus }
@@ -623,24 +619,10 @@
     return raw && isFinite(n) ? n : null;   // null = 跟随最新年份
   }
 
-  function readView() {
-    var raw = localStorage.getItem(KEY_VIEW);
-    return VIEWS.indexOf(raw) === -1 ? 'tree' : raw;
-  }
-
-  function readIncomeView() {
-    var raw = localStorage.getItem(KEY_INCOME_VIEW);
-    return INCOME_VIEWS.indexOf(raw) === -1 ? 'tree' : raw;
-  }
-
-  function readAssetView() {
-    var raw = localStorage.getItem(KEY_ASSET_VIEW);
-    return ASSET_VIEWS.indexOf(raw) === -1 ? 'assets' : raw;
-  }
-
-  function readBudgetView() {
-    var raw = localStorage.getItem(KEY_BUDGET_VIEW);
-    return BUDGET_VIEWS.indexOf(raw) === -1 ? 'budget' : raw;
+  function readCmpYear() {
+    var raw = localStorage.getItem(KEY_CMP_YEAR);
+    var n = parseInt(raw, 10);
+    return raw && isFinite(n) ? n : null;   // null = 跟随最新年份
   }
 
   // 画廊里居中的月份：记着上次停在哪一张，重开还在那儿
@@ -995,18 +977,6 @@
     state.view = VIEWS.indexOf(view) === -1 ? 'tree' : view;
     state.hintOpen = false;   // 换视图就把说明收回去，默认不铺开
     closeRange();             // 月份区间弹层同理，别跨视图挂着
-    localStorage.setItem(KEY_VIEW, state.view);
-    // 记住各自域下最后看的那种子视图，从别的主 tab 切回来时恢复
-    if (INCOME_VIEWS.indexOf(state.view) !== -1) {
-      state.incomeView = state.view;
-      localStorage.setItem(KEY_INCOME_VIEW, state.view);
-    } else if (ASSET_VIEWS.indexOf(state.view) !== -1) {
-      state.assetView = state.view;
-      localStorage.setItem(KEY_ASSET_VIEW, state.view);
-    } else if (BUDGET_VIEWS.indexOf(state.view) !== -1) {
-      state.budgetView = state.view;
-      localStorage.setItem(KEY_BUDGET_VIEW, state.view);
-    }
     syncViewButtons();
     render();
   }
@@ -2693,6 +2663,9 @@
     // 卡片上读的是真实净额（财产差值），财产没覆盖到这个月才退回账本净额
     var real = realNetOf(month.name, realNets);
     var net = real === null ? income + expense : real;
+    // 卡片跟详情页同一套提醒：差额超 1000 且还没写备注，净额右上角点一颗黄点
+    var diff = real === null ? null : real - (income + expense);
+    var needs = diff !== null && Math.abs(diff) > ADJUST_ALERT && !adjustNoteOf(month.name);
     // 只认「…年…月」里的月，别让正则先咬到年份的「20」
     var m = /^\d{4}年(\d{1,2})月$/.exec(month.name);
     var center = i === ci;
@@ -2712,7 +2685,9 @@
       '<div class="gcard-in">' +
         '<div class="gcard-year">' + esc(month.name.slice(0, 5)) + '</div>' +
         '<div class="gcard-mon">' + esc(m ? m[1] : month.name) + '<span>月</span></div>' +
-        '<div class="gcard-net ' + tone(net) + '">' + signed(net) + '</div>' +
+        '<div class="gcard-net ' + tone(net) + '">' + signed(net) +
+          (needs ? '<span class="adj-mark gcard-mark" aria-label="差额较大，进入本月可补充备注"></span>' : '') +
+        '</div>' +
         '<div class="gcard-cap">净额</div>' +
         detail +
       '</div>' +
@@ -3949,12 +3924,11 @@
   });
 
   document.getElementById('btn-cancel').addEventListener('click', closeEditor);
-  // 主 tab「财产 / 收支 / 预算」：各回到自己域下上次看的那种子视图
+  // 主 tab「财产 / 收支 / 预算」：一律进各自的第一种子视图，不记上次看的是哪条子 tab
   document.getElementById('view-parent').addEventListener('click', function (event) {
     var btn = event.target.closest('button[data-parent]');
     if (!btn) return;
-    var p = btn.dataset.parent;
-    setView(p === 'assets' ? state.assetView : p === 'budget' ? state.budgetView : state.incomeView);
+    setView(FIRST_VIEW[btn.dataset.parent] || 'tree');
   });
   // 三条子 tab 各挂一份，点谁都是切到 data-view 指定的视图
   function onSubViewClick(event) {
