@@ -698,12 +698,14 @@
     var open = note && !plain;
     var classes = (spanCls ? spanCls + ' ' : '') + 'adj-amt ' + (value ? tone(value) : 'zero') +
       (open ? ' adj-has' : '');
-    var inner = value ? signed(value) : '—';
+    // 数字单独裹一层 .adj-num：角标相对「数字」的右上角定位，三处（详情/对比/画廊卡）才对得齐
+    var num = value ? signed(value) : '—';
+    if (!plain && needs) {
+      num += '<button type="button" class="adj-mark" data-adjust-alert="' + esc(monthName) +
+        '" aria-label="差额较大，点击补充备注"></button>';
+    }
+    var inner = '<span class="adj-num">' + num + '</span>';
     if (!plain) {
-      if (needs) {
-        inner += '<button type="button" class="adj-mark" data-adjust-alert="' + esc(monthName) +
-          '" aria-label="差额较大，点击补充备注"></button>';
-      }
       if (note) inner += '<span class="tip">' + tipHtml([note]) + '</span>';
       else if (needs) inner += '<span class="tip">差额较大，点击补充备注</span>';
     }
@@ -1186,23 +1188,28 @@
   }
 
   function budgetHintText() {
-    // 三段固定骨架：怎么算 → 口径 → 怎么改，跟财产明细那条对齐
-    return '<p>' +
+    return '<p><b>怎么算</b><br>' +
         '本月预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成<br>' +
         '本月结余 = 本月预算 − 本月花销 + 特殊收入计入<br>' +
-        '本月花销 = 「娱乐支出」合计 + 「特殊支出」合计/2' +
+        '本月花销 = 娱乐支出合计 + 特殊支出合计 ÷ 2' +
       '</p><p>' +
-        '法定假日按国家法定节假日天数计算，国庆按 3 天。<br>' +
-        '表尾虚线行为下月预告，只列预算与结余，不计入记录。' +
+        '<b>口径</b>：法定假日按国家法定节假日天数（国庆算 3 天）；表尾虚线行是下月预告，只列预算与结余。' +
       '</p><p>' +
-        '「特殊收入计入」「偶发加成」双击编辑，数字与说明一并保存。<br>' +
-        '数字下带虚线的格子悬停显示明细：「本月花销」拆为娱乐支出、特殊支出两项。' +
+        '<b>怎么改</b>：双击「特殊收入计入」「偶发加成」改数字与说明；数字下带虚线的格子悬停看拆解。' +
+      '</p>';
+  }
+
+  // 预算 › 图表：跟明细表同源同口径，这里只讲怎么读这张图
+  function budgetChartsHintText() {
+    return '<p><b>画的是什么</b>：每个月三根柱——本月预算、本月花销、本月结余，口径与「明细」表一致。' +
+      '</p><p>' +
+        '<b>怎么看</b>：结余落在零线以上为有结余（红），以下为超支（绿）；柱下写月份。' +
       '</p>';
   }
 
   function renderBudget(data, year) {
+    pendingHint = budgetHintText();
     if (!data || !data.rows.length) {
-      pendingHint = '';
       if (state.search.trim()) return '';
       return '<p class="cmp-hint">' +
         (year === null ? '还没有数据。' : year + '年还没有可推算的月份。') +
@@ -1248,14 +1255,13 @@
       '<td><span class="zero">—</span></td>' +
       '<td class="cmp-total">' + money(data.preview.budget) + '</td></tr>' : '';
 
-    pendingHint = budgetHintText();
     return '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
       openingRow + body + previewRow + '</tbody></table>';
   }
 
   // 预算 › 图表：表里每行的三列画成三根柱，跟「明细」那张表同域
   function renderBudgetCharts(data) {
-    pendingHint = '';
+    pendingHint = budgetChartsHintText();
     return '<div class="charts">' +
       chartCard('预算 · 花销 · 结余', budgetSub(data), renderBudgetBars(data, chartWidth())) +
     '</div>';
@@ -1628,24 +1634,32 @@
   }
 
   function assetsHintText() {
-    // 只讲看不出来的：格内数字的口径、两个总计口径、不显眼的操作
-    return '<p>' +
-        '格内数字为该月月末余额，下方小字为该月相对上月的增减。' +
+    return '<p><b>读数</b>：格内是当月月末余额，下方小字是较上月的增减。' +
       '</p><p>' +
-        '「总资产（含公积金）」计入公积金账户，「总资产（不含公积金）」只计可用资金，两个口径并列。' +
+        '<b>两个总计</b>：「含公积金」把公积金账户一并计入，「不含公积金」只计可用资金，两行并列。' +
       '</p><p>' +
-        '双击格子编辑月末余额，回车或失焦保存；资产项备注双击名称编辑，一次修改同步到该项各月。<br>' +
-        '「＋ 新增月份」按上月余额铺开新月，「＋ 新增资产项」为每个已有月份各加一行。<br>' +
-        '行尾 × 删除该项在各月的记录，删除后可撤销。' +
+        '<b>怎么改</b>：双击格子改月末余额；双击资产项名称写备注，一次修改同步到该项各月。' +
+      '</p><p>' +
+        '<b>工具条</b>：「＋ 新增月份」按上月余额铺开新月，「＋ 新增资产项」为每个已有月份各加一行。' +
+      '</p>';
+  }
+
+  // 财产 › 图表：两张图分别讲什么、口径如何
+  function assetChartsHintText() {
+    return '<p><b>总资产走势</b>：按月末余额逐月连线，两条线分别是「含公积金」与「不含公积金」。' +
+      '</p><p>' +
+        '<b>各应用占比</b>：取最后一个月的月末余额，按应用拆分，环形中心为含公积金的总资产。' +
+      '</p><p>' +
+        '<b>区间</b>：两张图都跟随上方的月份区间；点年份胶囊可切换年份。' +
       '</p>';
   }
 
   function renderAssets(year) {
     state.assetsYear = year;
+    pendingHint = assetsHintText();
     var full = buildAssets(year);
     var data = sliceAssets(full);
     if (!data.months.length) {
-      pendingHint = '';
       if (state.search.trim()) return '';
       if (full.months.length) {
         return '<p class="cmp-hint">该月份区间内没有财产记录。把「' + esc(rangeLabel()) +
@@ -1683,9 +1697,6 @@
             state.assetNoteEdit.app === it.app && state.assetNoteEdit.name === it.name
             ? ' editing' : '') + '"><span class="cell">' +
             assetNameCell(it) +
-            '<button type="button" class="asset-del" title="删掉这个资产项"' +
-              ' data-asset-del-app="' + esc(it.app) + '"' +
-              ' data-asset-del-name="' + esc(it.name) + '">×</button>' +
           '</span></th>' +
           it.cells.map(function (c, i) {
             return assetCell(c, i ? it.cells[i - 1] : null, i === 0, lockedCols[i]);
@@ -1704,7 +1715,6 @@
       '</tr>';
     }).join('');
 
-    pendingHint = assetsHintText();
     return (state.assetsForm ? assetForm(state.assetsForm) : '') +
       '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
       body + sumRows + '</tbody></table>';
@@ -1850,49 +1860,8 @@
     });
   }
 
-  // 删一个资产项 = 把它在各月的记录一起归档，撤销时整批恢复
-  function removeAssetItem(app, name) {
-    var ids = state.assets.filter(function (a) { return a.app === app && a.name === name; })
-      .map(function (a) { return a.id; });
-    if (!ids.length) return;
-    var done = [];
-    setLoading(true);
-
-    function step(i) {
-      if (i >= ids.length) return Promise.resolve();
-      setAssetProgress('正在删除 ' + (i + 1) + '/' + ids.length + ' 条…');
-      return notion('/pages/' + ids[i], { method: 'PATCH', body: JSON.stringify({ archived: true }) })
-        .then(function () { done.push(ids[i]); return step(i + 1); });
-    }
-
-    function settle(message) {
-      state.assets = state.assets.filter(function (a) { return done.indexOf(a.id) === -1; });
-      setAssetProgress('');
-      render();
-      setLoading(false);
-      if (message) toast(message, false);
-      else toast('已删除「' + name + '」', true, {
-        label: '撤销',
-        run: function () { restoreAssetRows(done); }
-      });
-    }
-
-    step(0).then(function () { settle(null); })
-      .catch(function (err) { settle('删除「' + name + '」失败：' + err.message); });
-  }
-
-  function restoreAssetRows(ids) {
-    setLoading(true);
-    function step(i) {
-      if (i >= ids.length) return Promise.resolve();
-      return notion('/pages/' + ids[i], { method: 'PATCH', body: JSON.stringify({ archived: false }) })
-        .then(function () { return step(i + 1); });
-    }
-    step(0).then(function () { return fetchAssets(); })
-      .then(function () { render(); toast('已恢复 ' + ids.length + ' 条'); })
-      .catch(function (err) { toast(err.message, false); })
-      .then(function () { setLoading(false); });
-  }
+  // 表格里不再提供删除：资产项一次归档就是各月多条记录，误点的代价太大（撤销也只是补救），
+  // 需要删的时候走 Notion 端，页面上只保留「新增」与「就地改数」
 
   function createAssetItem(app, name, months) {
     app = String(app || '').trim();
@@ -2292,7 +2261,7 @@
 
   // 图跟着它画的数据待在同一个域里：预算图进「预算 › 图表」、收支图进对比视图，财产图在「财产 › 图表」
   function renderAssetCharts(year) {
-    pendingHint = '';
+    pendingHint = assetChartsHintText();
     var w = chartWidth();
     // 图跟明细同一份区间：区间一收，走势和占比都跟着只看那几个月
     var assets = sliceAssets(buildAssets(year));
@@ -2456,28 +2425,27 @@
   // 收支 › 月度：只说看不出来的——净额的口径、纠偏条目的含义、不显眼的操作。
   // 版面（卡片横排、三级树、哪张居中）一眼可见，不占篇幅
   function treeHintText() {
-    return '<p>' +
-        '净额取真实净额，即当月的财产差值（含公积金口径，本月月末 − 上月月末）；财产未覆盖的月份退回账本净额。<br>' +
-        '「净额纠偏」为真实净额与账本净额的差额，列在分类之后。金额本身不可编辑，也不计入收入与支出；' +
-        '差额超过 1,000 时提示补充备注，点提示或双击备注文字即可填写。<br>' +
-        '顶栏净额 = 账本净额 + 各月纠偏合计。' +
+    return '<p><b>净额</b>：取当月财产差值（含公积金口径，本月月末 − 上月月末）；财产未覆盖的月份退回账本净额。' +
       '</p><p>' +
-        '收入为红、支出为绿，金额按万分位。' +
+        '<b>净额纠偏</b>：真实净额与账本净额的差额，列在分类之后，不计入收支。差额超 1,000 时提示补充备注，点提示或双击备注文字填写。' +
       '</p><p>' +
-        '双击明细的金额或名称就地编辑，回车或失焦保存，Esc 取消。<br>' +
-        '分类行与子类行行尾的 ＋ 在该处新增，明细行行尾的 × 删除。<br>' +
-        '子类标签在所有分类之间共享，由左侧的标签按钮管理。' +
+        '<b>顶栏净额</b> = 账本净额 + 各月纠偏合计。' +
+      '</p><p>' +
+        '<b>编辑</b>：双击明细金额或名称就地改，回车或失焦保存，Esc 取消。' +
+      '</p><p>' +
+        '<b>增删</b>：分类行、子类行行尾的 ＋ 新增，明细行行尾的 × 删除；子类标签由标签按钮管理。' +
       '</p>';
   }
 
   // 收支 › 对比：只说口径——净额不来自表内各分类之和，纠偏行得这么读
   function compareHintText() {
-    return '<p>' +
-        '「净额」取真实净额，即当月的财产差值（含公积金口径）；财产未覆盖的月份退回账本净额。<br>' +
-        '「净额纠偏」行列在分类与净额之间，读作：分类合计 + 纠偏 = 净额。只有财产覆盖到的月份才有值；' +
-        '差额超过 1,000 的月份可在该格补充备注，双击备注文字可修改。<br>' +
+    return '<p><b>净额</b>：取当月财产差值（含公积金口径）；财产未覆盖的月份退回账本净额。' +
       '</p><p>' +
-        '此表只读，改数请到「月度」视图。' +
+        '<b>净额纠偏</b>：列在分类与净额之间，读作「分类合计 + 纠偏 = 净额」，只有财产覆盖的月份才有值。' +
+      '</p><p>' +
+        '<b>备注</b>：差额超 1,000 的月份可在该格补充备注，双击备注文字修改。' +
+      '</p><p>' +
+        '<b>只读</b>：改数请到「月度」视图。' +
       '</p>';
   }
 
@@ -2685,9 +2653,9 @@
       '<div class="gcard-in">' +
         '<div class="gcard-year">' + esc(month.name.slice(0, 5)) + '</div>' +
         '<div class="gcard-mon">' + esc(m ? m[1] : month.name) + '<span>月</span></div>' +
-        '<div class="gcard-net ' + tone(net) + '">' + signed(net) +
+        '<div class="gcard-net ' + tone(net) + '"><span class="adj-num">' + signed(net) +
           (needs ? '<span class="adj-mark gcard-mark" aria-label="差额较大，进入本月可补充备注"></span>' : '') +
-        '</div>' +
+        '</span></div>' +
         '<div class="gcard-cap">净额</div>' +
         detail +
       '</div>' +
@@ -3624,7 +3592,7 @@
   treeEl.addEventListener('click', function (event) {
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
-      '[data-asset-del-app],[data-asset-form-save],[data-asset-form-cancel],' +
+      '[data-asset-form-save],[data-asset-form-cancel],' +
       '[data-adjust-alert],' +
       '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center]');
     if (!target) return;
@@ -3669,7 +3637,6 @@
       if (monthLocked(entryMonthOf(data.delConfirm), 'ledger')) return lockedToast();
       return removeEntry(data.delConfirm);
     }
-    if (data.assetDelApp) return removeAssetItem(data.assetDelApp, data.assetDelName);
     if (data.assetFormCancel) { state.assetsForm = null; return render(); }
     if (data.assetFormSave) return submitAssetForm();
   });
