@@ -170,7 +170,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .totals { display: flex; gap: 6px; }
 
-/* 顶栏右侧一组：笔数 + 收入/支出/净额。年份已经挪到最左，这里只放读数 */
+/* 顶栏右侧一组：一格数据域状态位 + 收入/支出/净额读数。年份已经挪到最左，这里只放读数 */
 .metrics { display: flex; align-items: center; gap: 10px; margin-left: auto; min-width: 0; }
 
 .chip {
