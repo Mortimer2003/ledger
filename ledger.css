@@ -885,15 +885,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp thead .cmp-month .yr { display: block; font-size: 10.5px; font-weight: 400; color: var(--text-3); }
 .cmp thead .cmp-month .mo { display: block; font-size: 12.5px; color: var(--text-2); }
 
-/* 首列：项目名吸左。给它一个明确宽度，月份少、表格被 min-width:100% 拉满时，
-   多出的宽度才会分给月份列；否则自动布局会按各列内容宽度按比例分，
-   首列内容最长就被撑得最宽 */
+/* 首列：项目名吸左。width:1% 让这一列收缩到「最长项」的内容宽度，
+   多出的宽度全分给月份列；写死 px 会在项目名很短时留下一大段空白 */
 .cmp .cmp-item {
   position: sticky;
   left: 0;
   z-index: 2;
-  width: 200px;
-  min-width: 132px;
+  width: 1%;
   text-align: left;
   border-right: 1px solid var(--line);
 }
@@ -1034,7 +1032,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* 锁住的历史月份格：撤掉「可编辑」的悬停线索，看起来就知道动不了；
    data-* 还留着，双击照样给一句提示 */
 .cmp.budget td.cmp-edit.locked { cursor: default; }
-.cmp.budget td.cmp-edit.locked:hover { box-shadow: none; background: transparent; }
+/* 只撤边框，底色仍跟整行悬浮一致，否则整行变灰、这一格却是页面底色，看着像块黑洞 */
+.cmp.budget td.cmp-edit.locked:hover { box-shadow: none; background: var(--row-hover); }
 
 .cmp.budget td.cmp-edit input {
   width: 84px;
@@ -1267,7 +1266,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 /* 锁住的历史月份格：同预算，撤掉可编辑的悬停线索 */
 .cmp.assets td.cmp-edit.locked { cursor: default; }
-.cmp.assets td.cmp-edit.locked:hover { box-shadow: none; background: transparent; }
+.cmp.assets td.cmp-edit.locked:hover { box-shadow: none; background: var(--row-hover); }
 .cmp.assets td.cmp-edit.editing { box-shadow: inset 0 0 0 1px var(--accent); }
 .cmp.assets td.cmp-edit input {
   width: 84px;
@@ -1600,7 +1599,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   /* 窄屏把操作位和缩进一起收窄，缩进线靠这几个变量跟着走 */
   :root { --tail: 30px; --ind-sub: 8px; --ind-leaf: 16px; }
   .view-switch button { padding: 4px 8px; }
-  .cmp .cmp-item { width: 132px; min-width: 104px; }
   .cmp .cmp-total { width: 88px; min-width: 78px; }
 }
 
