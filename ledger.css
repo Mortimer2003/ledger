@@ -389,6 +389,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .row.lv1 { background: var(--bg-soft); padding: 8px 10px; margin-top: 10px; }
 .row.lv1 .name { font-size: 14.5px; font-weight: 600; }
 .row.lv2 .name { font-size: 13.5px; font-weight: 500; }
+/* 分类行当小节标题用：跟月份行同一套「有底色 = 段落头」的语言，浅底把 5 个分类切段，
+   子类/明细保持透明（只在悬停时上色），免得整棵树糊成一色。
+   底色会盖住 .row:hover 那层很淡的 hover，所以这里单独给一条更明显的悬停色 */
+.row.lv2 { background: var(--bg-soft); }
+.row.lv2:hover { background: var(--line); }
 .row.lv3 .name { font-size: 13.5px; color: var(--text-2); }
 
 .chev {
