@@ -1316,8 +1316,9 @@
 
   // 视图级工具是各视图共用的同一个 DOM，就挂在正文顶上；各视图只显隐自己那几个按钮，
   // 所以「新增」类操作不管在哪个视图都在同一处，不会一个跑顶栏一个跑正文。
-  // 画廊里工具条改悬浮（.float）：不占行，标签按钮落在右上角，上下留白才对称
-  function renderViewBar(mode, hasHint, isGallery) {
+  // 画廊里工具条改悬浮（.float）：不占行，标签按钮落在右上角，上下留白才对称。
+  // 说明按钮不在这儿——它跟着子 tab 住在顶栏第二行，所以预算这种只有说明的视图整条工具条收起
+  function renderViewBar(mode, isGallery) {
     var isTree = mode === 'tree';
     var isAssets = mode === 'assets';
     btnTagsEl.hidden = !isTree;
@@ -1325,7 +1326,7 @@
     // 一个资产月都没有时铺不了新月，按钮先收着
     btnAssetMonthEl.hidden = !isAssets || !assetMonthsInView().length;
     viewBarEl.className = 'view-bar' + (isGallery ? ' float' : '');
-    viewBarEl.hidden = !(isTree || isAssets || hasHint);
+    viewBarEl.hidden = !(isTree || isAssets);
   }
 
   function assetsHintText() {
@@ -2088,7 +2089,7 @@
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
     renderHint(pendingHint);
-    renderViewBar(mode, !!pendingHint, monthly === 'gallery');
+    renderViewBar(mode, monthly === 'gallery');
 
     var today = new Date();
     var nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
