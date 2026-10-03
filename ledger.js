@@ -131,6 +131,7 @@
   var treeEl = document.getElementById('tree');
   var emptyEl = document.getElementById('empty');
   var cmpBarEl = document.getElementById('cmp-bar');
+  var rangeBarEl = document.getElementById('range-bar');
   var totalsEl = document.getElementById('totals');
   var countEl = document.getElementById('count');
   var hintWrapEl = document.getElementById('hint-wrap');
@@ -747,23 +748,48 @@
     '</td>';
   }
 
-  // 年份改下拉选择：选项没变就不重建，免得每次 render 都把下拉框的焦点和展开状态弄丢
-  function renderCmpBar(years, active, withRange) {
-    cmpBarEl.hidden = !years.length && !withRange;
-    var sig = years.join(',') + '|' + active + '|' +
-      (withRange ? state.rangeFrom + '-' + state.rangeTo : '');
+  // 年份下拉改下拉选择：选项没变就不重建，免得每次 render 都把下拉框的焦点和展开状态弄丢
+  function renderCmpBar(years, active) {
+    cmpBarEl.hidden = !years.length;
+    var sig = years.join(',') + '|' + active;
     if (cmpBarEl.dataset.sig === sig) return;
     cmpBarEl.dataset.sig = sig;
-    var html = '';
-    if (years.length) {
-      html += '<select class="year-select" title="年份">' +
-        years.map(function (y) {
-          return '<option value="' + esc(String(y)) + '"' + (y === active ? ' selected' : '') + '>' +
-            (y === CMP_OTHER ? '未标月份' : y + ' 年') + '</option>';
-        }).join('') + '</select>';
-    }
-    if (withRange) html += monthRangePick();
-    cmpBarEl.innerHTML = html;
+    cmpBarEl.innerHTML = years.length
+      ? '<select class="year-select" title="年份">' +
+          years.map(function (y) {
+            return '<option value="' + esc(String(y)) + '"' + (y === active ? ' selected' : '') + '>' +
+              (y === CMP_OTHER ? '未标月份' : y + ' 年') + '</option>';
+          }).join('') + '</select>'
+      : '';
+  }
+
+  // 月份区间条：只有当前视图这一年真有多个月份才摆——一个月没什么可收的。
+  // 同样按签名重建，避免重绘把弹层的开合和焦点弄丢
+  function renderRangeBar(months) {
+    var show = months.length > 1;
+    rangeBarEl.hidden = !show;
+    var sig = show ? state.rangeFrom + '-' + state.rangeTo + '|' + months.join(',') : '';
+    if (rangeBarEl.dataset.sig === sig) return;
+    rangeBarEl.dataset.sig = sig;
+    // 重建意味着旧弹层已经不在 DOM 里了，开合状态跟着归零
+    state.rangeOpen = false;
+    state.rangeAnchor = null;
+    state.rangeHover = null;
+    rangeBarEl.innerHTML = show ? monthRangePick(months) : '';
+  }
+
+  // 月份条只摆「这一年真有数据的月份」：没数据的月份选了也是空表，摆上去只会让人白点一下。
+  // 对比视图看账本，财产明细/图表看财产数据源，各取各的
+  function rangeMonths(mode, year, yearEntries) {
+    var names = mode === 'compare'
+      ? yearEntries.map(function (e) { return e.month || UNSET_MONTH; })
+      : assetMonths(year);
+    var seen = {}, out = [];
+    names.forEach(function (name) {
+      var n = monthNum(name);
+      if (n !== null && !seen[n]) { seen[n] = true; out.push(n); }
+    });
+    return out.sort(function (a, b) { return a - b; });
   }
 
   // 区间在胶囊上的写法：整年只说「全年」，单月说「8 月」，其余「7–9 月」
@@ -774,14 +800,13 @@
       : state.rangeFrom + '–' + state.rangeTo + ' 月';
   }
 
-  // 月份区间：一颗胶囊顶着当前区间，点开是一条 12 格的月份条，两下成区间（点起、点止）。
-  // 弹层常驻 DOM，只是收起来；开合只翻 hidden，不整页重绘
-  function monthRangePick() {
+  // 月份区间：一颗胶囊顶着当前区间，点开是一条月份条，两下成区间（点起、点止）。
+  // 条上只铺这个视图真有数据的月份；弹层常驻 DOM，开合只翻 hidden，不整页重绘
+  function monthRangePick(months) {
     var full = state.rangeFrom === 1 && state.rangeTo === 12;
-    var cells = '';
-    for (var n = 1; n <= 12; n++) {
-      cells += '<button type="button" class="rm" data-rm="' + n + '" aria-label="' + n + ' 月">' + n + '</button>';
-    }
+    var cells = months.map(function (n) {
+      return '<button type="button" class="rm" data-rm="' + n + '" aria-label="' + n + ' 月">' + n + '</button>';
+    }).join('');
     return '<div class="range-pick">' +
       '<button type="button" class="range-btn" data-range-toggle aria-haspopup="true" aria-expanded="false">' +
         '<span class="range-text">' + esc(rangeLabel()) + '</span>' +
@@ -2333,7 +2358,7 @@
       ? (years.indexOf(state.cmpYear) !== -1 ? state.cmpYear : years[0])
       : null;
     // 只有对比、财产明细/图表给月份区间；区间一收，表列和顶栏读数一起跟着缩
-    renderCmpBar(years, year, RANGE_VIEWS.indexOf(mode) !== -1);
+    renderCmpBar(years, year);
 
     var scoped = year !== null ? scopeToYear(entries, year) : entries;
     // 对比视图的读数按区间再裁一道，跟表里铺出来的月份对齐；其余视图不受区间影响
@@ -2343,6 +2368,8 @@
 
     // 预算只按年份过滤，不受搜索影响
     var yearEntries = year !== null ? scopeToYear(all, year) : all;
+    // 月份区间条要等年份定下来才知道有哪些月，且只摆真有数据的月份
+    renderRangeBar(RANGE_VIEWS.indexOf(mode) !== -1 ? rangeMonths(mode, year, yearEntries) : []);
     var budgetData = buildBudget(yearEntries, year);
     var budgetNext = nextBudget(budgetData);
     var isBudgetView = mode === 'budget' || mode === 'budgetCharts';
@@ -3828,7 +3855,7 @@
     }
   });
 
-  // 年份下拉挂在 #cmp-bar 上；月份区间走胶囊 + 弹层，各自认各自的
+  // 年份下拉住在顶栏第一行，月份区间条住在第二行，各挂各的
   cmpBarEl.addEventListener('change', function (event) {
     var sel = event.target.closest('select.year-select');
     if (sel) setCmpYear(sel.value === CMP_OTHER ? CMP_OTHER : Number(sel.value));
@@ -3836,7 +3863,7 @@
 
   // 月份区间：点胶囊开合弹层；点第一个月定起点，点第二个月成区间；
   // 「全年」一键复位。选到一半时鼠标划过的月份跟着亮，落点前先看清那一段
-  cmpBarEl.addEventListener('click', function (event) {
+  rangeBarEl.addEventListener('click', function (event) {
     if (event.target.closest('[data-range-toggle]')) {
       if (state.rangeOpen) closeRange(); else openRange();
       return;
@@ -3856,7 +3883,7 @@
     setRange(a, b);
   });
 
-  cmpBarEl.addEventListener('mouseover', function (event) {
+  rangeBarEl.addEventListener('mouseover', function (event) {
     if (state.rangeAnchor === null) return;
     var cell = event.target.closest('[data-rm]');
     var n = cell ? Number(cell.dataset.rm) : null;
@@ -3865,7 +3892,7 @@
     paintRange();
   });
 
-  cmpBarEl.addEventListener('mouseleave', function () {
+  rangeBarEl.addEventListener('mouseleave', function () {
     if (state.rangeAnchor === null || state.rangeHover === null) return;
     state.rangeHover = null;
     paintRange();
