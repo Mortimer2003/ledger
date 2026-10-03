@@ -42,9 +42,10 @@
   var MAX_RETRY = 3;
 
   // 视图白名单，顺序跟顶栏按钮一致。两个父级各有自己的一条子 tab：
-  // 「收支」下是 月度/对比/预算/图表，「财产」下是 明细/图表——图跟它画的数据待在同一个域里
-  var VIEWS = ['tree', 'compare', 'budget', 'charts', 'assets', 'assetCharts'];
-  var INCOME_VIEWS = ['tree', 'compare', 'budget', 'charts'];
+  // 「收支」下是 月度/对比/预算，「财产」下是 明细/图表——图跟它画的数据合在同一个视图里
+  // （预算图并进预算视图、收支图并进对比视图），不再单开一个「图表」页
+  var VIEWS = ['tree', 'compare', 'budget', 'assets', 'assetCharts'];
+  var INCOME_VIEWS = ['tree', 'compare', 'budget'];
   var ASSET_VIEWS = ['assets', 'assetCharts'];
 
   // ---------- 娱乐预算 ----------
@@ -111,7 +112,6 @@
   var hintPopEl = document.getElementById('hint-pop');
   var btnHintEl = document.getElementById('btn-hint');
   var btnTagsEl = document.getElementById('btn-tags');
-  var btnMonthEl = document.getElementById('btn-month');
   var viewBarEl = document.getElementById('view-bar');
   var btnAssetMonthEl = document.getElementById('btn-asset-month');
   var btnAssetItemEl = document.getElementById('btn-asset-item');
@@ -582,13 +582,24 @@
   }
 
   // entries 已经裁到某一年，这里只负责把该年的月份铺成列
+  function compareHintText() {
+    return '<p>' +
+      '表格按月份横向铺列，同一分类落在同一行，一眼比出各月的差别；' +
+      '分类前面带箭头的可以点开收起子类。' +
+      '表下面那张「月度收入 / 支出」柱图跟着左上角选的年份走：' +
+      '每月两根柱就是表里当月收入合计和支出合计，中间那条横线是零线，' +
+      '柱子在线上是收入、线下是支出。</p>';
+  }
+
   function renderCompare(entries) {
     var data = buildComparison(entries);
     if (!data.months.length) {
       // 搜索没匹配时交给全局那颗提示，别在这儿再说一遍「这一年还没有记账」
       if (state.search.trim()) return '';
+      pendingHint = '';
       return '<p class="cmp-hint">这一年还没有记账。对比表按月份铺列，先在「月度」里记几笔，这里就能横向比了。</p>';
     }
+    pendingHint = compareHintText();
 
     var head = '<tr><th class="cmp-item"><span class="cell">项目</span></th>' +
       data.months.map(function (m) {
@@ -635,7 +646,11 @@
     '</tr>';
 
     return '<table class="cmp"><thead>' + head + '</thead><tbody>' +
-      body + netRow + '</tbody></table>';
+      body + netRow + '</tbody></table>' +
+      // 图跟表同视图：两根柱就是表里每月的收入合计和支出合计
+      '<div class="view-chart">' +
+        chartCard('月度收入 / 支出', '', renderIncomeBars(entries, chartWidth())) +
+      '</div>';
   }
 
   function setCmpYear(year) {
@@ -943,8 +958,12 @@
       '<td class="cmp-total">' + money(data.preview.budget) + '</td></tr>' : '';
 
     pendingHint = budgetHintText();
+    // 图跟表同视图：预算、花销、结余三根柱就是这张表每行的三列，画在表下方一起看
     return '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
-      openingRow + body + previewRow + '</tbody></table>';
+      openingRow + body + previewRow + '</tbody></table>' +
+      '<div class="view-chart">' +
+        chartCard('预算 · 花销 · 结余', budgetSub(data), renderBudgetBars(data, chartWidth())) +
+      '</div>';
   }
 
   // 顶栏读数取最后一个有数据的月份的结余
@@ -1283,7 +1302,6 @@
     var isTree = mode === 'tree';
     var isAssets = mode === 'assets';
     btnTagsEl.hidden = !isTree;
-    btnMonthEl.hidden = !isTree;
     btnAssetItemEl.hidden = !isAssets;
     // 一个资产月都没有时铺不了新月，按钮先收着
     btnAssetMonthEl.hidden = !isAssets || !assetMonthsInView().length;
@@ -1880,6 +1898,12 @@
 
   // 预算 / 花销 / 结余：结余可以是负的（超支），所以带零线。
   // 预算走中性灰（表格里也不上色），花销走支出色，结余按正负——跟预算表一个规矩
+  // 副标题写清楚画的是哪几个月，跟表里铺的月份对上
+  function budgetSub(data) {
+    if (!data || !data.rows.length) return '';
+    return monthLabel(data.rows[0].month) + ' – ' + monthLabel(data.rows[data.rows.length - 1].month);
+  }
+
   function renderBudgetBars(data, w) {
     if (!data || !data.rows.length) return '<p class="chart-empty">这一年还没有预算数据。</p>';
     var groups = data.rows.map(function (row) {
@@ -1934,25 +1958,7 @@
     ]));
   }
 
-  // 图跟着它画的数据待在同一个域里：收支下只画收支/预算，财产下只画资产
-  function chartsHintText() {
-    return '<p>' +
-      '两张图都跟着左上角选的年份走。' +
-      '「预算 · 花销 · 结余」里结余可以是负的（超支），所以带一条零线；预算走中性灰、花销走支出色，跟预算表一个规矩。' +
-      '「月度收入 / 支出」两条都按绝对值立起来，红收入、绿支出。</p>';
-  }
-
-  function renderCharts(scoped, budgetData) {
-    pendingHint = chartsHintText();
-    var w = chartWidth();
-    return '<div class="charts">' +
-      chartCard('预算 · 花销 · 结余', budgetData && budgetData.rows.length
-        ? monthLabel(budgetData.rows[0].month) + ' – ' + monthLabel(budgetData.rows[budgetData.rows.length - 1].month)
-        : '', renderBudgetBars(budgetData, w)) +
-      chartCard('月度收入 / 支出', '', renderIncomeBars(scoped, w)) +
-    '</div>';
-  }
-
+  // 图跟着它画的数据待在同一个域里：预算图进预算视图、收支图进对比视图，财产图仍在财产 › 图表
   function assetChartsHintText() {
     return '<p>' +
       '两张图都跟着左上角选的年份走。' +
@@ -2006,7 +2012,7 @@
 
     // 空状态：月度用全局那颗；对比/预算/财产各自在表内讲自己为什么空。
     // 只有「搜索没匹配」仍旧走全局，免得表内的解释跟搜索对不上
-    var emptyTip = '还没有数据，点上方「新增月份账单」开始记录。';
+    var emptyTip = '还没有数据，点画廊末尾的「新建下一个月」开始记录。';
     emptyEl.hidden = scoped.length > 0 || (mode !== 'tree' && !searching);
     if (ASSET_VIEWS.indexOf(mode) !== -1) {
       // 财产跟账本走的是两套数据，账本为空不代表没财产，笔数那儿换成「财产」
@@ -2014,8 +2020,6 @@
     } else if (searching) {
       countEl.textContent = '匹配 ' + scoped.length + ' 笔';
       if (!scoped.length) emptyEl.textContent = '没有匹配「' + state.search.trim() + '」的记录。';
-    } else if (mode === 'charts') {
-      countEl.textContent = '图表';
     } else if (year !== null) {
       countEl.textContent = scoped.length + ' 笔';
       emptyEl.textContent = emptyTip;
@@ -2049,19 +2053,17 @@
     // 点开某个月进详情页，否则停在画廊
     var monthly = mode === 'tree' && !searching ? (state.monthOpen ? 'detail' : 'gallery') : '';
     treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
-      : mode === 'budget' ? ' budget' : (mode === 'charts' || mode === 'assetCharts') ? ' charts'
+      : mode === 'budget' ? ' budget' : mode === 'assetCharts' ? ' charts'
       : mode === 'assets' ? ' assets' : monthly ? ' ' + (monthly === 'gallery' ? 'gal' : monthly) : '');
     treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped)
       : mode === 'budget'
         ? renderBudget(budgetData, year)
-        : mode === 'charts'
-          ? renderCharts(scoped, budgetData)
-          : mode === 'assetCharts'
-            ? renderAssetCharts(year)
-            : mode === 'assets'
-              ? renderAssets(year)
-              : renderMonthly(scoped, searching);
+        : mode === 'assetCharts'
+          ? renderAssetCharts(year)
+          : mode === 'assets'
+            ? renderAssets(year)
+            : renderMonthly(scoped, searching);
     if (monthly === 'gallery') galleryJump();
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
@@ -3364,7 +3366,6 @@
     if (event.target === modalEl) closeEditor();
   });
 
-  document.getElementById('btn-month').addEventListener('click', openMonthBill);
   monthCancelBtn.addEventListener('click', closeMonthBill);
   monthInputEl.addEventListener('input', renderBillPreview);
   monthMaskEl.addEventListener('click', function (event) {
