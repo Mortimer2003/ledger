@@ -752,6 +752,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 /* 说明气泡里的正文：内边距由 .hint-pop 给，这里只清掉段落的默认外边距 */
 .hint-pop p { margin: 0; }
+/* 两条明细说明都按「怎么算/是什么 → 口径 → 怎么改」分了三段，段间给一点呼吸，
+   但比浏览器的默认 1em 紧——气泡只有 540px 宽，松了会显得散 */
+.hint-pop p + p { margin-top: 7px; }
 
 .cmp.budget tbody tr.cmp-open th,
 .cmp.budget tbody tr.cmp-open td {
