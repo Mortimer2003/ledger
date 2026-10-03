@@ -307,6 +307,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   width: var(--gcard-w);
   height: min(var(--gcard-h), 100%);
   scroll-snap-align: center;
+  /* 三张卡都能点（居中进详情、两侧挪到中间），所以整张卡都用手型 */
+  cursor: pointer;
   /* 缩放走 transform，不动布局：滚起来不会因为卡片变宽变窄而抖 */
   transform: scale(.6);
   opacity: .2;
