@@ -296,8 +296,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
      不再挂 58vh：挂 vh 的话，窗口矮 1px 卡片只矮 0.58px、留白矮 0.21px，
      留白缩得比卡片慢得多，看着就像「卡小了、间距没动」。
      改成填满后，窗口怎么变，上下留白都恒定 14px。
-     只留一个上限，免得嵌在很高的窗口里被拉成一根细长条 */
-  --gcard-h: min(100%, 680px);
+     上限 560px：窗口再高也就这么大，免得被拉成 1:2 的细长条
+     （宽上限 340px 在 --gcard-w 那边） */
+  --gcard-h: min(100%, 560px);
   /* 定位基准：居中/滑动都用卡片的 offsetLeft，得让画廊本身是 offsetParent */
   position: relative;
   display: flex;
