@@ -1346,6 +1346,18 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .cmp.assets .cmp-item .editor input::placeholder { color: var(--text-3); }
 
+/* 财产月度详情：一张平表三列（资产项 + 月初 + 月末）+ 分布饼图。
+   月份列定宽，余量全给首列，数字收在右缘，跟对比表同一套观感 */
+.cmp.assets.asset-detail .cmp-month { width: 140px; }
+.cmp.assets.asset-detail .cmp-item { width: auto; }
+/* 月初格：它就是上个月的月末，只读。排版跟可编辑的月末格一致，只是没有悬停线索 */
+.cmp.assets .cmp-static {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.cmp.assets .cmp-static .zero { color: var(--text-3); }
+
 /* ---------- 弹窗 ---------- */
 .mask {
   position: fixed;
