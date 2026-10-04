@@ -2846,7 +2846,7 @@
       // 财产卡片读的是当月两个口径的总资产，环比读上个月的同口径总计
       var totals = assetData ? assetData.totals[0].values : [];
       cards = months.map(function (m, i) {
-        return assetGalleryCard(m.name, i, ci, totals[i], i > 0 ? totals[i - 1] : null);
+        return galleryCard(i, ci, assetCardData(m.name, i > 0 ? totals[i - 1] : null));
       });
       cards.push(galleryNewCard(months.length, ci, nextAssetMonth()));
     } else {
@@ -2858,45 +2858,40 @@
         return real === null ? inc + exp : real;
       });
       cards = months.map(function (m, i) {
-        return galleryCard(m, i, ci, realNets, i > 0 ? nets[i - 1] : null);
+        return galleryCard(i, ci, billCardData(m, realNets, i > 0 ? nets[i - 1] : null));
       });
       cards.push(galleryNewCard(months.length, ci, nextBillMonth()));
     }
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
   }
 
-  // 财产那张卡：跟账本卡同一套骨架（.gcard-in / 年份 / 月份 / 大数字 / 读数 / 环比）。
-  // 大数字是含公积金的总资产，下面那行拆成「不含公积金 + 公积金」两列——
-  // 两列相加正好是卡面那个数，跟账本卡「收入 + 支出 = 净额」是同一个读法
-  function assetGalleryCard(name, i, ci, total, prevTotal) {
-    var all = assetTotalOf(name, '含公积金');
-    var free = assetTotalOf(name, '不含公积金');
-    var m = /^\d{4}年(\d{1,2})月$/.exec(name);
+  // 账本和财产共用同一张月份卡：骨架只写一遍，各域只负责把读数算成一份数据
+  function galleryCard(i, ci, c) {
     var center = i === ci;
-    var detail =
-      '<div class="gcard-io">' +
-        '<span><b>不含公积金</b><i>' + money(free) + '</i></span>' +
-        '<span><b>公积金</b><i>' + money(all - free) + '</i></span>' +
-      '</div>' +
-      '<div class="gcard-delta"><b>总资产较上月</b>' +
-        '<i class="' + (prevTotal === null || prevTotal === undefined ? 'zero' : tone(all - prevTotal)) + '">' +
-        (prevTotal === null || prevTotal === undefined ? '—' : signed(all - prevTotal)) + '</i></div>';
     return '<article class="gcard' + galleryCls(i, ci) + '"' +
-      ' data-gallery-month="' + esc(name) + '"' + (center ? ' data-center="1"' : '') + '>' +
+      ' data-gallery-month="' + esc(c.name) + '"' + (center ? ' data-center="1"' : '') + '>' +
       '<div class="gcard-in">' +
-        '<div class="gcard-year">' + esc(name.slice(0, 5)) + '</div>' +
-        '<div class="gcard-mon">' + esc(m ? m[1] : name) + '<span>月</span></div>' +
-        '<div class="gcard-net">' + money(all) + '</div>' +
-        '<div class="gcard-cap">总资产（含公积金）</div>' +
-        detail +
+        '<div class="gcard-year">' + esc(c.name.slice(0, 5)) + '</div>' +
+        '<div class="gcard-mon">' + esc(c.monthNo) + '<span>月</span></div>' +
+        '<div class="gcard-net' + (c.netCls ? ' ' + c.netCls : '') + '">' + c.netHtml + '</div>' +
+        '<div class="gcard-cap">' + c.cap + '</div>' +
+        '<div class="gcard-io">' + c.readings.map(function (r) {
+          return '<span><b>' + r.label + '</b><i' + (r.cls ? ' class="' + r.cls + '"' : '') + '>' +
+            r.value + '</i></span>';
+        }).join('') + '</div>' +
+        '<div class="gcard-delta"><b>' + c.deltaLabel + '</b>' +
+          '<i class="' + c.deltaCls + '">' + c.deltaText + '</i></div>' +
       '</div>' +
     '</article>';
   }
 
-  function galleryCard(month, i, ci, realNets, prevNet) {
+  // 账本卡的读数：大数字是真实净额（财产差值），两列收入/支出，环比读上个月净额。
+  // 预览每张卡都画一份，滚动时内容不忽增忽减，两侧卡跟着缩放一起变小。
+  // 首月没有上个月可读，环比按缺数写「—」占位，各卡结构一致、行高不差。
+  // 环比得写明是「净额」的环比：紧跟收入/支出下面，只写「较上月」会被当成收支的变化
+  function billCardData(month, realNets, prevNet) {
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
-    // 卡片上读的是真实净额（财产差值），财产没覆盖到这个月才退回账本净额
     var real = realNetOf(month.name, realNets);
     var net = real === null ? income + expense : real;
     // 卡片跟详情页同一套提醒：差额超 1000 且还没写备注，净额右上角点一颗黄点
@@ -2904,30 +2899,45 @@
     var needs = diff !== null && Math.abs(diff) > ADJUST_ALERT && !adjustNoteOf(month.name);
     // 只认「…年…月」里的月，别让正则先咬到年份的「20」
     var m = /^\d{4}年(\d{1,2})月$/.exec(month.name);
-    var center = i === ci;
-    // 预览细节每张月份卡都画一份，滚动时内容不会忽增忽减，两侧卡跟着缩放一起变小。
-    // 首月没有上个月可读，环比按缺数写「—」占位，各卡结构一致、行高不差。
-    // 环比得写明是「净额」的环比：紧跟收入/支出下面，只写「较上月」会被当成收支的变化
-    var detail =
-      '<div class="gcard-io">' +
-        '<span><b>收入</b><i class="pos">' + signed(income) + '</i></span>' +
-        '<span><b>支出</b><i class="neg">' + signed(expense) + '</i></span>' +
-      '</div>' +
-      '<div class="gcard-delta"><b>净额较上月</b>' +
-        '<i class="' + (prevNet === null ? 'zero' : tone(net - prevNet)) + '">' +
-        (prevNet === null ? '—' : signed(net - prevNet)) + '</i></div>';
-    return '<article class="gcard' + galleryCls(i, ci) + '"' +
-      ' data-gallery-month="' + esc(month.name) + '"' + (center ? ' data-center="1"' : '') + '>' +
-      '<div class="gcard-in">' +
-        '<div class="gcard-year">' + esc(month.name.slice(0, 5)) + '</div>' +
-        '<div class="gcard-mon">' + esc(m ? m[1] : month.name) + '<span>月</span></div>' +
-        '<div class="gcard-net ' + tone(net) + '"><span class="adj-num">' + signed(net) +
-          (needs ? '<span class="adj-mark gcard-mark" aria-label="差额较大，进入本月可补充备注"></span>' : '') +
-        '</span></div>' +
-        '<div class="gcard-cap">净额</div>' +
-        detail +
-      '</div>' +
-    '</article>';
+    return {
+      name: month.name,
+      monthNo: m ? m[1] : month.name,
+      netCls: tone(net),
+      netHtml: '<span class="adj-num">' + signed(net) +
+        (needs ? '<span class="adj-mark gcard-mark" aria-label="差额较大，进入本月可补充备注"></span>' : '') +
+        '</span>',
+      cap: '净额',
+      readings: [
+        { label: '收入', value: signed(income), cls: 'pos' },
+        { label: '支出', value: signed(expense), cls: 'neg' }
+      ],
+      deltaLabel: '净额较上月',
+      deltaCls: prevNet === null ? 'zero' : tone(net - prevNet),
+      deltaText: prevNet === null ? '—' : signed(net - prevNet)
+    };
+  }
+
+  // 财产卡的读数：大数字是含公积金的总资产，下面那行拆成「不含公积金 + 公积金」两列——
+  // 两列相加正好是卡面那个数，跟账本卡「收入 + 支出 = 净额」是同一个读法
+  function assetCardData(name, prevTotal) {
+    var all = assetTotalOf(name, '含公积金');
+    var free = assetTotalOf(name, '不含公积金');
+    var hasPrev = prevTotal !== null && prevTotal !== undefined;
+    var m = /^\d{4}年(\d{1,2})月$/.exec(name);
+    return {
+      name: name,
+      monthNo: m ? m[1] : name,
+      netCls: '',
+      netHtml: money(all),
+      cap: '总资产（含公积金）',
+      readings: [
+        { label: '不含公积金', value: money(free) },
+        { label: '公积金', value: money(all - free) }
+      ],
+      deltaLabel: '总资产较上月',
+      deltaCls: hasPrev ? tone(all - prevTotal) : 'zero',
+      deltaText: hasPrev ? signed(all - prevTotal) : '—'
+    };
   }
 
   // 账本和财产共用这一张「新增月份」虚线卡，只有目标月份从外面传进来
