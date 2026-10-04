@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261004-1234">
+<link rel="stylesheet" href="ledger.css?v=20261004-1241">
 
 </head>
 <body>
@@ -64,8 +64,9 @@
         </button>
       </div>
     </div>
-    <!-- 第二行：当前主 tab 下的子视图。财产和收支一样挂 月度/对比，预算挂 明细/图表，
-         三条只露当前主 tab 那一条；右边是这一年的读数 -->
+    <!-- 第二行：当前主 tab 下的子视图。财产和收支一样挂 月度/对比，两条只露当前主 tab
+         那一条；预算只有一屏（表 + 图并在一起），不挂子 tab。
+         右边是这一年的读数 -->
     <div class="bar bar-sub">
       <div class="seg view-switch sub" id="view-sub">
         <button type="button" data-view="tree" class="active">月度</button>
@@ -75,12 +76,8 @@
         <button type="button" data-view="assetMonth" class="active">月度</button>
         <button type="button" data-view="assets">对比</button>
       </div>
-      <div class="seg view-switch sub" id="view-sub-budget" hidden>
-        <button type="button" data-view="budget" class="active">明细</button>
-        <button type="button" data-view="budgetCharts">图表</button>
-      </div>
       <!-- 视图级工具跟在当前主 tab 的子 tab 右侧：说明（每个子视图都有）、标签（只服务账本的月度视图）。
-           三条子 tab 只露一条、其余 display:none，所以这一个 DOM 落在三条之后，
+           两条子 tab 只露一条、另一条 display:none，所以这一个 DOM 落在两条之后，
            就正好贴住当前那条子 tab；说明排在最前，其余按钮一律在它右侧 -->
       <div class="sub-actions">
         <div class="hint-wrap" id="hint-wrap" hidden>
@@ -260,7 +257,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261004-1234"></script>
+<script src="ledger.js?v=20261004-1241"></script>
 
 </body>
 </html>
