@@ -738,6 +738,39 @@
       (open ? ' data-adjust-open="' + esc(monthName) + '"' : '') + '>' + inner + '</span>';
   }
 
+  // —— 跨视图共用的渲染零件：骨架只写一份，各处只报自己的数据 ——
+
+  // 空状态提示：各视图文案不同，但都是同一颗 .cmp-hint
+  function cmpHint(html) { return '<p class="cmp-hint">' + html + '</p>'; }
+
+  // 就地编辑浮层：一或多行「标签 + 输入框」，账本/预算/财产三处共用这一份骨架
+  function editorPanel(fields) {
+    return '<span class="editor">' + fields.map(function (f) {
+      return '<label><span>' + f.label + '</span><input type="' + f.type + '"' +
+        (f.step ? ' step="' + f.step + '"' : '') +
+        ' placeholder="' + f.placeholder + '" value="' + f.value + '"' +
+        (f.attrs ? ' ' + f.attrs : '') + '></label>';
+    }).join('') + '</span>';
+  }
+
+  // 纠偏备注的浮层：对比视图的纠偏格和月度详情的纠偏条目共用同一个字段
+  function adjustNoteEditor() {
+    return editorPanel([{ label: '备注', type: 'text', placeholder: '说明这笔差额的来源',
+      value: esc(state.adjustEdit.draft), attrs: 'data-adjust-note="note"' }]);
+  }
+
+  // 月度详情的标题栏头部：返回 + 月份 + 锁定标记；后面的读数各域自己接
+  function mdetailHead(name, locked) {
+    return '<div class="mdetail-bar">' +
+      '<button type="button" class="icon-btn" data-gallery-back="1" title="返回画廊">' +
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" ' +
+        'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M10 3.5 5.5 8 10 12.5"/></svg>' +
+      '</button>' +
+      '<span class="mdetail-name">' + esc(name) + '</span>' +
+      (locked ? '<span class="lock-tag" title="仅最新一个月可编辑，点顶栏锁形按钮解锁">已锁定</span>' : '');
+  }
+
   // 对比视图里的纠偏格：只放金额（角标/虚线挂在金额上）+ 悬停气泡，
   // 不再单开一行写备注，行高和列宽回到跟普通格子一样
   function cmpAdjustCell(monthName, value) {
@@ -746,12 +779,7 @@
     var cls = editing ? ' editing'
       : note ? ' has-note'
       : (value != null && Math.abs(value) > ADJUST_ALERT) ? ' needs-note' : '';
-    var editor = editing
-      ? '<span class="editor">' +
-          '<label><span>备注</span><input type="text" placeholder="说明这笔差额的来源"' +
-            ' value="' + esc(state.adjustEdit.draft) + '" data-adjust-note="note"></label>' +
-        '</span>'
-      : '';
+    var editor = editing ? adjustNoteEditor() : '';
     return '<td class="cmp-adj' + cls + '">' +
       adjustAmountHtml(value, monthName, '', editing) + editor +
     '</td>';
@@ -888,10 +916,10 @@
       // 搜索没匹配时交给全局那颗提示，别在这儿再说一遍「这一年还没有记账」
       if (state.search.trim()) return '';
       if (entries.length) {
-        return '<p class="cmp-hint">该月份区间内没有记录。把「' + esc(rangeLabel()) +
-          '」放宽，或在「月度」视图里补记。</p>';
+        return cmpHint('该月份区间内没有记录。把「' + esc(rangeLabel()) +
+          '」放宽，或在「月度」视图里补记。');
       }
-      return '<p class="cmp-hint">这一年还没有记账。对比表按月份铺列，先在「月度」视图录入。</p>';
+      return cmpHint('这一年还没有记账。对比表按月份铺列，先在「月度」视图录入。');
     }
 
     var head = '<tr><th class="cmp-item"><span class="cell">项目</span></th>' +
@@ -1198,14 +1226,14 @@
 
     if (editing) {
       return '<td class="cmp-edit editing">' + shown +
-        '<span class="editor">' +
-          '<label><span>数字</span><input type="number" step="1" placeholder="0"' +
-            ' value="' + (value ? esc(String(value)) : '') + '"' +
-            ' data-budget="' + esc(row.month) + '" data-field="' + field + '"></label>' +
-          '<label><span>说明</span><input type="text" placeholder="这笔钱由什么组成，用 + 分隔"' +
-            ' value="' + esc(note) + '"' +
-            ' data-budget-note="' + esc(row.month) + '" data-field="' + field + '"></label>' +
-        '</span></td>';
+        editorPanel([
+          { label: '数字', type: 'number', step: '1', placeholder: '0',
+            value: value ? esc(String(value)) : '',
+            attrs: 'data-budget="' + esc(row.month) + '" data-field="' + field + '"' },
+          { label: '说明', type: 'text', placeholder: '这笔钱由什么组成，用 + 分隔',
+            value: esc(note),
+            attrs: 'data-budget-note="' + esc(row.month) + '" data-field="' + field + '"' }
+        ]) + '</td>';
     }
 
     return '<td class="cmp-edit' + (note ? ' has-note' : '') + (locked ? ' locked' : '') + '"' +
@@ -1255,9 +1283,8 @@
     pendingHint = budgetHintText();
     if (!data || !data.rows.length) {
       if (state.search.trim()) return '';
-      return '<p class="cmp-hint">' +
-        (year === null ? '还没有数据。' : year + '年还没有可推算的月份。') +
-        '娱乐预算自 ' + esc(OPENING_MONTH) + ' 的结余起逐月推算，先在「月度」视图录入。</p>';
+      return cmpHint((year === null ? '还没有数据。' : year + '年还没有可推算的月份。') +
+        '娱乐预算自 ' + esc(OPENING_MONTH) + ' 的结余起逐月推算，先在「月度」视图录入。');
     }
 
     var head = '<tr>' +
@@ -1598,11 +1625,9 @@
     var shown = '<span class="v">' + assetNum(cell.end) + '</span>';
     if (state.assetsEdit && state.assetsEdit.id === cell.id) {
       return '<td class="cmp-edit editing">' + shown + line +
-        '<span class="editor">' +
-          '<label><span>月末</span><input type="number" step="1" placeholder="0"' +
-            ' value="' + (cell.end === null || cell.end === undefined ? '' : esc(String(cell.end))) + '"' +
-            ' data-asset-num="end"></label>' +
-        '</span></td>';
+        editorPanel([{ label: '月末', type: 'number', step: '1', placeholder: '0',
+          value: cell.end === null || cell.end === undefined ? '' : esc(String(cell.end)),
+          attrs: 'data-asset-num="end"' }]) + '</td>';
     }
     return '<td class="cmp-edit' + (locked ? ' locked' : '') + '" data-asset-open="' + esc(cell.id) + '">' +
       shown + line + '</td>';
@@ -1615,10 +1640,8 @@
         state.assetNoteEdit.app === item.app && state.assetNoteEdit.name === item.name) {
       return '<span class="indent"></span>' +
         '<span class="name">' + esc(item.name) + '</span>' +
-        '<span class="editor">' +
-          '<label><span>备注</span><input type="text" placeholder="如「重点关注」"' +
-            ' value="' + esc(state.assetNoteEdit.draft) + '" data-asset-note="note"></label>' +
-        '</span>';
+        editorPanel([{ label: '备注', type: 'text', placeholder: '如「重点关注」',
+          value: esc(state.assetNoteEdit.draft), attrs: 'data-asset-note="note"' }]);
     }
     return '<span class="indent"></span>' +
       '<span class="name asset-note' + (item.note ? ' has-note' : '') + '"' +
@@ -1702,13 +1725,12 @@
     if (!data.months.length) {
       if (state.search.trim()) return '';
       if (full.months.length) {
-        return '<p class="cmp-hint">该月份区间内没有财产记录。把「' + esc(rangeLabel()) +
-          '」放宽即可看到其余月份。</p>' +
+        return cmpHint('该月份区间内没有财产记录。把「' + esc(rangeLabel()) +
+          '」放宽即可看到其余月份。') +
           (state.assetsForm ? assetForm(state.assetsForm) : '');
       }
-      return '<p class="cmp-hint">' +
-        (year === null ? '还没有财产数据。' : year + '年还没有财产记录。') +
-        '财产来自独立的「我的财产」数据源，点「＋ 新增资产项」开始录入。</p>' +
+      return cmpHint((year === null ? '还没有财产数据。' : year + '年还没有财产记录。') +
+        '财产来自独立的「我的财产」数据源，点「＋ 新增资产项」开始录入。') +
         (state.assetsForm ? assetForm(state.assetsForm) : '');
     }
 
@@ -1848,8 +1870,7 @@
     var data = buildAssets(year);
     if (!data.months.length) {
       if (state.search.trim()) return '';
-      return '<p class="cmp-hint">' + assetEmptyText(year) +
-        '财产来自独立的「我的财产」数据源。</p>' +
+      return cmpHint(assetEmptyText(year) + '财产来自独立的「我的财产」数据源。') +
         (state.assetsForm ? assetForm(state.assetsForm) : '');
     }
     if (state.monthOpen && data.months.indexOf(state.monthOpen) !== -1) {
@@ -1913,14 +1934,7 @@
       .sort(function (a, b) { return b.value - a.value; });
 
     return '<div class="mdetail">' +
-      '<div class="mdetail-bar">' +
-        '<button type="button" class="icon-btn" data-gallery-back="1" title="返回画廊">' +
-          '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" ' +
-          'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
-          '<path d="M10 3.5 5.5 8 10 12.5"/></svg>' +
-        '</button>' +
-        '<span class="mdetail-name">' + esc(month) + '</span>' +
-        (locked ? '<span class="lock-tag" title="仅最新一个月可编辑，点顶栏锁形按钮解锁">已锁定</span>' : '') +
+      mdetailHead(month, locked) +
         '<span class="spacer"></span>' +
         '<span class="mdetail-io"><span>不含公积金 <b>' + money(free) + '</b></span></span>' +
         '<span class="mdetail-net">含公积金 ' + money(all) + '</span>' +
@@ -2777,12 +2791,7 @@
   // 差额超过 1000 就在金额角上点一颗小点催补备注，写完换成金额下的一道虚线
   function renderAdjust(diff, monthName) {
     var editing = state.adjustEdit && state.adjustEdit.month === monthName;
-    var editor = editing
-      ? '<span class="editor">' +
-          '<label><span>备注</span><input type="text" placeholder="说明这笔差额的来源"' +
-            ' value="' + esc(state.adjustEdit.draft) + '" data-adjust-note="note"></label>' +
-        '</span>'
-      : '';
+    var editor = editing ? adjustNoteEditor() : '';
     return '<div class="node adjust">' +
       '<div class="row lv2">' +
         '<span class="chev ghost"></span>' +
@@ -2966,14 +2975,7 @@
     var diff = real === null ? null : real - ledgerNet;
     var locked = monthLocked(month.name, 'ledger');
     return '<div class="mdetail">' +
-      '<div class="mdetail-bar">' +
-        '<button type="button" class="icon-btn" data-gallery-back="1" title="返回画廊">' +
-          '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" ' +
-          'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
-          '<path d="M10 3.5 5.5 8 10 12.5"/></svg>' +
-        '</button>' +
-        '<span class="mdetail-name">' + esc(month.name) + '</span>' +
-        (locked ? '<span class="lock-tag" title="仅最新一个月可编辑，点顶栏锁形按钮解锁">已锁定</span>' : '') +
+      mdetailHead(month.name, locked) +
         '<span class="mdetail-io">' +
           '<span class="pos">' + (income ? '+' + money(income) : '—') + '</span>' +
           '<span class="neg">' + (expense ? '−' + money(expense) : '—') + '</span>' +
