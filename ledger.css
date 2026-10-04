@@ -530,6 +530,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
+/* 这条栏的固定高度：返回按钮 28px + 上下内边距 16px + 下边框 1px。
+   财产详情里的表头也要吸顶，得吸在这条栏的下方——两条都停在 top:0 时，
+   表头（z-index 3）会压住标题栏（z-index 2），标题栏只剩底部一截从表头下缘露出来 */
+.mdetail { --mbar-h: 45px; }
+.mdetail-bar { min-height: var(--mbar-h); box-sizing: border-box; }
+.cmp.assets.asset-detail thead th { top: var(--mbar-h); }
 .mdetail-name { font-size: 14.5px; font-weight: 600; }
 /* 详情页顶栏的「已锁定」小标：非最新月才有，跟月份名并排 */
 .lock-tag {
