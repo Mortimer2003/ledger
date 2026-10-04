@@ -1846,7 +1846,7 @@
   }
 
   function assetMonthHintText() {
-    return '<p><b>这是什么</b>：一张卡一个月，卡面是当月总资产（含公积金），下面一行是不含公积金。</p>' +
+    return '<p><b>这是什么</b>：一张卡一个月，卡面是当月总资产（含公积金），下面一行拆成「不含公积金」和「公积金」两项，两者相加就是卡面那个数。</p>' +
       '<p>' +
         '<b>点开看什么</b>：当月每个资产项的月初（上个月月末）与月末并列，末尾是分布饼图。' +
       '</p><p>' +
@@ -2882,8 +2882,9 @@
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
   }
 
-  // 财产那张卡：跟账本卡同一套骨架（.gcard-in / 年份 / 月份 / 大数字 / 读数 / 环比），
-  // 只是读数换成两个口径的总资产，大数字是含公积金的那一个
+  // 财产那张卡：跟账本卡同一套骨架（.gcard-in / 年份 / 月份 / 大数字 / 读数 / 环比）。
+  // 大数字是含公积金的总资产，下面那行拆成「不含公积金 + 公积金」两列——
+  // 两列相加正好是卡面那个数，跟账本卡「收入 + 支出 = 净额」是同一个读法
   function assetGalleryCard(name, i, ci, total, prevTotal) {
     var all = assetTotalOf(name, '含公积金');
     var free = assetTotalOf(name, '不含公积金');
@@ -2892,6 +2893,7 @@
     var detail =
       '<div class="gcard-io">' +
         '<span><b>不含公积金</b><i>' + money(free) + '</i></span>' +
+        '<span><b>公积金</b><i>' + money(all - free) + '</i></span>' +
       '</div>' +
       '<div class="gcard-delta"><b>总资产较上月</b>' +
         '<i class="' + (prevTotal === null || prevTotal === undefined ? 'zero' : tone(all - prevTotal)) + '">' +
