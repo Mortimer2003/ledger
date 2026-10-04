@@ -760,10 +760,12 @@
       value: esc(state.adjustEdit.draft), attrs: 'data-adjust-note="note"' }]);
   }
 
-  // 月度详情的标题栏头部：返回 + 月份 + 锁定标记；后面的读数各域自己接
-  function mdetailHead(name, locked) {
+  // 月度详情的标题栏头部：返回 + 月份 + 锁定标记；后面的读数各域自己接。
+  // 注意：这里只开标题栏那个 div、不闭合，调用方接完读数后自己收尾
+  function mdetailHead(name, locked, backTitle) {
     return '<div class="mdetail-bar">' +
-      '<button type="button" class="icon-btn" data-gallery-back="1" title="返回画廊">' +
+      '<button type="button" class="icon-btn" data-gallery-back="1" title="' +
+        esc(backTitle || '返回画廊') + '">' +
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" ' +
         'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
         '<path d="M10 3.5 5.5 8 10 12.5"/></svg>' +
@@ -1373,13 +1375,14 @@
     }
 
     return '<div class="mdetail">' +
-      mdetailHead(row.month, monthLocked(row.month, 'budget')) +
+      mdetailHead(row.month, monthLocked(row.month, 'budget'), '返回逐月表') +
         '<span class="mdetail-io">' +
           '<span>预算 <b>' + money(row.budget) + '</b></span>' +
           '<span>花销 <b class="neg">−' + money(spend.total) + '</b></span>' +
         '</span>' +
         '<span class="spacer"></span>' +
         '<span class="mdetail-net ' + tone(row.remain) + '">结余 ' + signed(row.remain) + '</span>' +
+      '</div>' +
 
       '<table class="cmp budget bmonth"><thead><tr>' +
         '<th class="cmp-item"><span class="cell"><span class="name">' +
