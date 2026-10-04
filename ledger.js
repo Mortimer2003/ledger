@@ -107,6 +107,7 @@
     galleryAt: readGalleryAt('ledger'), // 月度画廊里居中的月份；null/失效时用最新一个月
     assetGalleryAt: readGalleryAt('assets'), // 财产月度画廊的居中的月份，跟账本各记各的
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
+    budgetOpen: null,           // 预算在看哪个月的推导；null = 停在逐月表
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
     budgetEdit: null,    // 正在就地编辑的预算格：{ month, field }
@@ -1028,6 +1029,7 @@
   // 年份、月份区间、锁定是全局控件，不跟着重置
   function resetViewState() {
     state.monthOpen = null;
+    state.budgetOpen = null;
     state.editing = null;
     state.pendingDelete = null;
     state.budgetEdit = null;
@@ -1279,12 +1281,20 @@
       '</p>';
   }
 
-  function renderBudget(data, year) {
+  function renderBudget(data, year, entries) {
     pendingHint = budgetHintText();
     if (!data || !data.rows.length) {
       if (state.search.trim()) return '';
       return cmpHint((year === null ? '还没有数据。' : year + '年还没有可推算的月份。') +
         '娱乐预算自 ' + esc(OPENING_MONTH) + ' 的结余起逐月推算，先在「月度」视图录入。');
+    }
+
+    // 正在看某个月的推导：换年、换区间之后那个月没了，就退回逐月表
+    if (state.budgetOpen) {
+      var idx = -1;
+      data.rows.forEach(function (row, i) { if (row.month === state.budgetOpen) idx = i; });
+      if (idx !== -1) return renderBudgetMonth(data, idx, entries);
+      state.budgetOpen = null;
     }
 
     var head = '<tr>' +
@@ -1301,7 +1311,9 @@
 
     var body = data.rows.map(function (row) {
       return '<tr>' +
-        '<th class="cmp-item"><span class="cell"><span class="name">' + esc(monthLabel(row.month)) + '</span></span></th>' +
+        // 月份格是进这一月推导详情的入口；偶发加成、特殊收入计入两格仍归双击编辑
+        '<th class="cmp-item openable" data-budget-month="' + esc(row.month) + '">' +
+          '<span class="cell"><span class="name">' + esc(monthLabel(row.month)) + '</span></span></th>' +
         '<td>' + (row.days ? row.days + ' 天' : '<span class="zero">—</span>') + '</td>' +
         budgetInput(row, 'specialIn') +
         budgetInput(row, 'bonus') +
@@ -1332,6 +1344,93 @@
       '<div class="charts">' +
         chartCard('预算 · 花销 · 结余', budgetSub(data), renderBudgetBars(data, chartWidth())) +
       '</div>';
+  }
+
+  // 单月预算详情：把「这个月的预算从哪来、花到哪去」摊成一条推导链，
+  // 下面接该月「娱乐支出」的实际条目，读数能落回具体账目。
+  // 链条上的偶发加成、特殊收入计入就是逐月表里那两格，沿用同一套就地编辑
+  function renderBudgetMonth(data, idx, entries) {
+    var row = data.rows[idx];
+    // 上月结余：链条上个月的结余，头一个月从期初起算，跟 buildBudget 的滚动一致
+    var prevRemain = idx === 0 ? state.budgetOpening.amount : data.rows[idx - 1].remain;
+    var spend = row.spend;
+    var half = Math.round(spend.special * SPECIAL_SHARE);
+    var dash = '<span class="zero">—</span>';
+    var items = entries.filter(function (e) {
+      return e.month === row.month && e.category === '娱乐支出';
+    });
+    pendingHint = budgetMonthHintText(row.month);
+
+    // 链上的一行：项目 + 金额，金额列沿用合计列的右对齐与等宽数字
+    function chainRow(label, value, cls) {
+      return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>' +
+        '<th class="cmp-item"><span class="cell"><span class="name">' + esc(label) + '</span></span></th>' +
+        '<td class="cmp-total">' + value + '</td></tr>';
+    }
+    function inputRow(label, field) {
+      return '<tr><th class="cmp-item"><span class="cell"><span class="name">' + esc(label) + '</span></span></th>' +
+        budgetInput(row, field) + '</tr>';
+    }
+
+    return '<div class="mdetail">' +
+      mdetailHead(row.month, monthLocked(row.month, 'budget')) +
+        '<span class="mdetail-io">' +
+          '<span>预算 <b>' + money(row.budget) + '</b></span>' +
+          '<span>花销 <b class="neg">−' + money(spend.total) + '</b></span>' +
+        '</span>' +
+        '<span class="spacer"></span>' +
+        '<span class="mdetail-net ' + tone(row.remain) + '">结余 ' + signed(row.remain) + '</span>' +
+
+      '<table class="cmp budget bmonth"><thead><tr>' +
+        '<th class="cmp-item"><span class="cell"><span class="name">' +
+          esc(monthLabel(row.month)) + ' 推导</span></span></th>' +
+        '<th class="cmp-total">金额</th></tr></thead><tbody>' +
+        chainRow('基础额度', money(BUDGET_BASE)) +
+        chainRow('法定假日' + (row.days ? ' ' + row.days + ' 天' : ''),
+          row.days ? signed(BUDGET_PER_HOLIDAY * row.days) : dash) +
+        chainRow('上月结余', signed(prevRemain)) +
+        inputRow('偶发加成', 'bonus') +
+        chainRow('本月预算', money(row.budget), 'cmp-net') +
+        chainRow('娱乐支出', spend.fun ? '−' + money(spend.fun) : dash) +
+        // 特殊支出只有一半算进花销，数字下挂一道虚线，悬停拆给用户看
+        (spend.special
+          ? '<tr><th class="cmp-item"><span class="cell"><span class="name">特殊支出 ÷2</span></span></th>' +
+            '<td class="cmp-spend"><span class="v neg">−' + money(half) + '</span>' +
+            '<span class="tip">特殊支出 ' + money(spend.special) + '/2</span></td></tr>'
+          : chainRow('特殊支出 ÷2', dash)) +
+        chainRow('本月花销', spend.total ? '−' + money(spend.total) : dash, 'cmp-net') +
+        inputRow('特殊收入计入', 'specialIn') +
+        chainRow('本月结余',
+          '<span class="' + tone(row.remain) + '">' + signed(row.remain) + '</span>', 'cmp-net') +
+      '</tbody></table>' +
+
+      '<table class="cmp budget bitems"><thead><tr>' +
+        '<th class="cmp-item"><span class="cell"><span class="name">本月娱乐支出</span></span></th>' +
+        '<th class="cmp-total">金额</th></tr></thead><tbody>' +
+        (items.length
+          ? items.map(function (e) {
+              return '<tr>' +
+                '<th class="cmp-item"><span class="cell"><span class="name">' + esc(e.item) + '</span></span></th>' +
+                '<td class="cmp-total">' + signed(e.amount) + '</td></tr>';
+            }).join('') +
+            chainRow('合计', '−' + money(spend.fun), 'cmp-net')
+          : chainRow('本月没有娱乐支出', dash)) +
+      '</tbody></table>' +
+    '</div>';
+  }
+
+  function budgetMonthHintText(month) {
+    return '<p><b>是什么</b><br>' +
+        '把 ' + esc(monthLabel(month)) + ' 的预算摊开：上半张是从期初往后滚出来的推导链，' +
+        '下半张是本月「娱乐支出」的实际条目。点左上角返回逐月表。' +
+      '</p><p><b>怎么算</b><br>' +
+        '本月预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成<br>' +
+        '本月结余 = 本月预算 − 本月花销 + 特殊收入计入<br>' +
+        '本月花销 = 娱乐支出合计 + 特殊支出合计 ÷ 2' +
+      '</p><p><b>怎么改</b><br>' +
+        '「偶发加成」「特殊收入计入」两行双击就地改，数字与说明一起提交。' +
+        '这两项之外都是从账本推出来的，要改数字请回「月度」视图改账。' +
+      '</p>';
   }
 
   // 顶栏读数取「下一个月」的预算：表尾那条预告行的预算就是下月可花的数，
@@ -2604,14 +2703,14 @@
     var monthly = mode === 'tree' && !searching ? (state.monthOpen ? 'detail' : 'gallery') : '';
     var assetMonthly = mode === 'assetMonth' ? (state.monthOpen ? 'detail' : 'gallery') : '';
     treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
-      : mode === 'budget' ? ' budget'
+      : mode === 'budget' ? ' budget' + (state.budgetOpen ? ' detail' : '')
       : mode === 'assets' ? ' assets'
       : mode === 'assetMonth' ? (assetMonthly === 'gallery' ? ' gal' : ' detail')
       : monthly ? ' ' + (monthly === 'gallery' ? 'gal' : monthly) : '');
     treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped, realNets)
       : mode === 'budget'
-        ? renderBudget(budgetData, year)
+        ? renderBudget(budgetData, year, yearEntries)
         : mode === 'assetMonth'
           ? renderAssetMonthly(year)
           : mode === 'assets'
@@ -3871,13 +3970,25 @@
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
       '[data-asset-form-save],[data-asset-form-cancel],' +
       '[data-adjust-alert],' +
-      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center]');
+      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center],' +
+      '[data-budget-month]');
     if (!target) return;
     var data = target.dataset;
     // 纠偏的归因：提醒胶囊点一下就进编辑；已有归因的话双击文字改（dblclick 里处理）
     if (data.adjustAlert) return startAdjustEdit(data.adjustAlert);
+    // 预算逐月表点月份格，进该月的推导详情；返回键同时收两个域，谁开着就退谁
+    if (data.budgetMonth) {
+      state.budgetOpen = data.budgetMonth;
+      treeEl.scrollTop = 0;
+      return render();
+    }
     // 画廊：点中间那张进详情/新建，点旁边那张把它挪到中间
-    if (data.galleryBack) { state.monthOpen = null; treeEl.scrollTop = 0; return render(); }
+    if (data.galleryBack) {
+      state.monthOpen = null;
+      state.budgetOpen = null;
+      treeEl.scrollTop = 0;
+      return render();
+    }
     if (data.galleryMonth) {
       if (data.center) {
         state.monthOpen = data.galleryMonth;
@@ -4189,6 +4300,12 @@
     // 已经在看月度了，再点一次就是退回画廊（详情页里的返回键也是这个意思）
     if (btn.dataset.view === 'tree' && state.view === 'tree' && state.monthOpen) {
       state.monthOpen = null;
+      treeEl.scrollTop = 0;
+      return render();
+    }
+    // 预算同理：正在看某个月的推导，再点一次预算就是退回逐月表
+    if (btn.dataset.view === 'budget' && state.view === 'budget' && state.budgetOpen) {
+      state.budgetOpen = null;
       treeEl.scrollTop = 0;
       return render();
     }
