@@ -42,6 +42,8 @@
   var DEFAULT_ADJUST_DS = '3d928be4-78b4-471b-9190-99d04b6b0022';
   var KEY_LOCKED = 'ledger.locked';
   var KEY_RANGE = 'ledger.monthRange';
+  // 主 tab（财产/收支/预算）落盘，刷新后停在同一级；子 tab 不落盘，仍回各自第一种子视图
+  var KEY_VIEW = 'ledger.view';
   // 纠偏超过这个数就提示补充备注：小额差异多半是零头，上千了就得说清来由
   var ADJUST_ALERT = 1000;
   var MAX_RETRY = 3;
@@ -56,6 +58,11 @@
   var BUDGET_VIEWS = ['budget', 'budgetCharts'];
   // 主 tab 各自的第一种子视图：切换主 tab 一律从它进，子 tab 的选择不落盘、不记忆
   var FIRST_VIEW = { assets: 'assetMonth', income: 'tree', budget: 'budget' };
+  // 刷新后停在上次的主 tab，落在它的第一种子视图；没记过或值不认，就回「收支 › 月度」
+  function readView() {
+    var parent = localStorage.getItem(KEY_VIEW);
+    return FIRST_VIEW[parent] || 'tree';
+  }
   // 月份区间是全局控件：第一行常驻、处处可选可改；但值只在对比、财产对比里筛选内容。
   // 月度是按月看，天然不吃区间
   var RANGE_FILTER_VIEWS = ['compare', 'assets'];
@@ -96,8 +103,8 @@
     expanded: {},   // 记录手动展开的节点，默认全部收起
     cmpCollapsed: {}, // 对比视图里收起的分类（默认展开）
     cmpYear: readCmpYear(), // 对比视图当前看哪一年；null = 跟随最新年份
-    // 视图不落盘：每次打开都从「收支 › 月度」进；切主 tab 也一律回各自的第一种子视图
-    view: 'tree',
+    // 主 tab 落盘：刷新后停在上次那一级；子 tab 不记忆，一律回各自的第一种子视图
+    view: readView(),
     galleryAt: readGalleryAt('ledger'), // 月度画廊里居中的月份；null/失效时用最新一个月
     assetGalleryAt: readGalleryAt('assets'), // 财产月度画廊的居中的月份，跟账本各记各的
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
@@ -4181,10 +4188,12 @@
   });
 
   document.getElementById('btn-cancel').addEventListener('click', closeEditor);
-  // 主 tab「财产 / 收支 / 预算」：一律进各自的第一种子视图，不记上次看的是哪条子 tab
+  // 主 tab「财产 / 收支 / 预算」：一律进各自的第一种子视图，不记上次看的是哪条子 tab；
+  // 主 tab 本身落盘，刷新后还停在这一级
   document.getElementById('view-parent').addEventListener('click', function (event) {
     var btn = event.target.closest('button[data-parent]');
     if (!btn) return;
+    localStorage.setItem(KEY_VIEW, btn.dataset.parent);
     setView(FIRST_VIEW[btn.dataset.parent] || 'tree');
   });
   // 三条子 tab 各挂一份，点谁都是切到 data-view 指定的视图
