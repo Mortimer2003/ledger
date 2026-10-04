@@ -49,13 +49,12 @@
   var MAX_RETRY = 3;
 
   // 视图白名单，顺序跟顶栏按钮一致。
-  // 三个主 tab：财产 / 收支 / 预算。收支挂 月度/对比，财产挂 月度/对比，预算挂 明细/图表——
-  // 图跟它画的数据同域。财产跟收支一样分「月度 / 对比」：月度走画廊 + 当月详情，
+  // 三个主 tab：财产 / 收支 / 预算。收支挂 月度/对比，财产挂 月度/对比，预算只有一屏——
+  // 表和图并在一起，所以不挂子 tab。财产跟收支一样分「月度 / 对比」：月度走画廊 + 当月详情，
   // 对比把原来的明细表和图表并在一屏里
-  var VIEWS = ['tree', 'compare', 'budget', 'budgetCharts', 'assetMonth', 'assets'];
+  var VIEWS = ['tree', 'compare', 'budget', 'assetMonth', 'assets'];
   var INCOME_VIEWS = ['tree', 'compare'];
   var ASSET_VIEWS = ['assetMonth', 'assets'];
-  var BUDGET_VIEWS = ['budget', 'budgetCharts'];
   // 主 tab 各自的第一种子视图：切换主 tab 一律从它进，子 tab 的选择不落盘、不记忆
   var FIRST_VIEW = { assets: 'assetMonth', income: 'tree', budget: 'budget' };
   // 刷新后停在上次的主 tab，落在它的第一种子视图；没记过或值不认，就回「收支 › 月度」
@@ -69,7 +68,7 @@
   // 视图归哪个主 tab：决定哪个主 tab 高亮、哪条子 tab 露出来
   function parentOf(view) {
     if (ASSET_VIEWS.indexOf(view) !== -1) return 'assets';
-    if (BUDGET_VIEWS.indexOf(view) !== -1) return 'budget';
+    if (view === 'budget') return 'budget';
     return 'income';
   }
 
@@ -992,12 +991,8 @@
     Array.prototype.forEach.call(document.querySelectorAll('#view-sub-assets button'), function (btn) {
       btn.classList.toggle('active', btn.dataset.view === state.view);
     });
-    Array.prototype.forEach.call(document.querySelectorAll('#view-sub-budget button'), function (btn) {
-      btn.classList.toggle('active', btn.dataset.view === state.view);
-    });
     document.getElementById('view-sub').hidden = parent !== 'income';
     document.getElementById('view-sub-assets').hidden = parent !== 'assets';
-    document.getElementById('view-sub-budget').hidden = parent !== 'budget';
   }
 
   // 子视图不留状态：切走再回来一律从头开始——退出月份详情、丢掉正在进行的编辑/表单/确认，
@@ -1250,14 +1245,9 @@
         '<b>口径</b>：法定假日按国家法定节假日天数（国庆算 3 天）；表尾虚线行是下月预告，只列预算与结余。' +
       '</p><p>' +
         '<b>怎么改</b>：双击「特殊收入计入」「偶发加成」改数字与说明；数字下带虚线的格子悬停看拆解。' +
-      '</p>';
-  }
-
-  // 预算 › 图表：跟明细表同源同口径，这里只讲怎么读这张图
-  function budgetChartsHintText() {
-    return '<p><b>画的是什么</b>：每个月三根柱——本月预算、本月花销、本月结余，口径与「明细」表一致。' +
       '</p><p>' +
-        '<b>怎么看</b>：结余落在零线以上为有结余（红），以下为超支（绿）；柱下写月份。' +
+        '<b>下方柱图</b>：每个月三根柱——本月预算、本月花销、本月结余，口径与上面那张表一致；' +
+        '结余落在零线以上为有结余（红），以下为超支（绿）。' +
       '</p>';
   }
 
@@ -1309,16 +1299,12 @@
       '<td><span class="zero">—</span></td>' +
       '<td class="cmp-total">' + money(data.preview.budget) + '</td></tr>' : '';
 
+    // 表和图并在一屏：上面是逐月明细，下面是同一份数据的柱图，不另挂子 tab
     return '<table class="cmp budget"><thead>' + head + '</thead><tbody>' +
-      openingRow + body + previewRow + '</tbody></table>';
-  }
-
-  // 预算 › 图表：表里每行的三列画成三根柱，跟「明细」那张表同域
-  function renderBudgetCharts(data) {
-    pendingHint = budgetChartsHintText();
-    return '<div class="charts">' +
-      chartCard('预算 · 花销 · 结余', budgetSub(data), renderBudgetBars(data, chartWidth())) +
-    '</div>';
+      openingRow + body + previewRow + '</tbody></table>' +
+      '<div class="charts">' +
+        chartCard('预算 · 花销 · 结余', budgetSub(data), renderBudgetBars(data, chartWidth())) +
+      '</div>';
   }
 
   // 顶栏读数取「下一个月」的预算：表尾那条预告行的预算就是下月可花的数，
@@ -2553,7 +2539,7 @@
     renderRangeBar(year !== null ? rangeMonths(mode, year, yearEntries) : [], year !== null);
     var budgetData = buildBudget(yearEntries, year);
     var budgetNext = nextBudget(budgetData);
-    var isBudgetView = mode === 'budget' || mode === 'budgetCharts';
+    var isBudgetView = mode === 'budget';
 
     // 空状态：月度用全局那颗；对比/预算/财产各自在表内讲自己为什么空。
     // 只有「搜索没匹配」仍旧走全局，免得表内的解释跟搜索对不上
@@ -2605,7 +2591,6 @@
     var assetMonthly = mode === 'assetMonth' ? (state.monthOpen ? 'detail' : 'gallery') : '';
     treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
       : mode === 'budget' ? ' budget'
-      : mode === 'budgetCharts' ? ' charts'
       : mode === 'assets' ? ' assets'
       : mode === 'assetMonth' ? (assetMonthly === 'gallery' ? ' gal' : ' detail')
       : monthly ? ' ' + (monthly === 'gallery' ? 'gal' : monthly) : '');
@@ -2613,13 +2598,11 @@
       ? renderCompare(scoped, realNets)
       : mode === 'budget'
         ? renderBudget(budgetData, year)
-        : mode === 'budgetCharts'
-          ? renderBudgetCharts(budgetData)
-          : mode === 'assetMonth'
-            ? renderAssetMonthly(year)
-            : mode === 'assets'
-              ? renderAssets(year)
-              : renderMonthly(scoped, searching, realNets);
+        : mode === 'assetMonth'
+          ? renderAssetMonthly(year)
+          : mode === 'assets'
+            ? renderAssets(year)
+            : renderMonthly(scoped, searching, realNets);
     if (monthly === 'gallery' || assetMonthly === 'gallery') galleryJump();
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
@@ -4212,7 +4195,6 @@
   }
   document.getElementById('view-sub').addEventListener('click', onSubViewClick);
   document.getElementById('view-sub-assets').addEventListener('click', onSubViewClick);
-  document.getElementById('view-sub-budget').addEventListener('click', onSubViewClick);
   refreshBtn.addEventListener('click', function () { refresh(); });
   document.getElementById('btn-settings').addEventListener('click', function () { openSetup(); });
 
