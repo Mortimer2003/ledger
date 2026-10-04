@@ -975,7 +975,8 @@
   }
 
   // 子视图不留状态：切走再回来一律从头开始——退出月份详情、丢掉正在进行的编辑/表单/确认，
-  // 折叠态复原，滚动位置归零。年份、月份区间、锁定是全局控件，不跟着重置
+  // 折叠态复原，画廊居中月份回到最新一个月，滚动位置归零。
+  // 年份、月份区间、锁定是全局控件，不跟着重置
   function resetViewState() {
     state.monthOpen = null;
     state.editing = null;
@@ -989,6 +990,9 @@
     state.tagConfirm = null;
     state.expanded = {};
     state.cmpCollapsed = {};
+    // 画廊的「上次停在几月」连本地记忆一起清，刷新后也回最新一个月
+    state.galleryAt = null;
+    localStorage.removeItem(KEY_GALLERY_AT);
     treeEl.scrollTop = 0;
     treeEl.scrollLeft = 0;
   }
@@ -1001,6 +1005,8 @@
     closeRange();             // 月份区间弹层同理，别跨视图挂着
     syncViewButtons();
     render();
+    treeEl.scrollTop = 0;     // innerHTML 换过之后滚动位置可能被保留，收尾再归零一次
+    treeEl.scrollLeft = 0;
   }
 
   // ---------- 娱乐预算 ----------
