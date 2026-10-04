@@ -30,6 +30,8 @@
   var KEY_DS = 'ledger.dataSourceId';
   var KEY_CACHE = 'ledger.cache';
   var KEY_GALLERY_AT = 'ledger.galleryAt';
+  // 财产月度也用同一套画廊，但两个域的「上次停在几月」要各记各的，不能互相覆盖
+  var KEY_GALLERY_AT_ASSETS = 'ledger.galleryAt.assets';
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
   var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
@@ -45,16 +47,18 @@
   var MAX_RETRY = 3;
 
   // 视图白名单，顺序跟顶栏按钮一致。
-  // 三个主 tab：财产 / 收支 / 预算。收支挂 月度/对比，财产挂 明细/图表，预算挂 明细/图表——
-  // 图跟它画的数据同域，所以财产图和预算图各自待在自家「图表」子视图里
-  var VIEWS = ['tree', 'compare', 'budget', 'budgetCharts', 'assets', 'assetCharts'];
+  // 三个主 tab：财产 / 收支 / 预算。收支挂 月度/对比，财产挂 月度/对比，预算挂 明细/图表——
+  // 图跟它画的数据同域。财产跟收支一样分「月度 / 对比」：月度走画廊 + 当月详情，
+  // 对比把原来的明细表和图表并在一屏里
+  var VIEWS = ['tree', 'compare', 'budget', 'budgetCharts', 'assetMonth', 'assets'];
   var INCOME_VIEWS = ['tree', 'compare'];
-  var ASSET_VIEWS = ['assets', 'assetCharts'];
+  var ASSET_VIEWS = ['assetMonth', 'assets'];
   var BUDGET_VIEWS = ['budget', 'budgetCharts'];
   // 主 tab 各自的第一种子视图：切换主 tab 一律从它进，子 tab 的选择不落盘、不记忆
-  var FIRST_VIEW = { assets: 'assets', income: 'tree', budget: 'budget' };
-  // 月份区间是全局控件：第一行常驻、处处可选可改；但值只在对比、财产明细/图表里筛选内容
-  var RANGE_FILTER_VIEWS = ['compare', 'assets', 'assetCharts'];
+  var FIRST_VIEW = { assets: 'assetMonth', income: 'tree', budget: 'budget' };
+  // 月份区间是全局控件：第一行常驻、处处可选可改；但值只在对比、财产对比里筛选内容。
+  // 月度是按月看，天然不吃区间
+  var RANGE_FILTER_VIEWS = ['compare', 'assets'];
   // 视图归哪个主 tab：决定哪个主 tab 高亮、哪条子 tab 露出来
   function parentOf(view) {
     if (ASSET_VIEWS.indexOf(view) !== -1) return 'assets';
@@ -94,7 +98,8 @@
     cmpYear: readCmpYear(), // 对比视图当前看哪一年；null = 跟随最新年份
     // 视图不落盘：每次打开都从「收支 › 月度」进；切主 tab 也一律回各自的第一种子视图
     view: 'tree',
-    galleryAt: readGalleryAt(), // 月度画廊里居中的月份；null/失效时用最新一个月
+    galleryAt: readGalleryAt('ledger'), // 月度画廊里居中的月份；null/失效时用最新一个月
+    assetGalleryAt: readGalleryAt('assets'), // 财产月度画廊的居中的月份，跟账本各记各的
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
@@ -625,9 +630,23 @@
     return raw && isFinite(n) ? n : null;   // null = 跟随最新年份
   }
 
-  // 画廊里居中的月份：记着上次停在哪一张，重开还在那儿
-  function readGalleryAt() {
-    return localStorage.getItem(KEY_GALLERY_AT) || null;
+  // 画廊里居中的月份：记着上次停在哪一张，重开还在那儿。
+  // 收支和财产共用同一套画廊，所以记忆按域分开：从当前视图反推是哪个域，
+  // 这样下面那一串画廊函数（居中、跳转、滚轮推进）不用各自带一个域参数
+  function galDomain() { return state.view === 'assetMonth' ? 'assets' : 'ledger'; }
+  function galKey(domain) {
+    return (domain || galDomain()) === 'assets' ? KEY_GALLERY_AT_ASSETS : KEY_GALLERY_AT;
+  }
+  function galAt() {
+    return galDomain() === 'assets' ? state.assetGalleryAt : state.galleryAt;
+  }
+  function galAtSet(name) {
+    if (galDomain() === 'assets') state.assetGalleryAt = name;
+    else state.galleryAt = name;
+    localStorage.setItem(galKey(), name);
+  }
+  function readGalleryAt(domain) {
+    return localStorage.getItem(galKey(domain)) || null;
   }
 
 
@@ -762,9 +781,9 @@
   }
 
   // 月份条只摆「这一年真有数据的月份」：没数据的月份选了也是空表，摆上去只会让人白点一下。
-  // 财产明细/图表看财产数据源，其余视图看账本
+  // 财产对比看财产数据源，其余视图看账本
   function rangeMonths(mode, year, yearEntries) {
-    var names = (mode === 'assets' || mode === 'assetCharts')
+    var names = mode === 'assets'
       ? assetMonths(year)
       : yearEntries.map(function (e) { return e.month || UNSET_MONTH; });
     var seen = {}, out = [];
@@ -990,9 +1009,11 @@
     state.tagConfirm = null;
     state.expanded = {};
     state.cmpCollapsed = {};
-    // 画廊的「上次停在几月」连本地记忆一起清，刷新后也回最新一个月
+    // 画廊的「上次停在几月」连本地记忆一起清，两个域各清各的，刷新后都回最新一个月
     state.galleryAt = null;
+    state.assetGalleryAt = null;
     localStorage.removeItem(KEY_GALLERY_AT);
+    localStorage.removeItem(KEY_GALLERY_AT_ASSETS);
     treeEl.scrollTop = 0;
     treeEl.scrollLeft = 0;
   }
@@ -1650,7 +1671,7 @@
   }
 
   // 正文工具条只剩财产那几个新增按钮：标签跟着子 tab 搬进了顶栏，
-  // 收支/预算视图整条收起，不占行（画廊里的上下留白也因此对称）
+  // 收支/预算/财产月度整条收起，不占行（画廊与详情里的上下留白也因此对称）
   function renderViewBar(mode) {
     var isAssets = mode === 'assets';
     btnAssetItemEl.hidden = !isAssets;
@@ -1670,7 +1691,7 @@
       '</p>';
   }
 
-  // 财产 › 图表：两张图分别讲什么、口径如何
+  // 财产 › 对比：并进这一屏的两张图分别讲什么、口径如何
   function assetChartsHintText() {
     return '<p><b>总资产走势</b>：按月末余额逐月连线，两条线分别是「含公积金」与「不含公积金」。' +
       '</p><p>' +
@@ -1741,9 +1762,187 @@
       '</tr>';
     }).join('');
 
+    // 明细和图表并在一屏里：上面铺表，下面两张图跟着同一份月份区间
+    var charts = renderAssetCharts(year);
+    pendingHint = assetsHintText() + assetChartsHintText();
     return (state.assetsForm ? assetForm(state.assetsForm) : '') +
       '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
-      body + sumRows + '</tbody></table>';
+      body + sumRows + '</tbody></table>' + charts;
+  }
+
+  // ---------- 财产月度：画廊 + 当月详情 ----------
+
+  // 某个月某个口径的总计：直接从原始记录累加，不受年份与月份区间的裁剪影响
+  function assetTotalOf(month, caliber) {
+    return state.assets.reduce(function (acc, a) {
+      if (a.month !== month || !a.name) return acc;
+      if (caliber === '不含公积金' && a.app === ASSET_RESERVED) return acc;
+      return acc + (a.end === null || a.end === undefined ? 0 : a.end);
+    }, 0);
+  }
+
+  function assetEmptyText(year) {
+    return year === null ? '还没有财产数据。' : year + '年还没有财产记录。';
+  }
+
+  // 新增月份那张卡上要写目标月：最新一个月往后推一格，跨年进位
+  function nextAssetMonth() {
+    var months = assetMonths(state.assetsYear);
+    if (!months.length) return '';
+    var m = /^(\d{4})年(\d{1,2})月$/.exec(months[months.length - 1]);
+    if (!m) return '';
+    var y = Number(m[1]), mo = Number(m[2]) + 1;
+    if (mo > 12) { mo = 1; y += 1; }
+    return y + '年' + String(mo).padStart(2, '0') + '月';
+  }
+
+  // 上一个月名：月初就是它的月末
+  function prevMonthName(label) {
+    var m = /^(\d{4})年(\d{1,2})月$/.exec(String(label || ''));
+    if (!m) return null;
+    var y = Number(m[1]), mo = Number(m[2]) - 1;
+    if (mo < 1) { mo = 12; y -= 1; }
+    return y + '年' + String(mo).padStart(2, '0') + '月';
+  }
+
+  // 当月每一项的月初/月末：月初取上一个月的月末。只在上月或本月有记录时才列出来
+  function assetMonthRows(month) {
+    var prev = prevMonthName(month);
+    var index = {};
+    state.assets.forEach(function (a) {
+      if (!a.name) return;
+      if (a.month !== month && a.month !== prev) return;
+      var key = a.app + '|' + a.name;
+      var it = index[key] || (index[key] = {
+        app: a.app, name: a.name, start: null, end: null, id: null
+      });
+      if (a.month === prev) it.start = a.end;
+      else { it.end = a.end; it.id = a.id; }
+    });
+    return Object.keys(index).map(function (k) {
+      var it = index[k];
+      it.note = assetItemNote(it.app, it.name);
+      return it;
+    });
+  }
+
+  function assetSumOf(rows, field) {
+    return rows.reduce(function (acc, r) {
+      var v = r[field];
+      return acc + (v === null || v === undefined ? 0 : v);
+    }, 0);
+  }
+
+  // 只读格：月初不给改——它就是上个月的月末，改这里等于改历史
+  function assetStaticCell(value) {
+    return '<td class="cmp-static">' + assetNum(value) + '</td>';
+  }
+
+  function assetMonthHintText() {
+    return '<p><b>这是什么</b>：一张卡一个月，卡面是当月总资产（含公积金），下面一行是不含公积金。</p>' +
+      '<p>' +
+        '<b>点开看什么</b>：当月每个资产项的月初（上个月月末）与月末并列，末尾是分布饼图。' +
+      '</p><p>' +
+        '<b>怎么改</b>：双击「月末」改当月余额；月初只读，它跟着上个月的月末走。' +
+      '</p><p>' +
+        '<b>新建</b>：滑到末尾的「新增月份」，照上个月铺一份，金额留空待填。' +
+      '</p>';
+  }
+
+  function renderAssetMonthly(year) {
+    state.assetsYear = year;
+    pendingHint = assetMonthHintText();
+    var data = buildAssets(year);
+    if (!data.months.length) {
+      if (state.search.trim()) return '';
+      return '<p class="cmp-hint">' + assetEmptyText(year) +
+        '财产来自独立的「我的财产」数据源。</p>' +
+        (state.assetsForm ? assetForm(state.assetsForm) : '');
+    }
+    if (state.monthOpen && data.months.indexOf(state.monthOpen) !== -1) {
+      return renderAssetMonthDetail(state.monthOpen);
+    }
+    state.monthOpen = null;   // 那个月没了（删空/换了年），退回画廊
+    return renderGallery(data.months.map(function (n) { return { name: n }; }), null, data);
+  }
+
+  function renderAssetMonthDetail(month) {
+    var rows = assetMonthRows(month);
+    var locked = monthLocked(month, 'assets');
+    var all = assetTotalOf(month, '含公积金');
+    var free = assetTotalOf(month, '不含公积金');
+    var freeRows = rows.filter(function (r) { return r.app !== ASSET_RESERVED; });
+
+    // 应用按固定顺序排，没列进去的排最后，免得新加的账户漏掉
+    var apps = ASSET_APP_ORDER.filter(function (app) {
+      return rows.some(function (r) { return r.app === app; });
+    });
+    rows.forEach(function (r) { if (apps.indexOf(r.app) === -1) apps.push(r.app); });
+
+    var body = apps.map(function (app) {
+      var list = rows.filter(function (r) { return r.app === app; })
+        .sort(function (x, y) {
+          // 组内按当月月末从大到小，大头排前面；再按名字定个稳定次序
+          return (y.end || 0) - (x.end || 0) || (x.name < y.name ? -1 : 1);
+        });
+      var head = '<tr class="cmp-cat">' +
+        '<th class="cmp-item"><span class="cell">' +
+          '<span class="chev ghost"></span><span class="name">' + esc(app) + '</span>' +
+        '</span></th>' +
+        assetStaticCell(assetSumOf(list, 'start')) + assetStaticCell(assetSumOf(list, 'end')) +
+      '</tr>';
+      return head + list.map(function (r) {
+        return '<tr class="cmp-sub">' +
+          '<th class="cmp-item"><span class="cell">' + assetNameCell(r) + '</span></th>' +
+          assetStaticCell(r.start) +
+          // 月末格下面那行环比读的就是月初，跟对比表里的「较上月」是同一件事。
+          // 只有本月有记录的那一项才可改；只存在于上月的（本月已清掉）没得改，照只读铺
+          (r.id
+            ? assetCell({ id: r.id, end: r.end }, { end: r.start }, false, locked)
+            : assetStaticCell(r.end)) +
+        '</tr>';
+      }).join('');
+    }).join('');
+
+    var sumRows = [
+      { label: '总资产（含公积金）', list: rows },
+      { label: '总资产（不含公积金）', list: freeRows }
+    ].map(function (t) {
+      return '<tr class="assets-sum">' +
+        '<th class="cmp-item"><span class="cell"><span class="name">' + esc(t.label) + '</span></span></th>' +
+        assetStaticCell(assetSumOf(t.list, 'start')) + assetStaticCell(assetSumOf(t.list, 'end')) +
+      '</tr>';
+    }).join('');
+
+    var parts = apps.map(function (app) {
+      return { name: app, value: assetSumOf(rows.filter(function (r) { return r.app === app; }), 'end') };
+    }).filter(function (p) { return p.value > 0; })
+      .sort(function (a, b) { return b.value - a.value; });
+
+    return '<div class="mdetail">' +
+      '<div class="mdetail-bar">' +
+        '<button type="button" class="icon-btn" data-gallery-back="1" title="返回画廊">' +
+          '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" ' +
+          'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M10 3.5 5.5 8 10 12.5"/></svg>' +
+        '</button>' +
+        '<span class="mdetail-name">' + esc(month) + '</span>' +
+        (locked ? '<span class="lock-tag" title="仅最新一个月可编辑，点顶栏锁形按钮解锁">已锁定</span>' : '') +
+        '<span class="spacer"></span>' +
+        '<span class="mdetail-io"><span>不含公积金 <b>' + money(free) + '</b></span></span>' +
+        '<span class="mdetail-net">含公积金 ' + money(all) + '</span>' +
+      '</div>' +
+      '<div class="adetail">' +
+        '<table class="cmp assets asset-detail"><thead><tr>' +
+          '<th class="cmp-item"><span class="cell"><span class="name">资产项</span></span></th>' +
+          '<th class="cmp-month">月初</th><th class="cmp-month">月末</th>' +
+        '</tr></thead><tbody>' + body + sumRows + '</tbody></table>' +
+        '<div class="charts">' +
+          chartCard('分布', monthLabel(month) + ' · 按月末余额',
+            donutSvg(parts, '总资产（含公积金）', '这个月还没有余额。')) +
+        '</div>' +
+      '</div>' +
+    '</div>';
   }
 
   // ---------- 财产的增改 ----------
@@ -1980,6 +2179,10 @@
           (created.length ? '（已建 ' + created.length + ' 项，再点一次可补齐）' : ''), false);
       } else {
         toast('已铺好「' + label + '」，' + created.length + ' 项，金额待填');
+        // 铺完把画廊停在新的这一个月上，接着点进去就能填月末
+        state.assetGalleryAt = label;
+        localStorage.setItem(KEY_GALLERY_AT_ASSETS, label);
+        render();
       }
     });
   }
@@ -2181,15 +2384,21 @@
       svgWrap(w, h, chartFrame(w, h, pad, sc, y, false) + lines + labels);
   }
 
-  // 各应用占比：取最新一个月，把各应用余额摊成环形。总量就是「含公积金」的口径
-  function renderAppShare(data) {
+  // 各应用占比：取某一列的月末余额，把各应用摊成环形。总量就是「含公积金」的口径
+  function renderAppShare(data, at) {
     if (!data.months.length) return '<p class="chart-empty">还没有财产数据。</p>';
-    var at = data.months.length - 1;
+    // at 指定看哪一列：对比视图默认最后一列，月度详情传当月那一列
+    if (at === undefined || at === null) at = data.months.length - 1;
     var parts = data.groups.map(function (g) {
       return { name: g.app, value: g.values[at] || 0 };
     }).filter(function (p) { return p.value > 0; })
       .sort(function (a, b) { return b.value - a.value; });
-    if (!parts.length) return '<p class="chart-empty">最新一个月还没有余额。</p>';
+    return donutSvg(parts, '总资产（含公积金）', '最新一个月还没有余额。');
+  }
+
+  // 环形图：财产占比两处共用——对比视图取最后一列，月度详情取当月
+  function donutSvg(parts, cap, emptyText) {
+    if (!parts.length) return '<p class="chart-empty">' + esc(emptyText) + '</p>';
 
     var total = parts.reduce(function (a, p) { return a + p.value; }, 0);
     var size = 180, c = size / 2, r = 60, sw = 26;
@@ -2217,7 +2426,7 @@
         '" width="' + size + '" height="' + size + '">' +
         '<g transform="rotate(-90 ' + c + ' ' + c + ')">' + arcs + '</g>' +
         '<text class="donut-total" x="' + c + '" y="' + (c - 3) + '" text-anchor="middle">' + money(total) + '</text>' +
-        '<text class="donut-cap" x="' + c + '" y="' + (c + 15) + '" text-anchor="middle">总资产（含公积金）</text>' +
+        '<text class="donut-cap" x="' + c + '" y="' + (c + 15) + '" text-anchor="middle">' + esc(cap) + '</text>' +
       '</svg>' +
       '<ul class="donut-legend">' + legend + '</ul>' +
     '</div>';
@@ -2285,9 +2494,9 @@
     ]));
   }
 
-  // 图跟着它画的数据待在同一个域里：预算图进「预算 › 图表」、收支图进对比视图，财产图在「财产 › 图表」
+  // 图跟着它画的数据待在同一个域里：预算图进「预算 › 图表」，收支图进对比视图，
+  // 财产图并进「财产 › 对比」，跟明细表同一屏
   function renderAssetCharts(year) {
-    pendingHint = assetChartsHintText();
     var w = chartWidth();
     // 图跟明细同一份区间：区间一收，走势和占比都跟着只看那几个月
     var assets = sliceAssets(buildAssets(year));
@@ -2359,8 +2568,10 @@
     // 真实净额按月算，先把这一年的财产差值备好——纠偏条目、画廊卡片、顶栏读数共用这一份
     var realNets = realNetMap(year);
     if (ASSET_VIEWS.indexOf(mode) !== -1) {
-      // 财产视图不看收支，顶栏换成区间内最新一个月的两个口径总资产
-      var assetTop = sliceAssets(buildAssets(year));
+      // 财产视图不看收支，顶栏换成最新一个月的两个口径总资产。
+      // 只有对比受月份区间裁剪；月度画廊整年铺，读数也跟着整年，别跟画廊对不上
+      var assetTop = RANGE_FILTER_VIEWS.indexOf(mode) === -1
+        ? buildAssets(year) : sliceAssets(buildAssets(year));
       var at = assetTop.months.length - 1;
       totalsEl.innerHTML = at < 0 ? '' :
         '<span class="chip"><b>含公积金</b><i>' + money(assetTop.totals[0].values[at]) + '</i></span>' +
@@ -2382,24 +2593,27 @@
     }
 
     // 月度视图分三态：搜索时铺可展开的月份列表（一次看全命中），
-    // 点开某个月进详情页，否则停在画廊
+    // 点开某个月进详情页，否则停在画廊。财产月度共用同一套，只是数据换一域
     var monthly = mode === 'tree' && !searching ? (state.monthOpen ? 'detail' : 'gallery') : '';
+    var assetMonthly = mode === 'assetMonth' ? (state.monthOpen ? 'detail' : 'gallery') : '';
     treeEl.className = 'tree' + (mode === 'compare' ? ' compare'
       : mode === 'budget' ? ' budget'
-      : mode === 'budgetCharts' || mode === 'assetCharts' ? ' charts'
-      : mode === 'assets' ? ' assets' : monthly ? ' ' + (monthly === 'gallery' ? 'gal' : monthly) : '');
+      : mode === 'budgetCharts' ? ' charts'
+      : mode === 'assets' ? ' assets'
+      : mode === 'assetMonth' ? (assetMonthly === 'gallery' ? ' gal' : ' detail')
+      : monthly ? ' ' + (monthly === 'gallery' ? 'gal' : monthly) : '');
     treeEl.innerHTML = mode === 'compare'
       ? renderCompare(scoped, realNets)
       : mode === 'budget'
         ? renderBudget(budgetData, year)
         : mode === 'budgetCharts'
           ? renderBudgetCharts(budgetData)
-          : mode === 'assetCharts'
-            ? renderAssetCharts(year)
+          : mode === 'assetMonth'
+            ? renderAssetMonthly(year)
             : mode === 'assets'
               ? renderAssets(year)
               : renderMonthly(scoped, searching, realNets);
-    if (monthly === 'gallery') galleryJump();
+    if (monthly === 'gallery' || assetMonthly === 'gallery') galleryJump();
 
     // 各视图渲染时把要讲的说明填进 pendingHint，这里统一挂到顶栏「说明」按钮的气泡上
     renderHint(pendingHint);
@@ -2616,10 +2830,11 @@
 
   // 居中的那张：记着上次停在哪儿，失效了（月没了/换了年）退回最新一个月
   function resolveGalleryAt(months) {
-    if (state.galleryAt === NEW_MONTH) return NEW_MONTH;
+    var cur = galAt() || readGalleryAt() || null;
+    if (cur === NEW_MONTH) return NEW_MONTH;
     var hit = false;
-    months.forEach(function (m) { if (m.name === state.galleryAt) hit = true; });
-    return hit ? state.galleryAt : (months.length ? months[months.length - 1].name : NEW_MONTH);
+    months.forEach(function (m) { if (m.name === cur) hit = true; });
+    return hit ? cur : (months.length ? months[months.length - 1].name : NEW_MONTH);
   }
 
   // 卡片离中间越远越小：d0 居中、d1/d2 依次收一档，更远的再暗一档
@@ -2628,27 +2843,74 @@
     return d === 0 ? ' is-center' : d === 1 ? ' d1' : d === 2 ? ' d2' : ' d3';
   }
 
-  function renderGallery(months, realNets) {
+  function renderGallery(months, realNets, assetData) {
     var at = resolveGalleryAt(months);
-    state.galleryAt = at;
-    localStorage.setItem(KEY_GALLERY_AT, at);
+    galAtSet(at);
     // 居中那张的下标：月份卡按升序排，末尾再挂一张「新建下一个月」
     var names = months.map(function (m) { return m.name; });
     names.push(NEW_MONTH);
     var ci = names.indexOf(at);
     if (ci === -1) ci = names.length - 1;
-    // 环比读上个月的净额，先把各月净额按同一个口径算一遍
-    var nets = months.map(function (m) {
-      var inc = sum(m.list.filter(function (e) { return e.amount > 0; }));
-      var exp = sum(m.list.filter(function (e) { return e.amount < 0; }));
-      var real = realNetOf(m.name, realNets);
-      return real === null ? inc + exp : real;
-    });
-    var cards = months.map(function (m, i) {
-      return galleryCard(m, i, ci, realNets, i > 0 ? nets[i - 1] : null);
-    });
-    cards.push(galleryNewCard(months.length, ci));
+    var cards;
+    if (galDomain() === 'assets') {
+      // 财产卡片读的是当月两个口径的总资产，环比读上个月的同口径总计
+      var totals = assetData ? assetData.totals[0].values : [];
+      cards = months.map(function (m, i) {
+        return assetGalleryCard(m.name, i, ci, totals[i], i > 0 ? totals[i - 1] : null);
+      });
+      cards.push(assetGalleryNewCard(months.length, ci));
+    } else {
+      // 环比读上个月的净额，先把各月净额按同一个口径算一遍
+      var nets = months.map(function (m) {
+        var inc = sum(m.list.filter(function (e) { return e.amount > 0; }));
+        var exp = sum(m.list.filter(function (e) { return e.amount < 0; }));
+        var real = realNetOf(m.name, realNets);
+        return real === null ? inc + exp : real;
+      });
+      cards = months.map(function (m, i) {
+        return galleryCard(m, i, ci, realNets, i > 0 ? nets[i - 1] : null);
+      });
+      cards.push(galleryNewCard(months.length, ci));
+    }
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
+  }
+
+  // 财产那张卡：跟账本卡同一套骨架（.gcard-in / 年份 / 月份 / 大数字 / 读数 / 环比），
+  // 只是读数换成两个口径的总资产，大数字是含公积金的那一个
+  function assetGalleryCard(name, i, ci, total, prevTotal) {
+    var all = assetTotalOf(name, '含公积金');
+    var free = assetTotalOf(name, '不含公积金');
+    var m = /^\d{4}年(\d{1,2})月$/.exec(name);
+    var center = i === ci;
+    var detail =
+      '<div class="gcard-io">' +
+        '<span><b>不含公积金</b><i>' + money(free) + '</i></span>' +
+      '</div>' +
+      '<div class="gcard-delta"><b>总资产较上月</b>' +
+        '<i class="' + (prevTotal === null || prevTotal === undefined ? 'zero' : tone(all - prevTotal)) + '">' +
+        (prevTotal === null || prevTotal === undefined ? '—' : signed(all - prevTotal)) + '</i></div>';
+    return '<article class="gcard' + galleryCls(i, ci) + '"' +
+      ' data-gallery-month="' + esc(name) + '"' + (center ? ' data-center="1"' : '') + '>' +
+      '<div class="gcard-in">' +
+        '<div class="gcard-year">' + esc(name.slice(0, 5)) + '</div>' +
+        '<div class="gcard-mon">' + esc(m ? m[1] : name) + '<span>月</span></div>' +
+        '<div class="gcard-net">' + money(all) + '</div>' +
+        '<div class="gcard-cap">总资产（含公积金）</div>' +
+        detail +
+      '</div>' +
+    '</article>';
+  }
+
+  function assetGalleryNewCard(i, ci) {
+    var center = i === ci;
+    return '<article class="gcard gcard-new' + galleryCls(i, ci) + '"' +
+      ' data-gallery-new="1"' + (center ? ' data-center="1"' : '') + '>' +
+      '<div class="gcard-in">' +
+        '<div class="gcard-plus">＋</div>' +
+        '<div class="gcard-new-label">新增月份</div>' +
+        '<div class="gcard-new-month">' + esc(nextAssetMonth()) + '</div>' +
+      '</div>' +
+    '</article>';
   }
 
   function galleryCard(month, i, ci, realNets, prevNet) {
@@ -2798,10 +3060,7 @@
       }
     });
     var name = galleryCardName(kids[best]);
-    if (name && name !== state.galleryAt) {
-      state.galleryAt = name;
-      localStorage.setItem(KEY_GALLERY_AT, name);
-    }
+    if (name && name !== galAt()) galAtSet(name);
   }
 
   function galleryCardName(card) {
@@ -2810,8 +3069,7 @@
 
   // 点侧边的卡：滑到中间。DOM 不在（测试桩）时退化成重画，让居中标重新落位
   function galleryGoTo(name) {
-    state.galleryAt = name;
-    localStorage.setItem(KEY_GALLERY_AT, name);
+    galAtSet(name);
     var box = document.getElementById('gallery');
     var card = null;
     if (box && box.children) {
@@ -2832,7 +3090,7 @@
     if (!box || !box.children) return;
     var names = [];
     Array.prototype.forEach.call(box.children, function (c) { names.push(galleryCardName(c)); });
-    var i = names.indexOf(state.galleryAt);
+    var i = names.indexOf(galAt());
     if (i === -1) i = 0;
     var j = Math.max(0, Math.min(names.length - 1, i + dir));
     if (j !== i) galleryGoTo(names[j]);
@@ -3631,13 +3889,18 @@
       if (data.center) {
         state.monthOpen = data.galleryMonth;
         treeEl.scrollTop = 0;
-        expandMonthByName(data.galleryMonth);   // 进详情默认摊开，之后可逐层折叠
+        // 账本详情是分类树，进去默认摊开；财产详情是一张平表，没有折叠态要铺
+        if (state.view === 'tree') expandMonthByName(data.galleryMonth);
         return render();
       }
       return galleryGoTo(data.galleryMonth);
     }
     if (data.galleryNew) {
-      if (data.center) return openMonthBill();
+      if (data.center) {
+        return state.view === 'assetMonth'
+          ? openAssetForm('month', assetMonthsInView())
+          : openMonthBill();
+      }
       return galleryGoTo(NEW_MONTH);
     }
     if (data.cmpToggle) {
