@@ -1010,6 +1010,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* 表格铺满，底部多留一块：说明气泡和编辑面板都挂在格子下方，留白不够会被裁掉 */
 .tree.budget { --tree-side: 0; --tree-bottom: 110px; }
 
+/* 逐月表的月份格是进该月推导详情的入口，给手型光标 + 悬停底色 */
+.cmp.budget th.cmp-item.openable { cursor: pointer; }
+.cmp.budget th.cmp-item.openable:hover { background: var(--row-hover); }
+
+/* 单月推导：表头吸顶要让位给详情标题栏，跟财产详情同一套；
+   推导链与下方条目表之间留一口气，与「表格接图表」的间距一致 */
+.cmp.budget.bmonth thead th { top: var(--mbar-h); }
+.cmp.budget.bitems { margin-top: 14px; }
+
 /* 表内空状态：对比/预算/财产三个表格视图共用同一条 */
 .cmp-hint {
   margin: 0;
