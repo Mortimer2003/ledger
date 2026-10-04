@@ -1019,6 +1019,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp.budget.bmonth thead th { top: var(--mbar-h); }
 .cmp.budget.bitems { margin-top: 14px; }
 
+/* 推导链与条目表都只有「项目 + 金额」两列：金额列收在右缘（跟标题栏的结余对齐），
+   余量留给项目名。照搬 .cmp-item 的 width:1% 会把两列各撑成一半，中间空一大片；
+   两列的接缝只留金额列那条左边线，别再叠一条首列的右边线 */
+.cmp.budget.bmonth .cmp-item,
+.cmp.budget.bitems .cmp-item { width: auto; border-right: none; }
+
 /* 表内空状态：对比/预算/财产三个表格视图共用同一条 */
 .cmp-hint {
   margin: 0;
