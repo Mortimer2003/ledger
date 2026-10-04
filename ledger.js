@@ -974,8 +974,29 @@
     document.getElementById('view-sub-budget').hidden = parent !== 'budget';
   }
 
+  // 子视图不留状态：切走再回来一律从头开始——退出月份详情、丢掉正在进行的编辑/表单/确认，
+  // 折叠态复原，滚动位置归零。年份、月份区间、锁定是全局控件，不跟着重置
+  function resetViewState() {
+    state.monthOpen = null;
+    state.editing = null;
+    state.pendingDelete = null;
+    state.budgetEdit = null;
+    state.assetsEdit = null;
+    state.assetNoteEdit = null;
+    state.assetsForm = null;
+    state.adjustEdit = null;
+    state.tagEditing = null;
+    state.tagConfirm = null;
+    state.expanded = {};
+    state.cmpCollapsed = {};
+    treeEl.scrollTop = 0;
+    treeEl.scrollLeft = 0;
+  }
+
   function setView(view) {
-    state.view = VIEWS.indexOf(view) === -1 ? 'tree' : view;
+    var next = VIEWS.indexOf(view) === -1 ? 'tree' : view;
+    if (next !== state.view) resetViewState();
+    state.view = next;
     state.hintOpen = false;   // 换视图就把说明收回去，默认不铺开
     closeRange();             // 月份区间弹层同理，别跨视图挂着
     syncViewButtons();
@@ -3599,10 +3620,11 @@
     // 纠偏的归因：提醒胶囊点一下就进编辑；已有归因的话双击文字改（dblclick 里处理）
     if (data.adjustAlert) return startAdjustEdit(data.adjustAlert);
     // 画廊：点中间那张进详情/新建，点旁边那张把它挪到中间
-    if (data.galleryBack) { state.monthOpen = null; return render(); }
+    if (data.galleryBack) { state.monthOpen = null; treeEl.scrollTop = 0; return render(); }
     if (data.galleryMonth) {
       if (data.center) {
         state.monthOpen = data.galleryMonth;
+        treeEl.scrollTop = 0;
         expandMonthByName(data.galleryMonth);   // 进详情默认摊开，之后可逐层折叠
         return render();
       }
@@ -3903,6 +3925,7 @@
     // 已经在看月度了，再点一次就是退回画廊（详情页里的返回键也是这个意思）
     if (btn.dataset.view === 'tree' && state.view === 'tree' && state.monthOpen) {
       state.monthOpen = null;
+      treeEl.scrollTop = 0;
       return render();
     }
     setView(btn.dataset.view);
