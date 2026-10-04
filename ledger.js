@@ -2848,7 +2848,7 @@
       cards = months.map(function (m, i) {
         return assetGalleryCard(m.name, i, ci, totals[i], i > 0 ? totals[i - 1] : null);
       });
-      cards.push(assetGalleryNewCard(months.length, ci));
+      cards.push(galleryNewCard(months.length, ci, nextAssetMonth()));
     } else {
       // 环比读上个月的净额，先把各月净额按同一个口径算一遍
       var nets = months.map(function (m) {
@@ -2860,7 +2860,7 @@
       cards = months.map(function (m, i) {
         return galleryCard(m, i, ci, realNets, i > 0 ? nets[i - 1] : null);
       });
-      cards.push(galleryNewCard(months.length, ci));
+      cards.push(galleryNewCard(months.length, ci, nextBillMonth()));
     }
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
   }
@@ -2889,18 +2889,6 @@
         '<div class="gcard-net">' + money(all) + '</div>' +
         '<div class="gcard-cap">总资产（含公积金）</div>' +
         detail +
-      '</div>' +
-    '</article>';
-  }
-
-  function assetGalleryNewCard(i, ci) {
-    var center = i === ci;
-    return '<article class="gcard gcard-new' + galleryCls(i, ci) + '"' +
-      ' data-gallery-new="1"' + (center ? ' data-center="1"' : '') + '>' +
-      '<div class="gcard-in">' +
-        '<div class="gcard-plus">＋</div>' +
-        '<div class="gcard-new-label">新增月份</div>' +
-        '<div class="gcard-new-month">' + esc(nextAssetMonth()) + '</div>' +
       '</div>' +
     '</article>';
   }
@@ -2942,14 +2930,15 @@
     '</article>';
   }
 
-  function galleryNewCard(i, ci) {
+  // 账本和财产共用这一张「新增月份」虚线卡，只有目标月份从外面传进来
+  function galleryNewCard(i, ci, month) {
     var center = i === ci;
     return '<article class="gcard gcard-new' + galleryCls(i, ci) + '"' +
       ' data-gallery-new="1"' + (center ? ' data-center="1"' : '') + '>' +
       '<div class="gcard-in">' +
         '<div class="gcard-plus">＋</div>' +
         '<div class="gcard-new-label">新增月份</div>' +
-        '<div class="gcard-new-month">' + esc(nextBillMonth()) + '</div>' +
+        '<div class="gcard-new-month">' + esc(month) + '</div>' +
       '</div>' +
     '</article>';
   }
