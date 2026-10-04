@@ -1649,6 +1649,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .charts { display: flex; flex-direction: column; gap: 14px; padding-bottom: 8px; }
 
+/* 图表紧跟表格下方时（财产对比 / 财产月度详情）要留出间距，
+   跟收支对比里 .view-chart 的 14px 取齐；预算图表视图的 .charts 是独苗，不吃这条 */
+.cmp + .charts { margin-top: 14px; }
+
 .chart-card {
   background: var(--bg-soft);
   border: 1px solid var(--line);
