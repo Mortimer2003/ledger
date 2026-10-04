@@ -760,9 +760,10 @@
       value: esc(state.adjustEdit.draft), attrs: 'data-adjust-note="note"' }]);
   }
 
-  // 月度详情的标题栏头部：返回 + 月份 + 锁定标记；后面的读数各域自己接。
-  // 注意：这里只开标题栏那个 div、不闭合，调用方接完读数后自己收尾
-  function mdetailHead(name, locked, backTitle) {
+  // 月度详情的标题栏：返回 + 月份 + 锁定标记 + 各域自己的读数（readouts）。
+  // 整条栏一次成型、自己闭合。早先它只吐开标签、要调用方补 </div> 收尾，
+  // 漏补就会把下面的表格塞进 flex 栏里，整页散架——所以收尾这件事必须留在函数内
+  function mdetailHead(name, locked, backTitle, readouts) {
     return '<div class="mdetail-bar">' +
       '<button type="button" class="icon-btn" data-gallery-back="1" title="' +
         esc(backTitle || '返回画廊') + '">' +
@@ -771,7 +772,9 @@
         '<path d="M10 3.5 5.5 8 10 12.5"/></svg>' +
       '</button>' +
       '<span class="mdetail-name">' + esc(name) + '</span>' +
-      (locked ? '<span class="lock-tag" title="仅最新一个月可编辑，点顶栏锁形按钮解锁">已锁定</span>' : '');
+      (locked ? '<span class="lock-tag" title="仅最新一个月可编辑，点顶栏锁形按钮解锁">已锁定</span>' : '') +
+      (readouts || '') +
+    '</div>';
   }
 
   // 对比视图里的纠偏格：只放金额（角标/虚线挂在金额上）+ 悬停气泡，
@@ -1375,14 +1378,13 @@
     }
 
     return '<div class="mdetail">' +
-      mdetailHead(row.month, monthLocked(row.month, 'budget'), '返回逐月表') +
+      mdetailHead(row.month, monthLocked(row.month, 'budget'), '返回逐月表',
         '<span class="mdetail-io">' +
           '<span>预算 <b>' + money(row.budget) + '</b></span>' +
           '<span>花销 <b class="neg">−' + money(spend.total) + '</b></span>' +
         '</span>' +
         '<span class="spacer"></span>' +
-        '<span class="mdetail-net ' + tone(row.remain) + '">结余 ' + signed(row.remain) + '</span>' +
-      '</div>' +
+        '<span class="mdetail-net ' + tone(row.remain) + '">结余 ' + signed(row.remain) + '</span>') +
 
       '<table class="cmp budget bmonth"><thead><tr>' +
         '<th class="cmp-item"><span class="cell"><span class="name">' +
@@ -2036,11 +2038,10 @@
       .sort(function (a, b) { return b.value - a.value; });
 
     return '<div class="mdetail">' +
-      mdetailHead(month, locked) +
+      mdetailHead(month, locked, null,
         '<span class="spacer"></span>' +
         '<span class="mdetail-io"><span>不含公积金 <b>' + money(free) + '</b></span></span>' +
-        '<span class="mdetail-net">含公积金 ' + money(all) + '</span>' +
-      '</div>' +
+        '<span class="mdetail-net">含公积金 ' + money(all) + '</span>') +
       '<div class="adetail">' +
         '<table class="cmp assets asset-detail"><thead><tr>' +
           '<th class="cmp-item"><span class="cell"><span class="name">资产项</span></span></th>' +
@@ -3077,7 +3078,7 @@
     var diff = real === null ? null : real - ledgerNet;
     var locked = monthLocked(month.name, 'ledger');
     return '<div class="mdetail">' +
-      mdetailHead(month.name, locked) +
+      mdetailHead(month.name, locked, null,
         '<span class="mdetail-io">' +
           '<span class="pos">' + (income ? '+' + money(income) : '—') + '</span>' +
           '<span class="neg">' + (expense ? '−' + money(expense) : '—') + '</span>' +
@@ -3085,8 +3086,7 @@
         '<span class="spacer"></span>' +
         '<span class="mdetail-net ' + tone(net) + '">净 ' + signed(net) + '</span>' +
         (locked ? '' :
-          '<button type="button" class="icon" data-add="' + esc('m:' + month.name) + '" title="在本月新增">＋</button>') +
-      '</div>' +
+          '<button type="button" class="icon" data-add="' + esc('m:' + month.name) + '" title="在本月新增">＋</button>')) +
       '<div class="children">' +
         groupByCategory(month.list).map(function (c) { return renderCategory(month.name, c); }).join('') +
         (diff ? renderAdjust(diff, month.name) : '') +
