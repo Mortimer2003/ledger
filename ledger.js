@@ -1219,7 +1219,9 @@
 
   // 平时是纯文本，有说明就带虚线下划线（悬停出气泡）；双击展开「数字 + 说明」小面板。
   // 锁着且不是最新月时加 .locked：双击照样认得出，只是会提示先解锁
-  function budgetInput(row, field) {
+  // withSign：单月推导链上每个数字都要带 +/− 号（链是「加多少、减多少」的算式），
+  // 逐月表那边是并排的指标列，只报数不带号，所以默认不加
+  function budgetInput(row, field, withSign) {
     var names = budgetFieldNames(field);
     var value = row.cfg[field] || 0;
     var note = row.cfg[names.noteKey] || '';
@@ -1229,7 +1231,7 @@
 
     // 进项走收入色（红）：这两笔都是往池子里加钱
     var shown = '<span class="v ' + tone(value) + '">' +
-      (value ? money(value) : '<span class="zero">—</span>') + '</span>';
+      (value ? (withSign ? signed(value) : money(value)) : '<span class="zero">—</span>') + '</span>';
 
     if (editing) {
       return '<td class="cmp-edit editing">' + shown +
@@ -1374,7 +1376,22 @@
     }
     function inputRow(label, field) {
       return '<tr><th class="cmp-item"><span class="cell"><span class="name">' + esc(label) + '</span></span></th>' +
-        budgetInput(row, field) + '</tr>';
+        budgetInput(row, field, true) + '</tr>';
+    }
+    // 链上每一行都是「往池子里加多少 / 从池子里减多少」，颜色跟着方向走：
+    // 加项走收入红、减项走支出绿，连小计行（本月预算/本月花销/本月结余）也照这个来。
+    // 红绿黑混排最乱——同一列里不许有不上色的数字，也不许有的带 + 有的不带
+    function addRow(label, n, cls) {
+      return chainRow(label,
+        n ? '<span class="' + tone(n) + '">' + signed(n) + '</span>' : dash, cls);
+    }
+    function subRow(label, n, cls) {
+      return chainRow(label, n ? '<span class="neg">−' + money(n) + '</span>' : dash, cls);
+    }
+    // 结果行按自身正负上色：结余可能为负，不能一律当加项画红
+    function netRow(label, n) {
+      return chainRow(label,
+        n ? '<span class="' + tone(n) + '">' + signed(n) + '</span>' : dash, 'cmp-net');
     }
 
     return '<div class="mdetail">' +
@@ -1390,23 +1407,23 @@
         '<th class="cmp-item"><span class="cell"><span class="name">' +
           esc(monthLabel(row.month)) + ' 推导</span></span></th>' +
         '<th class="cmp-total">金额</th></tr></thead><tbody>' +
-        chainRow('基础额度', money(BUDGET_BASE)) +
-        chainRow('法定假日' + (row.days ? ' ' + row.days + ' 天' : ''),
-          row.days ? signed(BUDGET_PER_HOLIDAY * row.days) : dash) +
-        chainRow('上月结余', signed(prevRemain)) +
+        addRow('基础额度', BUDGET_BASE) +
+        addRow('法定假日' + (row.days ? ' ' + row.days + ' 天' : ''),
+          row.days ? BUDGET_PER_HOLIDAY * row.days : 0) +
+        addRow('上月结余', prevRemain) +
         inputRow('偶发加成', 'bonus') +
-        chainRow('本月预算', money(row.budget), 'cmp-net') +
-        chainRow('娱乐支出', spend.fun ? '−' + money(spend.fun) : dash) +
+        // 本月预算 = 上面四项之和，跟加项同一个方向色，读起来就是「这几笔攒出这个数」
+        addRow('本月预算', row.budget, 'cmp-net') +
+        subRow('娱乐支出', spend.fun) +
         // 特殊支出只有一半算进花销，数字下挂一道虚线，悬停拆给用户看
         (spend.special
           ? '<tr><th class="cmp-item"><span class="cell"><span class="name">特殊支出 ÷2</span></span></th>' +
             '<td class="cmp-spend"><span class="v neg">−' + money(half) + '</span>' +
             '<span class="tip">特殊支出 ' + money(spend.special) + '/2</span></td></tr>'
           : chainRow('特殊支出 ÷2', dash)) +
-        chainRow('本月花销', spend.total ? '−' + money(spend.total) : dash, 'cmp-net') +
+        subRow('本月花销', spend.total, 'cmp-net') +
         inputRow('特殊收入计入', 'specialIn') +
-        chainRow('本月结余',
-          '<span class="' + tone(row.remain) + '">' + signed(row.remain) + '</span>', 'cmp-net') +
+        netRow('本月结余', row.remain) +
       '</tbody></table>' +
 
       '<table class="cmp budget bitems"><thead><tr>' +
@@ -1416,9 +1433,11 @@
           ? items.map(function (e) {
               return '<tr>' +
                 '<th class="cmp-item"><span class="cell"><span class="name">' + esc(e.item) + '</span></span></th>' +
-                '<td class="cmp-total">' + signed(e.amount) + '</td></tr>';
+                // 跟账本里同一笔的口径一致：金额按正负上色（支出绿）
+                '<td class="cmp-total"><span class="' + tone(e.amount) + '">' +
+                  signed(e.amount) + '</span></td></tr>';
             }).join('') +
-            chainRow('合计', '−' + money(spend.fun), 'cmp-net')
+            subRow('合计', spend.fun, 'cmp-net')
           : chainRow('本月没有娱乐支出', dash)) +
       '</tbody></table>' +
     '</div>';
