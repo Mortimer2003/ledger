@@ -9,7 +9,7 @@
   var UNSET_SUB = '未分子类';
   var NEW_SUB = '__new__';
   var CMP_OTHER = '__other__';   // 对比视图里「月份解析不出年份」的那一档
-  var NEW_MONTH = '__new_month__';   // 月度画廊最右那张「新建下一个月」的占位卡
+  var NEW_MONTH = '__new_month__';   // 月度画廊最右那张「新增月份」的占位卡
 
   // 「新增月份账单」的模板：每月都要有的壳子。
   // 常规项名字里的月号按目标月份生成，房租记的是下个月（9月账单里放「10月房租」），所以用 {下月}。
@@ -2543,7 +2543,7 @@
 
     // 空状态：月度用全局那颗；对比/预算/财产各自在表内讲自己为什么空。
     // 只有「搜索没匹配」仍旧走全局，免得表内的解释跟搜索对不上
-    var emptyTip = '还没有数据，点画廊末尾的「新建下一个月」开始记录。';
+    var emptyTip = '还没有数据，点画廊末尾的「新增月份」开始记录。';
     emptyEl.hidden = scoped.length > 0 || (mode !== 'tree' && !searching);
     if (ASSET_VIEWS.indexOf(mode) !== -1) {
       // 财产跟账本走的是两套数据，账本为空不代表没财产，这一格只标数据域
@@ -2836,7 +2836,7 @@
   function renderGallery(months, realNets, assetData) {
     var at = resolveGalleryAt(months);
     galAtSet(at);
-    // 居中那张的下标：月份卡按升序排，末尾再挂一张「新建下一个月」
+    // 居中那张的下标：月份卡按升序排，末尾再挂一张「新增月份」
     var names = months.map(function (m) { return m.name; });
     names.push(NEW_MONTH);
     var ci = names.indexOf(at);
@@ -2948,7 +2948,7 @@
       ' data-gallery-new="1"' + (center ? ' data-center="1"' : '') + '>' +
       '<div class="gcard-in">' +
         '<div class="gcard-plus">＋</div>' +
-        '<div class="gcard-new-label">新建下一个月</div>' +
+        '<div class="gcard-new-label">新增月份</div>' +
         '<div class="gcard-new-month">' + esc(nextBillMonth()) + '</div>' +
       '</div>' +
     '</article>';
