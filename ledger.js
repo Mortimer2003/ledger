@@ -2626,12 +2626,12 @@
       } else {
         state.monthOpen = null;   // 那个月没了（删空/换了年），退回画廊
         treeEl.className = 'tree gal';
-        treeEl.innerHTML = renderMonthly(scoped, searching, realNets, assetTotals, budgetSpends);
+        treeEl.innerHTML = renderMonthly(scoped, searching, realNets, assetTotals, budgetSpends, budgetNext);
         galleryJump();
       }
     } else {
       treeEl.className = searching ? 'tree' : 'tree gal';
-      treeEl.innerHTML = renderMonthly(scoped, searching, realNets, assetTotals, budgetSpends);
+      treeEl.innerHTML = renderMonthly(scoped, searching, realNets, assetTotals, budgetSpends, budgetNext);
       if (!searching) galleryJump();
     }
 
@@ -2823,10 +2823,10 @@
 
   // 月度主 tab 的画廊/搜索态：搜索时铺可展开的月份列表（一次看全命中），否则停在画廊。
   // 月详情由 render() 直接分派到各子 tab，不经过这里
-  function renderMonthly(scoped, searching, realNets, assetTotals, budgetSpends) {
+  function renderMonthly(scoped, searching, realNets, assetTotals, budgetSpends, budgetNext) {
     pendingHint = treeHintText();
     if (searching) return groupByMonth(scoped).map(renderMonth).join('');
-    return renderGallery(galleryMonths(scoped), realNets, assetTotals, budgetSpends);
+    return renderGallery(galleryMonths(scoped), realNets, assetTotals, budgetSpends, budgetNext);
   }
 
   // 画廊里排的月份：只认规范月名，按时间升序（左边上个月、右边下个月）
@@ -2851,7 +2851,7 @@
     return d === 0 ? ' is-center' : d === 1 ? ' d1' : d === 2 ? ' d2' : ' d3';
   }
 
-  function renderGallery(months, realNets, assetTotals, budgetSpends) {
+  function renderGallery(months, realNets, assetTotals, budgetSpends, budgetNext) {
     var at = resolveGalleryAt(months);
     galAtSet(at);
     // 居中那张的下标：月份卡按升序排，末尾再挂一张「新增月份」
@@ -2863,7 +2863,7 @@
       return galleryCard(i, ci, billCardData(m, realNets,
         assetTotals ? assetTotals[m.name] : null,
         budgetSpends ? budgetSpends[m.name] : null,
-        funBudgetAssetOf(m.name)));
+        budgetNext));
     });
     cards.push(galleryNewCard(months.length, ci, nextBillMonth()));
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
@@ -2890,17 +2890,6 @@
     '</article>';
   }
 
-  // 总资产里拆出「娱乐预算」：资产项名字或所在应用带「娱乐预算」的月末余额。
-  // 卡片总资产行下注一行（其余 + 娱乐预算），家底构成一眼看清；没有这项就不注
-  function funBudgetAssetOf(month) {
-    return state.assets.reduce(function (acc, a) {
-      if (a.month !== month || !a.name) return acc;
-      if (a.name.indexOf('娱乐预算') === -1 &&
-          String(a.app || '').indexOf('娱乐预算') === -1) return acc;
-      return acc + (a.end === null || a.end === undefined ? 0 : a.end);
-    }, 0);
-  }
-
   // 账本卡的读数：总资产（含公积金口径，财产里没这个月就写「—」）置顶；
   // 大数字是真实净额（财产差值，缺数回落账本净额）；收支两列各占半宽，
   // 预算花销（娱乐支出 + 特殊一半）作为支出列下的第三行、相对支出居中，
@@ -2922,6 +2911,8 @@
       netHtml: '<span class="adj-num">' + signed(net) +
         (needs ? '<span class="adj-mark gcard-mark" aria-label="差额较大，进入本月可补充备注"></span>' : '') +
         '</span>',
+      // 总资产拆出「娱乐预算」：budgetNext 是预算推导出的下月娱乐预算（跟详情 header 同一口径）。
+      // 家底行下注一行（其余 + 下月娱乐预算），没有下月预告就不注
       assetHtml: assetTotal === null || assetTotal === undefined
         ? '<span>总资产</span><b class="zero">—</b>'
         : '<span>总资产</span><b>' + money(assetTotal) + '</b>' +
