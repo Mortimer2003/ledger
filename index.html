@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261005-2314">
+<link rel="stylesheet" href="ledger.css?v=20261005-2340">
 
 </head>
 <body>
@@ -66,12 +66,14 @@
     <!-- 第二行：当前主 tab 下的子 tab。总览下常显，切收支/财产/预算看各自的对比内容；
          月度下只在点进某个月份详情后才出现，切换当前月份的不同维度。
          右边是这一年的读数 -->
-    <div class="bar bar-sub">
+    <div class="bar bar-sub" id="bar-sub">
       <div class="seg view-switch sub" id="view-sub">
         <button type="button" data-sub="assets">财产</button>
         <button type="button" data-sub="income" class="active">收支</button>
         <button type="button" data-sub="budget">预算</button>
       </div>
+      <!-- 一键折叠/展开：只服务两张可折叠的表（收支对比 / 财产对比），住在子 tab 右侧 -->
+      <button type="button" class="btn ghost btn-fold-all" id="btn-fold-all" data-fold-all="1" hidden>全部折叠</button>
       <!-- 视图级工具跟在当前主 tab 的子 tab 右侧：说明（每个子视图都有）、标签（只服务收支域的月度视图）。
            说明排在最前，其余按钮一律在它右侧 -->
       <div class="sub-actions">
@@ -103,17 +105,12 @@
 
   <div class="progress" id="progress"></div>
 
-  <!-- 正文舞台：工具条和滚动容器叠在一起，工具条才能悬浮在内容右上角而不占一行 -->
+  <!-- 正文舞台：保存进度悬浮在内容右上角，不占一行 -->
   <div class="stage">
-    <!-- 视图级工具：只对当前视图有意义的操作。标签跟着子 tab 搬去了顶栏，
-         这里只剩财产那几个新增按钮 -->
+    <!-- 财产保存进度的悬浮位：只有写 Notion 过程中短暂出现。新增月份/新增资产项已移除，
+         财产在 Notion 端维护，页面上只保留就地改数 -->
     <div class="view-bar" id="view-bar" hidden>
       <span class="view-progress" id="asset-progress" hidden></span>
-      <span class="view-bar-tools">
-        <button type="button" class="btn primary" id="btn-asset-month" data-asset-tool="month" hidden>＋ 新增月份</button>
-        <button type="button" class="btn ghost" id="btn-asset-item" data-asset-tool="item" hidden>＋ 新增资产项</button>
-        <button type="button" class="btn ghost" id="btn-fold-all" data-fold-all="1" hidden>全部折叠</button>
-      </span>
     </div>
 
     <main class="tree" id="tree"></main>
@@ -253,7 +250,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261005-2314"></script>
+<script src="ledger.js?v=20261005-2340"></script>
 
 </body>
 </html>
