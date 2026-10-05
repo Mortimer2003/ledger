@@ -412,7 +412,8 @@
   }
 
   // 财产数据缓存：跟账本同套路，刷新时总资产（含娱乐预算构成行）秒出。
-  // 预算期初结余一起缓存——构成行靠它推导，等网络回就晚一拍了
+  // 预算期初结余 + 逐月特殊收入计入/偶发加成一起缓存——构成行的推导链
+  // 缺了任何一块，刷新瞬间就会先按残缺值算、再被网络数据纠正（数字跳变）
   function readAssetCache() {
     try {
       var parsed = JSON.parse(localStorage.getItem(KEY_ASSET_CACHE) || 'null');
@@ -428,7 +429,8 @@
         ds: settings.assetsSourceId,
         ts: Date.now(),
         assets: state.assets,
-        budgetOpening: state.budgetOpening
+        budgetOpening: state.budgetOpening,
+        budget: state.budget
       }));
     } catch (e) { /* 存储写满时忽略，不影响使用 */ }
   }
@@ -4289,6 +4291,7 @@
       if (cachedAssets) {
         state.assets = cachedAssets.assets;
         if (cachedAssets.budgetOpening) state.budgetOpening = cachedAssets.budgetOpening;
+        if (cachedAssets.budget) state.budget = cachedAssets.budget;
       }
       render();
     }
