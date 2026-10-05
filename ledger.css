@@ -501,9 +501,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-io span { display: flex; flex-direction: column; gap: 2px; }
 .gcard-io b { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); font-weight: 500; color: var(--text-3); }
 .gcard-io i { font-size: clamp(11px, calc(var(--gc) * 4.1), 15px); font-style: normal; font-weight: 600; }
-/* 总资产一行：账本净额之外补当月财产合计（含公积金口径）。跟收入/支出同排法，
-   上面用虚线跟收支区隔开——它只是参考读数，不是本卡的主体 */
-.gcard-asset {
+/* 总资产 / 预算花销两行：账本净额之外补当月财产合计（含公积金口径）与预算花销。
+   跟收入/支出同排法，上面用虚线跟收支区隔开——它们只是参考读数，不是本卡的主体 */
+.gcard-asset,
+.gcard-budget {
   display: flex;
   align-items: baseline;
   gap: calc(var(--gc) * 3);
@@ -512,9 +513,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   border-top: 1px dashed var(--line);
   font-size: clamp(10px, calc(var(--gc) * 3.2), 12px);
 }
-.gcard-asset span { font-weight: 500; color: var(--text-3); }
-.gcard-asset b { font-style: normal; font-weight: 600; color: var(--text-2); }
-.gcard-asset b.zero { color: var(--text-3); }
+.gcard-asset span, .gcard-budget span { font-weight: 500; color: var(--text-3); }
+.gcard-asset b, .gcard-budget b { font-style: normal; font-weight: 600; color: var(--text-2); }
+.gcard-asset b.zero, .gcard-budget b.zero { color: var(--text-3); }
 /* 环比的标签与数值跟上面那行「收入/支出」同一套排法：灰标签 + 上色数值。
    标签必须写明是「净额较上月」——这行紧跟在收支下面，只写「较上月」会被读成收支的变化 */
 .gcard-delta {
@@ -1024,9 +1025,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* 表格铺满，底部多留一块：说明气泡和编辑面板都挂在格子下方，留白不够会被裁掉 */
 .tree.budget { --tree-side: 0; --tree-bottom: 110px; }
 
-/* 逐月表的月份格是进该月推导详情的入口，给手型光标 + 悬停底色 */
-.cmp.budget th.cmp-item.openable { cursor: pointer; }
-.cmp.budget th.cmp-item.openable:hover { background: var(--row-hover); }
+/* 逐月表的月份格是普通文本格：总览›预算不再点进单月推导，入口已随详情链路移除 */
 
 /* 单月推导：表头吸顶要让位给详情标题栏，跟财产详情同一套；
    推导链与下方条目表之间留一口气，与「表格接图表」的间距一致 */
