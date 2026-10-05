@@ -487,27 +487,33 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-mon span { font-size: clamp(11px, calc(var(--gc) * 4.4), 16px); font-weight: 500; color: var(--text-2); margin-left: 3px; }
 .gcard-net { position: relative; font-size: clamp(15px, calc(var(--gc) * 6.7), 23px); font-weight: 600; margin-top: calc(var(--gc) * 1.6); }
 
-/* 预览细节：总资产置顶（家底先入眼），收入/支出两列收底、支出括号挂预算花销。
-   每张月份卡都画一份，滚动时内容不会忽增忽减；两侧卡跟着缩放一起变小变淡。 */
+/* 预览细节：总资产置顶（家底先入眼，字号介于净额与收支之间），
+   收入/支出两列各占半宽收底，预算花销在支出列下居中。 */
 .gcard-io {
   display: flex;
-  gap: calc(var(--gc) * 11);
+  width: 100%;
   margin-top: calc(var(--gc) * 5);
   padding-top: calc(var(--gc) * 5);
   border-top: 1px solid var(--line);
 }
-.gcard-io span { display: flex; flex-direction: column; gap: 2px; }
+.gcard-io span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
 .gcard-io b { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); font-weight: 500; color: var(--text-3); }
 .gcard-io i { font-size: clamp(11px, calc(var(--gc) * 4.1), 15px); font-style: normal; font-weight: 600; }
-/* 支出括号里的预算花销是约束注释，弱化：比数值小一号、灰色，不抢收支读数 */
-.gcard-io .io-hint { font-size: clamp(9px, calc(var(--gc) * 2.9), 11px); font-weight: 500; color: var(--text-3); }
-/* 总资产：置顶的家底读数，跟月份字同排法，不设分隔线（净额下面是收支的实线区隔） */
+/* 预算花销是支出列下的约束注释：比数值小一号、灰色，居中于支出列，不抢收支读数 */
+.gcard-io .io-budget { font-size: clamp(9px, calc(var(--gc) * 2.9), 11px); font-style: normal; font-weight: 500; color: var(--text-3); }
+/* 总资产：置顶的家底读数，字号比收支数值大一号、比净额小，跟月份字同排法 */
 .gcard-asset {
   display: flex;
   align-items: baseline;
   gap: calc(var(--gc) * 3);
   margin-top: calc(var(--gc) * 2.4);
-  font-size: clamp(10px, calc(var(--gc) * 3.2), 12px);
+  font-size: clamp(12px, calc(var(--gc) * 4.6), 17px);
 }
 .gcard-asset span { font-weight: 500; color: var(--text-3); }
 .gcard-asset b { font-style: normal; font-weight: 600; color: var(--text-2); }
