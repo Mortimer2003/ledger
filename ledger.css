@@ -1223,9 +1223,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .cmp.assets td,
 .cmp.assets th { vertical-align: baseline; }
 
-/* 视图级工具：只对当前视图有意义（标签/说明/各种新增）。
-   表格视图里它是正文顶上单独一行，左端留给进度提示、右端是按钮，跟正文一样按 --gutter 对齐。
-   上下留白都收成 8px：上方接顶栏、下方交给 .tree 的 padding-top，按钮不再被架在半空 */
+/* 保存进度的悬浮位：只在写 Notion 的过程中短暂出现（资产新增已移除，
+   备注批量写时仍用它报进度）。左端留给进度提示，跟正文一样按 --gutter 对齐 */
 .view-bar {
   display: flex;
   align-items: center;
@@ -1233,57 +1232,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   flex: none;
   padding: 8px var(--gutter) 0;
 }
-/* 画廊里工具条不占行（整条收起），纵向留白就只剩画廊自己的 14px，上下对称 */
-/* 这条是 flex，[hidden] 的默认规则压不住；里面的 .icon-btn / .hint-wrap 同理 */
+/* 这条是 flex，[hidden] 的默认规则压不住；里面的 .view-progress 同理 */
 .view-bar[hidden] { display: none; }
 .view-bar [hidden] { display: none; }
-.view-bar-tools { display: flex; gap: 8px; margin-left: auto; }
 .view-progress { color: var(--text-3); font-size: 12px; }
 .view-progress[hidden] { display: none; }
 
-/* 新增表单：一行摆开，回车就提交，Esc 取消 */
-.assets-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 0 14px 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: var(--bg-soft);
-}
-.assets-form label { display: flex; align-items: center; gap: 6px; }
-.assets-form label > span { color: var(--text-3); font-size: 12px; }
-.assets-form input {
-  width: 112px;
-  padding: 4px 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  outline: none;
-}
-.assets-form input:focus { border-color: var(--accent); }
-.assets-form-tip { color: var(--text-3); font-size: 12px; }
-.assets-form button {
-  padding: 4px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text-2);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.assets-form button[data-asset-form-save] {
-  border-color: transparent;
-  background: var(--accent);
-  color: #fff;
-}
-.assets-form button:hover { opacity: .88; }
+/* 一键折叠/展开住在子 tab 右侧：跟说明/标签共用第二行，不与读数抢位 */
+#bar-sub .btn-fold-all { margin-left: 8px; }
+#bar-sub .btn-fold-all[hidden] { display: none; }
 
 /* 财产格：平时只显月末，双击展开「月末」输入框，跟预算格一个规矩 */
 .cmp.assets td.cmp-edit {
