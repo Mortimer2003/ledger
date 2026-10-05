@@ -1076,6 +1076,10 @@
     state.sub = next;
     state.hintOpen = false;
     closeRange();
+    // 收支详情默认把分类树摊开（跟从画廊直接进收支详情一致）；财产/预算详情是平表，没有折叠态
+    if (next === 'income' && state.view === 'month' && state.monthOpen) {
+      expandMonthByName(state.monthOpen);
+    }
     syncViewButtons();
     render();
     treeEl.scrollTop = 0;
@@ -2641,6 +2645,11 @@
     var all = state.entries;
     var entries = visibleEntries();
     var searching = !!state.search.trim();
+    // 月度画廊态子 tab 回默认：子 tab 只服务详情，退出详情（返回/删空换年）就回默认（财产），
+    // 不记住上次的维度；详情内的切换仍保留（「切维度不丢月」只在详情内成立）
+    if (state.view === 'month' && !state.monthOpen && !searching && state.sub !== DEFAULT_SUB) {
+      state.sub = DEFAULT_SUB;
+    }
     var mode = derivedMode();
     pendingHint = '';
     // 按钮高亮和子 tab 显隐跟着每次渲染同步：点卡进详情、返回画廊、搜索态都会改
