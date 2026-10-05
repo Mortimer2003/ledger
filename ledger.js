@@ -2882,16 +2882,17 @@
         '<div class="gcard-net' + (c.netCls ? ' ' + c.netCls : '') + '">' + c.netHtml + '</div>' +
         '<div class="gcard-io">' + c.readings.map(function (r) {
           return '<span><b>' + r.label + '</b><i' + (r.cls ? ' class="' + r.cls + '"' : '') + '>' +
-            r.value + (r.hint ? '<span class="io-hint">（' + r.hint + '）</span>' : '') + '</i></span>';
+            r.value + '</i>' +
+            (r.hint ? '<em class="io-budget">' + r.hint + '</em>' : '') + '</span>';
         }).join('') + '</div>' +
       '</div>' +
     '</article>';
   }
 
   // 账本卡的读数：总资产（含公积金口径，财产里没这个月就写「—」）置顶；
-  // 大数字是真实净额（财产差值，缺数回落账本净额）；两列收入/支出，
-  // 支出后面括号当月预算花销（娱乐支出 + 特殊一半，预算没铺到这个月就不挂括号）。
-  // 预算花销只作约束注释，不单占一行
+  // 大数字是真实净额（财产差值，缺数回落账本净额）；收支两列各占半宽，
+  // 预算花销（娱乐支出 + 特殊一半）作为支出列下的第三行、相对支出居中，
+  // 预算没铺到这个月就不显示。预算花销只作约束注释，不单占一行
   function billCardData(month, realNets, assetTotal, budgetSpend) {
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
