@@ -501,6 +501,20 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-io span { display: flex; flex-direction: column; gap: 2px; }
 .gcard-io b { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); font-weight: 500; color: var(--text-3); }
 .gcard-io i { font-size: clamp(11px, calc(var(--gc) * 4.1), 15px); font-style: normal; font-weight: 600; }
+/* 总资产一行：账本净额之外补当月财产合计（含公积金口径）。跟收入/支出同排法，
+   上面用虚线跟收支区隔开——它只是参考读数，不是本卡的主体 */
+.gcard-asset {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--gc) * 3);
+  margin-top: calc(var(--gc) * 2.4);
+  padding-top: calc(var(--gc) * 2.4);
+  border-top: 1px dashed var(--line);
+  font-size: clamp(10px, calc(var(--gc) * 3.2), 12px);
+}
+.gcard-asset span { font-weight: 500; color: var(--text-3); }
+.gcard-asset b { font-style: normal; font-weight: 600; color: var(--text-2); }
+.gcard-asset b.zero { color: var(--text-3); }
 /* 环比的标签与数值跟上面那行「收入/支出」同一套排法：灰标签 + 上色数值。
    标签必须写明是「净额较上月」——这行紧跟在收支下面，只写「较上月」会被读成收支的变化 */
 .gcard-delta {
