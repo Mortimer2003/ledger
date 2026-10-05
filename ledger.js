@@ -2862,7 +2862,8 @@
     var cards = months.map(function (m, i) {
       return galleryCard(i, ci, billCardData(m, realNets,
         assetTotals ? assetTotals[m.name] : null,
-        budgetSpends ? budgetSpends[m.name] : null));
+        budgetSpends ? budgetSpends[m.name] : null,
+        funBudgetAssetOf(m.name)));
     });
     cards.push(galleryNewCard(months.length, ci, nextBillMonth()));
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
@@ -2889,11 +2890,22 @@
     '</article>';
   }
 
+  // 总资产里拆出「娱乐预算」：资产项名字或所在应用带「娱乐预算」的月末余额。
+  // 卡片总资产行下注一行（其余 + 娱乐预算），家底构成一眼看清；没有这项就不注
+  function funBudgetAssetOf(month) {
+    return state.assets.reduce(function (acc, a) {
+      if (a.month !== month || !a.name) return acc;
+      if (a.name.indexOf('娱乐预算') === -1 &&
+          String(a.app || '').indexOf('娱乐预算') === -1) return acc;
+      return acc + (a.end === null || a.end === undefined ? 0 : a.end);
+    }, 0);
+  }
+
   // 账本卡的读数：总资产（含公积金口径，财产里没这个月就写「—」）置顶；
   // 大数字是真实净额（财产差值，缺数回落账本净额）；收支两列各占半宽，
   // 预算花销（娱乐支出 + 特殊一半）作为支出列下的第三行、相对支出居中，
   // 预算没铺到这个月就不显示。预算花销只作约束注释，不单占一行
-  function billCardData(month, realNets, assetTotal, budgetSpend) {
+  function billCardData(month, realNets, assetTotal, budgetSpend, funBudget) {
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
     var real = realNetOf(month.name, realNets);
@@ -2912,7 +2924,9 @@
         '</span>',
       assetHtml: assetTotal === null || assetTotal === undefined
         ? '<span>总资产</span><b class="zero">—</b>'
-        : '<span>总资产</span><b>' + money(assetTotal) + '</b>',
+        : '<span>总资产</span><b>' + money(assetTotal) + '</b>' +
+          (funBudget ? '<em class="gcard-asset-split">（' + money(assetTotal - funBudget) +
+            ' + ' + money(funBudget) + ' 娱乐预算）</em>' : ''),
       readings: [
         { label: '收入', value: signed(income), cls: 'pos' },
         { label: '支出', value: signed(expense), cls: 'neg',
