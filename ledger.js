@@ -2526,7 +2526,48 @@
     var expense = sum(metricEntries.filter(function (e) { return e.amount < 0; }));
     // 真实净额按月算，先把这一年的财产差值备好——纠偏条目、画廊卡片、顶栏读数共用这一份
     var realNets = realNetMap(year);
-    if (ASSET_VIEWS.indexOf(mode) !== -1) {
+    // 画廊卡片要带当月总资产（含公积金口径）：账本月与财产月按同名对齐，
+    // 财产里没有的那个月写「—」；月度详情 header 也按月查同一份
+    var assetTotals = {};
+    (function () {
+      var data = buildAssets(year);
+      for (var i = 0; i < data.months.length; i++) {
+        assetTotals[data.months[i]] = data.totals[0].values[i];
+      }
+    })();
+
+    // 画廊卡片要带当月预算花销：budgetData 按月份铺，花销口径跟预算表一致
+    // （娱乐支出合计 + 特殊支出的一半）；未标月份/无预算起始时 buildBudget 返回 null
+    var budgetSpends = {};
+    if (budgetData) budgetData.rows.forEach(function (r) { budgetSpends[r.month] = r.spend.total; });
+
+    if (state.view === 'month' && state.monthOpen && !searching) {
+      // 月度详情态：header 跟随当前月，三个核心数（净额/总资产/预算花销+结余），不随子 tab 变。
+      // 画廊态不放信息——三个维度的概要都在月份卡片上（总资产置顶、净额主读、收支+预算花销）。
+      // 搜索态铺的是账本单域，仍走下方收支分支
+      var mn = state.monthOpen;
+      var mList = scoped.filter(function (e) { return (e.month || UNSET_MONTH) === mn; });
+      var mIncome = sum(mList.filter(function (e) { return e.amount > 0; }));
+      var mExpense = sum(mList.filter(function (e) { return e.amount < 0; }));
+      var mNet = realNetOf(mn, realNets);
+      var mAsset = assetTotals[mn];
+      var mBRow = null;
+      if (budgetData) budgetData.rows.forEach(function (r) { if (r.month === mn) mBRow = r; });
+      var mnNet = mNet === null ? mIncome + mExpense : mNet;
+      totalsEl.hidden = false;
+      totalsEl.innerHTML =
+        '<span class="chip"><b>净额</b><i class="' + tone(mnNet) + '">' + signed(mnNet) + '</i></span>' +
+        (mAsset !== null && mAsset !== undefined
+          ? '<span class="chip"><b>总资产</b><i>' + money(mAsset) + '</i></span>'
+          : '') +
+        (mBRow
+          ? '<span class="chip budget"><b>预算</b>' +
+            (mBRow.spend.total
+              ? '<i class="neg">花销 −' + money(mBRow.spend.total) + '</i>'
+              : '<i>花销 —</i>') +
+            '<i>结余 ' + money(mBRow.remain) + '</i></span>'
+          : '');
+    } else if (ASSET_VIEWS.indexOf(mode) !== -1) {
       // 财产视图不看收支，顶栏换成最新一个月的两个口径总资产。
       // 只有对比受月份区间裁剪；月度画廊整年铺，读数也跟着整年，别跟画廊对不上
       var assetTop = RANGE_FILTER_VIEWS.indexOf(mode) === -1
@@ -2541,29 +2582,9 @@
         ? '<span class="chip budget"><b>下月娱乐预算</b><i>' + money(budgetNext) + '</i></span>'
         : '';
     } else if (state.view === 'month' && !searching) {
-      // 月度视图（画廊与详情）的 header 是三个维度的理财概要，不随子 tab 变：
-      // 收支（整年收入/支出/净额，真实口径含纠偏）、财产（最新月含/不含公积金）、
-      // 预算（最新推算月的花销/结余）。搜索态铺的是账本单域，仍走下方收支分支
-      var assetTop = buildAssets(year);
-      var at = assetTop.months.length - 1;
-      var bRow = budgetData && budgetData.rows.length
-        ? budgetData.rows[budgetData.rows.length - 1] : null;
-      var net = income + expense + adjustTotal(realNets, metricEntries);
-      totalsEl.innerHTML =
-        '<span class="chip"><b>收支</b><i class="pos">收 ' + signed(income) + '</i>' +
-          '<i class="neg">支 ' + signed(expense) + '</i><i class="' + tone(net) + '">净 ' +
-          signed(net) + '</i></span>' +
-        (at >= 0
-          ? '<span class="chip"><b>财产</b><i>含公积金 ' + money(assetTop.totals[0].values[at]) +
-            '</i><i>不含 ' + money(assetTop.totals[1].values[at]) + '</i></span>'
-          : '') +
-        (bRow
-          ? '<span class="chip budget"><b>预算</b>' +
-            (bRow.spend.total
-              ? '<i class="neg">花销 −' + money(bRow.spend.total) + '</i>'
-              : '<i>花销 —</i>') +
-            '<i>结余 ' + money(bRow.remain) + '</i></span>'
-          : '');
+      // 画廊态：header 不放信息，三个维度的概要都在月份卡片上
+      totalsEl.hidden = true;
+      totalsEl.innerHTML = '';
     } else {
       // 顶栏净额也走真实口径：账本净额 + 财产覆盖到的各月纠偏合计。
       // 搜索时读的是命中集合，跟整月口径对不上，就不加纠偏
@@ -2574,21 +2595,6 @@
         '<span class="chip"><b>' + (searching ? '匹配净额' : '净额') + '</b><i class="' +
         tone(net) + '">' + signed(net) + '</i></span>';
     }
-
-    // 画廊卡片要带当月总资产（含公积金口径）：账本月与财产月按同名对齐，
-    // 财产里没有的那个月写「—」
-    var assetTotals = {};
-    (function () {
-      var data = buildAssets(year);
-      for (var i = 0; i < data.months.length; i++) {
-        assetTotals[data.months[i]] = data.totals[0].values[i];
-      }
-    })();
-
-    // 画廊卡片要带当月预算花销：budgetData 按月份铺，花销口径跟预算表一致
-    // （娱乐支出合计 + 特殊支出的一半）；未标月份/无预算起始时 buildBudget 返回 null
-    var budgetSpends = {};
-    if (budgetData) budgetData.rows.forEach(function (r) { budgetSpends[r.month] = r.spend.total; });
 
     // 总览：子 tab 常显，收支/财产/预算各自出对比内容
     // 月度：搜索铺可展开月份列表；点开某个月进详情（子 tab 切当月维度）；否则停在画廊
@@ -2853,24 +2859,18 @@
     names.push(NEW_MONTH);
     var ci = names.indexOf(at);
     if (ci === -1) ci = names.length - 1;
-    // 环比读上个月的净额，先把各月净额按同一个口径算一遍
-    var nets = months.map(function (m) {
-      var inc = sum(m.list.filter(function (e) { return e.amount > 0; }));
-      var exp = sum(m.list.filter(function (e) { return e.amount < 0; }));
-      var real = realNetOf(m.name, realNets);
-      return real === null ? inc + exp : real;
-    });
     var cards = months.map(function (m, i) {
       return galleryCard(i, ci, billCardData(m, realNets,
-        i > 0 ? nets[i - 1] : null, assetTotals ? assetTotals[m.name] : null,
+        assetTotals ? assetTotals[m.name] : null,
         budgetSpends ? budgetSpends[m.name] : null));
     });
     cards.push(galleryNewCard(months.length, ci, nextBillMonth()));
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
   }
 
-  // 月份卡骨架只写一遍：净额大数字 + 收入/支出两列 + 总资产一行 + 净额环比。
-  // 读数是调用方算好的一份数据，卡片本身不碰数据域
+  // 月份卡骨架只写一遍：总资产置顶，净额大数字居中，收支两列收底（支出括号带预算花销）。
+  // 读数是调用方算好的一份数据，卡片本身不碰数据域。
+  // 排布原则：先「攒下来的」（总资产），再「这个月的」（净额 → 收支），约束挂支出后面
   function galleryCard(i, ci, c) {
     var center = i === ci;
     return '<article class="gcard' + galleryCls(i, ci) + '"' +
@@ -2878,27 +2878,21 @@
       '<div class="gcard-in">' +
         '<div class="gcard-year">' + esc(c.name.slice(0, 5)) + '</div>' +
         '<div class="gcard-mon">' + esc(c.monthNo) + '<span>月</span></div>' +
+        (c.assetHtml ? '<div class="gcard-asset">' + c.assetHtml + '</div>' : '') +
         '<div class="gcard-net' + (c.netCls ? ' ' + c.netCls : '') + '">' + c.netHtml + '</div>' +
-        '<div class="gcard-cap">' + c.cap + '</div>' +
         '<div class="gcard-io">' + c.readings.map(function (r) {
           return '<span><b>' + r.label + '</b><i' + (r.cls ? ' class="' + r.cls + '"' : '') + '>' +
-            r.value + '</i></span>';
+            r.value + (r.hint ? '<span class="io-hint">（' + r.hint + '）</span>' : '') + '</i></span>';
         }).join('') + '</div>' +
-        (c.assetHtml ? '<div class="gcard-asset">' + c.assetHtml + '</div>' : '') +
-        (c.budgetHtml ? '<div class="gcard-budget">' + c.budgetHtml + '</div>' : '') +
-        '<div class="gcard-delta"><b>' + c.deltaLabel + '</b>' +
-          '<i class="' + c.deltaCls + '">' + c.deltaText + '</i></div>' +
       '</div>' +
     '</article>';
   }
 
-  // 账本卡的读数：大数字是真实净额（财产差值），两列收入/支出，环比读上个月净额。
-  // 预览每张卡都画一份，滚动时内容不忽增忽减，两侧卡跟着缩放一起变小。
-  // 首月没有上个月可读，环比按缺数写「—」占位，各卡结构一致、行高不差。
-  // 环比得写明是「净额」的环比：紧跟收入/支出下面，只写「较上月」会被当成收支的变化。
-  // 卡片自带当月总资产（含公积金口径），财产里没这个月就写「—」；
-  // 再带一行当月预算花销（娱乐支出 + 特殊一半），预算没铺到这个月也写「—」
-  function billCardData(month, realNets, prevNet, assetTotal, budgetSpend) {
+  // 账本卡的读数：总资产（含公积金口径，财产里没这个月就写「—」）置顶；
+  // 大数字是真实净额（财产差值，缺数回落账本净额）；两列收入/支出，
+  // 支出后面括号当月预算花销（娱乐支出 + 特殊一半，预算没铺到这个月就不挂括号）。
+  // 预算花销只作约束注释，不单占一行
+  function billCardData(month, realNets, assetTotal, budgetSpend) {
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
     var real = realNetOf(month.name, realNets);
@@ -2915,20 +2909,14 @@
       netHtml: '<span class="adj-num">' + signed(net) +
         (needs ? '<span class="adj-mark gcard-mark" aria-label="差额较大，进入本月可补充备注"></span>' : '') +
         '</span>',
-      cap: '净额',
-      readings: [
-        { label: '收入', value: signed(income), cls: 'pos' },
-        { label: '支出', value: signed(expense), cls: 'neg' }
-      ],
       assetHtml: assetTotal === null || assetTotal === undefined
         ? '<span>总资产</span><b class="zero">—</b>'
         : '<span>总资产</span><b>' + money(assetTotal) + '</b>',
-      budgetHtml: budgetSpend === null || budgetSpend === undefined || !budgetSpend
-        ? '<span>预算花销</span><b class="zero">—</b>'
-        : '<span>预算花销</span><b class="neg">−' + money(budgetSpend) + '</b>',
-      deltaLabel: '净额较上月',
-      deltaCls: prevNet === null ? 'zero' : tone(net - prevNet),
-      deltaText: prevNet === null ? '—' : signed(net - prevNet)
+      readings: [
+        { label: '收入', value: signed(income), cls: 'pos' },
+        { label: '支出', value: signed(expense), cls: 'neg',
+          hint: budgetSpend ? '预算花销 −' + money(budgetSpend) : null }
+      ]
     };
   }
 
