@@ -749,6 +749,16 @@
     }).join('');
   }
 
+  // 一键折叠/展开：渲染可折叠表时先登记该表的所有可折叠键（foldScopeKeys），
+  // 按钮文案看有没有任一折叠：有→「全部展开」，无→「全部折叠」
+  var foldScopeKeys = [];
+  function setFoldScope(keys) { foldScopeKeys = keys || []; }
+  function foldBtnHtml() {
+    var any = foldScopeKeys.some(function (k) { return !!state.cmpCollapsed[k]; });
+    return '<button type="button" class="fold-all" data-fold-all="1">' +
+      (any ? '全部展开' : '全部折叠') + '</button>';
+  }
+
   // 就地编辑浮层：一或多行「标签 + 输入框」，账本/预算/财产三处共用这一份骨架
   function editorPanel(fields) {
     return '<span class="editor">' + fields.map(function (f) {
@@ -997,7 +1007,10 @@
       '<td class="cmp-total">' + cmpCell(sumArr(netValues)) + '</td>' +
     '</tr>';
 
-    return '<table class="cmp"><thead>' + head + '</thead><tbody>' +
+    setFoldScope(data.rows.filter(function (r) { return r.subs.length > 0; })
+      .map(function (r) { return 'c:' + r.name; }));
+    return '<div class="fold-tools">' + foldBtnHtml() + '</div>' +
+      '<table class="cmp"><thead>' + head + '</thead><tbody>' +
       body + adjustRow + netRow + '</tbody></table>' +
       // 图跟表同视图、也同区间：两根柱就是表里每月的收入合计和支出合计
       '<div class="view-chart">' +
@@ -1940,7 +1953,10 @@
     // 明细和图表并在一屏里：上面铺表，下面两张图跟着同一份月份区间
     var charts = renderAssetCharts(year);
     pendingHint = assetsHintText() + assetChartsHintText();
+    setFoldScope(data.groups.filter(function (g) { return g.items.length > 0; })
+      .map(function (g) { return 'a:' + g.app; }));
     return (state.assetsForm ? assetForm(state.assetsForm) : '') +
+      '<div class="fold-tools">' + foldBtnHtml() + '</div>' +
       '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
       body + sumRows + '</tbody></table>' + charts;
   }
@@ -4034,6 +4050,15 @@
     if (data.cmpToggle) {
       if (state.cmpCollapsed[data.cmpToggle]) delete state.cmpCollapsed[data.cmpToggle];
       else state.cmpCollapsed[data.cmpToggle] = true;
+      return render();
+    }
+    if (data.foldAll) {
+      // 一键折叠/展开：作用于当前登记的那张表的全部可折叠行。
+      // 有任一折叠 → 全展开；全部展开 → 全折叠
+      var folded = foldScopeKeys.some(function (k) { return !!state.cmpCollapsed[k]; });
+      foldScopeKeys.forEach(function (k) {
+        if (folded) delete state.cmpCollapsed[k]; else state.cmpCollapsed[k] = true;
+      });
       return render();
     }
     if (data.toggle) {
