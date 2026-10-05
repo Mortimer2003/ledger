@@ -295,13 +295,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .btn.primary:hover { opacity: .88; }
 .btn:disabled { opacity: .5; cursor: default; }
 
-/* 可折叠表上方的「全部折叠/展开」：右对齐小按钮，跟 .btn.ghost 同一档 */
-.fold-tools { display: flex; justify-content: flex-end; margin: 0 0 6px; }
-.fold-all { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 6px;
-  border: 1px solid var(--line-strong); background: transparent; color: var(--text-2);
-  cursor: pointer; transition: background .12s ease, color .12s ease; }
-.fold-all:hover { background: var(--hover); color: var(--text); }
-
 .icon-btn {
   display: flex;
   align-items: center;
