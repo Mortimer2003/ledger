@@ -155,6 +155,7 @@
   var viewBarEl = document.getElementById('view-bar');
   var btnAssetMonthEl = document.getElementById('btn-asset-month');
   var btnAssetItemEl = document.getElementById('btn-asset-item');
+  var btnFoldAllEl = document.getElementById('btn-fold-all');
   var modalEl = document.getElementById('modal');
   var setupEl = document.getElementById('setup');
   var tagsEl = document.getElementById('tags');
@@ -750,13 +751,16 @@
   }
 
   // 一键折叠/展开：渲染可折叠表时先登记该表的所有可折叠键（foldScopeKeys），
-  // 按钮文案看有没有任一折叠：有→「全部展开」，无→「全部折叠」
+  // 按钮文案看有没有任一折叠：有→「全部展开」，无→「全部折叠」；
+  // 动作作用于当前登记的那张表的全部可折叠行
   var foldScopeKeys = [];
   function setFoldScope(keys) { foldScopeKeys = keys || []; }
-  function foldBtnHtml() {
-    var any = foldScopeKeys.some(function (k) { return !!state.cmpCollapsed[k]; });
-    return '<button type="button" class="fold-all" data-fold-all="1">' +
-      (any ? '全部展开' : '全部折叠') + '</button>';
+  function foldAllToggle() {
+    var folded = foldScopeKeys.some(function (k) { return !!state.cmpCollapsed[k]; });
+    foldScopeKeys.forEach(function (k) {
+      if (folded) delete state.cmpCollapsed[k]; else state.cmpCollapsed[k] = true;
+    });
+    render();
   }
 
   // 就地编辑浮层：一或多行「标签 + 输入框」，账本/预算/财产三处共用这一份骨架
@@ -1009,8 +1013,7 @@
 
     setFoldScope(data.rows.filter(function (r) { return r.subs.length > 0; })
       .map(function (r) { return 'c:' + r.name; }));
-    return '<div class="fold-tools">' + foldBtnHtml() + '</div>' +
-      '<table class="cmp"><thead>' + head + '</thead><tbody>' +
+    return '<table class="cmp"><thead>' + head + '</thead><tbody>' +
       body + adjustRow + netRow + '</tbody></table>' +
       // 图跟表同视图、也同区间：两根柱就是表里每月的收入合计和支出合计
       '<div class="view-chart">' +
@@ -1856,13 +1859,19 @@
   }
 
   // 正文工具条只剩财产那几个新增按钮：标签跟着子 tab 搬进了顶栏，
-  // 收支/预算/财产月度整条收起，不占行（画廊与详情里的上下留白也因此对称）
+  // 收支/预算/财产月度整条收起，不占行（画廊与详情里的上下留白也因此对称）。
+  // 可折叠的两张表（收支对比 / 财产对比）在这里挂「全部折叠/展开」，跟新增按钮共用悬浮位
   function renderViewBar(mode) {
     var isAssets = mode === 'assets';
+    var isCompare = mode === 'compare';
     btnAssetItemEl.hidden = !isAssets;
     // 一个资产月都没有时铺不了新月，按钮先收着
     btnAssetMonthEl.hidden = !isAssets || !assetMonthsInView().length;
-    viewBarEl.hidden = !isAssets;
+    btnFoldAllEl.hidden = !(isAssets || isCompare);
+    btnFoldAllEl.textContent =
+      foldScopeKeys.some(function (k) { return !!state.cmpCollapsed[k]; })
+        ? '全部展开' : '全部折叠';
+    viewBarEl.hidden = !(isAssets || isCompare);
   }
 
   function assetsHintText() {
@@ -1956,7 +1965,6 @@
     setFoldScope(data.groups.filter(function (g) { return g.items.length > 0; })
       .map(function (g) { return 'a:' + g.app; }));
     return (state.assetsForm ? assetForm(state.assetsForm) : '') +
-      '<div class="fold-tools">' + foldBtnHtml() + '</div>' +
       '<table class="cmp assets"><thead>' + head + '</thead><tbody>' +
       body + sumRows + '</tbody></table>' + charts;
   }
@@ -4052,15 +4060,6 @@
       else state.cmpCollapsed[data.cmpToggle] = true;
       return render();
     }
-    if (data.foldAll) {
-      // 一键折叠/展开：作用于当前登记的那张表的全部可折叠行。
-      // 有任一折叠 → 全展开；全部展开 → 全折叠
-      var folded = foldScopeKeys.some(function (k) { return !!state.cmpCollapsed[k]; });
-      foldScopeKeys.forEach(function (k) {
-        if (folded) delete state.cmpCollapsed[k]; else state.cmpCollapsed[k] = true;
-      });
-      return render();
-    }
     if (data.toggle) {
       if (state.expanded[data.toggle]) delete state.expanded[data.toggle];
       else state.expanded[data.toggle] = true;
@@ -4086,8 +4085,10 @@
 
   // 正文工具条上的按钮是静态的、不在 #tree 里，单独委托
   viewBarEl.addEventListener('click', function (event) {
-    var target = event.target.closest('[data-asset-tool]');
-    if (target) return openAssetForm(target.dataset.assetTool, assetMonthsInView());
+    var target = event.target.closest('[data-asset-tool],[data-fold-all]');
+    if (!target) return;
+    if (target.dataset.assetTool) return openAssetForm(target.dataset.assetTool, assetMonthsInView());
+    if (target.dataset.foldAll) return foldAllToggle();
   });
 
   // 画廊是横向滚动容器：滚动（含横滑）时同步居中的卡。scroll 不冒泡，用捕获接住
