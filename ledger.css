@@ -482,10 +482,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 
 /* 字号一律 clamp(下限, 卡宽百分比, 上限)：比例跟卡片走，窄卡有下限兜底 */
-.gcard-year { font-size: clamp(11px, calc(var(--gc) * 4), 14px); color: var(--text-3); letter-spacing: .06em; }
-.gcard-mon { font-size: clamp(30px, calc(var(--gc) * 15.3), 52px); font-weight: 600; line-height: 1.1; }
-.gcard-mon span { font-size: clamp(11px, calc(var(--gc) * 4.4), 16px); font-weight: 500; color: var(--text-2); margin-left: 3px; }
-.gcard-net { position: relative; font-size: clamp(16px, calc(var(--gc) * 7), 24px); font-weight: 600; margin-top: calc(var(--gc) * 1.6); }
+/* 字号一律 clamp(下限, 卡宽百分比, 上限)：比例跟卡片走。
+   下限必须是卡宽最窄（200px）时按同一比例算出的值——否则窄窗口里大字号继续缩、
+   小字号先撞自己的下限钉住，看起来「有的缩放有的不缩放」。下限只兜极端窗口，正常区间内全线性 */
+.gcard-year { font-size: clamp(8px, calc(var(--gc) * 4), 14px); color: var(--text-3); letter-spacing: .06em; }
+.gcard-mon { font-size: clamp(31px, calc(var(--gc) * 15.3), 52px); font-weight: 600; line-height: 1.1; }
+.gcard-mon span { font-size: clamp(9px, calc(var(--gc) * 4.4), 15px); font-weight: 500; color: var(--text-2); margin-left: 3px; }
+.gcard-net { position: relative; font-size: clamp(14px, calc(var(--gc) * 7), 24px); font-weight: 600; margin-top: calc(var(--gc) * 1.6); }
 
 /* 预览细节：总资产置顶（家底先入眼），收入/支出两列各占半宽收底，
    预算花销在支出列下居中。所有读数都比净额小一号、但保持在可读的体量 */
@@ -503,26 +506,26 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   align-items: center;
   gap: 2px;
 }
-.gcard-io b { font-size: clamp(12px, calc(var(--gc) * 4.4), 15px); font-weight: 500; color: var(--text-3); }
-.gcard-io i { font-size: clamp(14px, calc(var(--gc) * 5.4), 19px); font-style: normal; font-weight: 600; }
+.gcard-io b { font-size: clamp(9px, calc(var(--gc) * 4.4), 15px); font-weight: 500; color: var(--text-3); }
+.gcard-io i { font-size: clamp(11px, calc(var(--gc) * 5.4), 19px); font-style: normal; font-weight: 600; }
 /* 预算花销是支出列下的约束注释：比收支数值再小一档、灰色，居中于支出列 */
-.gcard-io .io-budget { font-size: clamp(12px, calc(var(--gc) * 4.2), 14px); font-style: normal; font-weight: 500; color: var(--text-3); }
+.gcard-io .io-budget { font-size: clamp(8px, calc(var(--gc) * 4.2), 14px); font-style: normal; font-weight: 500; color: var(--text-3); }
 /* 总资产：置顶的家底读数，最接近净额的一档 */
 .gcard-asset {
   display: flex;
   align-items: baseline;
   gap: calc(var(--gc) * 3);
   margin-top: calc(var(--gc) * 2.4);
-  font-size: clamp(15px, calc(var(--gc) * 5.6), 21px);
+  font-size: clamp(11px, calc(var(--gc) * 5.6), 21px);
 }
 .gcard-asset span { font-weight: 500; color: var(--text-3); }
 .gcard-asset b { font-style: normal; font-weight: 600; color: var(--text-2); }
 .gcard-asset b.zero { color: var(--text-3); }
 
 .gcard-new .gcard-in { border-style: dashed; background: transparent; box-shadow: none; }
-.gcard-plus { font-size: clamp(24px, calc(var(--gc) * 9.4), 34px); line-height: 1; color: var(--text-3); }
-.gcard-new-label { font-size: clamp(11px, calc(var(--gc) * 3.8), 14px); color: var(--text-2); margin-top: calc(var(--gc) * 2.4); }
-.gcard-new-month { font-size: clamp(10px, calc(var(--gc) * 3.5), 13px); color: var(--text-3); }
+.gcard-plus { font-size: clamp(19px, calc(var(--gc) * 9.4), 34px); line-height: 1; color: var(--text-3); }
+.gcard-new-label { font-size: clamp(8px, calc(var(--gc) * 3.8), 14px); color: var(--text-2); margin-top: calc(var(--gc) * 2.4); }
+.gcard-new-month { font-size: clamp(7px, calc(var(--gc) * 3.5), 13px); color: var(--text-3); }
 
 /* 详情页顶栏：返回 + 月份 + 收支/净额，往上滚时吸住 */
 .mdetail-bar {
