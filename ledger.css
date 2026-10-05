@@ -482,13 +482,13 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 
 /* 字号一律 clamp(下限, 卡宽百分比, 上限)：比例跟卡片走，窄卡有下限兜底 */
-.gcard-year { font-size: clamp(10px, calc(var(--gc) * 3.5), 13px); color: var(--text-3); letter-spacing: .06em; }
+.gcard-year { font-size: clamp(11px, calc(var(--gc) * 4), 14px); color: var(--text-3); letter-spacing: .06em; }
 .gcard-mon { font-size: clamp(30px, calc(var(--gc) * 15.3), 52px); font-weight: 600; line-height: 1.1; }
 .gcard-mon span { font-size: clamp(11px, calc(var(--gc) * 4.4), 16px); font-weight: 500; color: var(--text-2); margin-left: 3px; }
-.gcard-net { position: relative; font-size: clamp(15px, calc(var(--gc) * 6.7), 23px); font-weight: 600; margin-top: calc(var(--gc) * 1.6); }
+.gcard-net { position: relative; font-size: clamp(16px, calc(var(--gc) * 7), 24px); font-weight: 600; margin-top: calc(var(--gc) * 1.6); }
 
-/* 预览细节：总资产置顶（家底先入眼，字号介于净额与收支之间），
-   收入/支出两列各占半宽收底，预算花销在支出列下居中。 */
+/* 预览细节：总资产置顶（家底先入眼），收入/支出两列各占半宽收底，
+   预算花销在支出列下居中。所有读数都比净额小一号、但保持在可读的体量 */
 .gcard-io {
   display: flex;
   width: 100%;
@@ -503,17 +503,17 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   align-items: center;
   gap: 2px;
 }
-.gcard-io b { font-size: clamp(10px, calc(var(--gc) * 3.2), 12px); font-weight: 500; color: var(--text-3); }
-.gcard-io i { font-size: clamp(11px, calc(var(--gc) * 4.1), 15px); font-style: normal; font-weight: 600; }
-/* 预算花销是支出列下的约束注释：比数值小一号、灰色，居中于支出列，不抢收支读数 */
-.gcard-io .io-budget { font-size: clamp(9px, calc(var(--gc) * 2.9), 11px); font-style: normal; font-weight: 500; color: var(--text-3); }
-/* 总资产：置顶的家底读数，字号比收支数值大一号、比净额小，跟月份字同排法 */
+.gcard-io b { font-size: clamp(12px, calc(var(--gc) * 4.4), 15px); font-weight: 500; color: var(--text-3); }
+.gcard-io i { font-size: clamp(14px, calc(var(--gc) * 5.4), 19px); font-style: normal; font-weight: 600; }
+/* 预算花销是支出列下的约束注释：比收支数值再小一档、灰色，居中于支出列 */
+.gcard-io .io-budget { font-size: clamp(12px, calc(var(--gc) * 4.2), 14px); font-style: normal; font-weight: 500; color: var(--text-3); }
+/* 总资产：置顶的家底读数，最接近净额的一档 */
 .gcard-asset {
   display: flex;
   align-items: baseline;
   gap: calc(var(--gc) * 3);
   margin-top: calc(var(--gc) * 2.4);
-  font-size: clamp(12px, calc(var(--gc) * 4.6), 17px);
+  font-size: clamp(15px, calc(var(--gc) * 5.6), 21px);
 }
 .gcard-asset span { font-weight: 500; color: var(--text-3); }
 .gcard-asset b { font-style: normal; font-weight: 600; color: var(--text-2); }
