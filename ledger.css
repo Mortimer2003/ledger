@@ -526,6 +526,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-asset b.zero { color: var(--text-3); }
 .gcard-asset .gcard-asset-split {
   flex-basis: 100%;
+  text-align: center;
   font-style: normal;
   font-weight: 500;
   color: var(--text-3);
