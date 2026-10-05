@@ -113,7 +113,6 @@
     sub: DEFAULT_SUB,   // 子 tab：income / assets / budget，不落盘、主 tab 一切换就回收支
     galleryAt: readGalleryAt(), // 月度画廊里居中的月份；null/失效时用最新一个月
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
-    budgetOpen: null,           // 预算在看哪个月的推导；null = 停在逐月表
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
     budgetEdit: null,    // 正在就地编辑的预算格：{ month, field }
@@ -1052,7 +1051,6 @@
   // 年份、月份区间、锁定是全局控件，不跟着重置
   function resetViewState() {
     state.monthOpen = null;
-    state.budgetOpen = null;
     state.editing = null;
     state.pendingDelete = null;
     state.budgetEdit = null;
@@ -1336,14 +1334,7 @@
         '娱乐预算自 ' + esc(OPENING_MONTH) + ' 的结余起逐月推算，先在「月度」视图录入。');
     }
 
-    // 正在看某个月的推导：换年、换区间之后那个月没了，就退回逐月表
-    if (state.budgetOpen) {
-      var idx = -1;
-      data.rows.forEach(function (row, i) { if (row.month === state.budgetOpen) idx = i; });
-      if (idx !== -1) return renderBudgetMonth(data, idx, entries);
-      state.budgetOpen = null;
-    }
-
+    // 总览›预算只摆逐月表 + 柱图，不再点进单月推导；推导详情只在月度视图里看
     var head = '<tr>' +
       '<th class="cmp-item"><span class="cell"><span class="name">月份</span></span></th>' +
       '<th>法定假日</th><th>特殊收入计入</th><th>偶发加成</th>' +
@@ -1358,9 +1349,9 @@
 
     var body = data.rows.map(function (row) {
       return '<tr>' +
-        // 月份格是进这一月推导详情的入口；偶发加成、特殊收入计入两格仍归双击编辑
-        '<th class="cmp-item openable" data-budget-month="' + esc(row.month) + '">' +
-          '<span class="cell"><span class="name">' + esc(monthLabel(row.month)) + '</span></span></th>' +
+        // 月份格是普通文本格；偶发加成、特殊收入计入两格仍归双击编辑
+        '<th class="cmp-item"><span class="cell"><span class="name">' +
+          esc(monthLabel(row.month)) + '</span></span></th>' +
         '<td>' + (row.days ? row.days + ' 天' : '<span class="zero">—</span>') + '</td>' +
         budgetInput(row, 'specialIn') +
         budgetInput(row, 'bonus') +
@@ -1495,7 +1486,7 @@
   function budgetMonthHintText(month) {
     return '<p><b>是什么</b><br>' +
         '把 ' + esc(monthLabel(month)) + ' 的预算摊开：上半张是从期初往后滚出来的推导链，' +
-        '下半张是本月「娱乐支出」的实际条目。点左上角返回逐月表。' +
+        '下半张是本月「娱乐支出」的实际条目。点左上角返回。' +
       '</p><p><b>怎么算</b><br>' +
         '本月预算 = 1500 + 100 × 法定假日天数 + 上月结余 + 偶发加成<br>' +
         '本月结余 = 本月预算 − 本月花销 + 特殊收入计入<br>' +
@@ -2744,6 +2735,30 @@
       totalsEl.innerHTML = budgetNext !== null
         ? '<span class="chip budget"><b>下月娱乐预算</b><i>' + money(budgetNext) + '</i></span>'
         : '';
+    } else if (state.view === 'month' && !searching) {
+      // 月度视图（画廊与详情）的 header 是三个维度的理财概要，不随子 tab 变：
+      // 收支（整年收入/支出/净额，真实口径含纠偏）、财产（最新月含/不含公积金）、
+      // 预算（最新推算月的花销/结余）。搜索态铺的是账本单域，仍走下方收支分支
+      var assetTop = buildAssets(year);
+      var at = assetTop.months.length - 1;
+      var bRow = budgetData && budgetData.rows.length
+        ? budgetData.rows[budgetData.rows.length - 1] : null;
+      var net = income + expense + adjustTotal(realNets, metricEntries);
+      totalsEl.innerHTML =
+        '<span class="chip"><b>收支</b><i class="pos">收 ' + signed(income) + '</i>' +
+          '<i class="neg">支 ' + signed(expense) + '</i><i class="' + tone(net) + '">净 ' +
+          signed(net) + '</i></span>' +
+        (at >= 0
+          ? '<span class="chip"><b>财产</b><i>含公积金 ' + money(assetTop.totals[0].values[at]) +
+            '</i><i>不含 ' + money(assetTop.totals[1].values[at]) + '</i></span>'
+          : '') +
+        (bRow
+          ? '<span class="chip budget"><b>预算</b>' +
+            (bRow.spend.total
+              ? '<i class="neg">花销 −' + money(bRow.spend.total) + '</i>'
+              : '<i>花销 —</i>') +
+            '<i>结余 ' + money(bRow.remain) + '</i></span>'
+          : '');
     } else {
       // 顶栏净额也走真实口径：账本净额 + 财产覆盖到的各月纠偏合计。
       // 搜索时读的是命中集合，跟整月口径对不上，就不加纠偏
@@ -2765,12 +2780,17 @@
       }
     })();
 
+    // 画廊卡片要带当月预算花销：budgetData 按月份铺，花销口径跟预算表一致
+    // （娱乐支出合计 + 特殊支出的一半）；未标月份/无预算起始时 buildBudget 返回 null
+    var budgetSpends = {};
+    if (budgetData) budgetData.rows.forEach(function (r) { budgetSpends[r.month] = r.spend.total; });
+
     // 总览：子 tab 常显，收支/财产/预算各自出对比内容
     // 月度：搜索铺可展开月份列表；点开某个月进详情（子 tab 切当月维度）；否则停在画廊
     if (state.view === 'overview') {
       treeEl.className = 'tree ' + (state.sub === 'income' ? 'compare'
         : state.sub === 'assets' ? 'assets'
-        : 'budget' + (state.budgetOpen ? ' detail' : ''));
+        : 'budget');
       treeEl.innerHTML = state.sub === 'income'
         ? renderCompare(scoped, realNets)
         : state.sub === 'assets'
@@ -2795,12 +2815,12 @@
       } else {
         state.monthOpen = null;   // 那个月没了（删空/换了年），退回画廊
         treeEl.className = 'tree gal';
-        treeEl.innerHTML = renderMonthly(scoped, searching, realNets, assetTotals);
+        treeEl.innerHTML = renderMonthly(scoped, searching, realNets, assetTotals, budgetSpends);
         galleryJump();
       }
     } else {
       treeEl.className = searching ? 'tree' : 'tree gal';
-      treeEl.innerHTML = renderMonthly(scoped, searching, realNets, assetTotals);
+      treeEl.innerHTML = renderMonthly(scoped, searching, realNets, assetTotals, budgetSpends);
       if (!searching) galleryJump();
     }
 
@@ -2992,10 +3012,10 @@
 
   // 月度主 tab 的画廊/搜索态：搜索时铺可展开的月份列表（一次看全命中），否则停在画廊。
   // 月详情由 render() 直接分派到各子 tab，不经过这里
-  function renderMonthly(scoped, searching, realNets, assetTotals) {
+  function renderMonthly(scoped, searching, realNets, assetTotals, budgetSpends) {
     pendingHint = treeHintText();
     if (searching) return groupByMonth(scoped).map(renderMonth).join('');
-    return renderGallery(galleryMonths(scoped), realNets, assetTotals);
+    return renderGallery(galleryMonths(scoped), realNets, assetTotals, budgetSpends);
   }
 
   // 画廊里排的月份：只认规范月名，按时间升序（左边上个月、右边下个月）
@@ -3020,7 +3040,7 @@
     return d === 0 ? ' is-center' : d === 1 ? ' d1' : d === 2 ? ' d2' : ' d3';
   }
 
-  function renderGallery(months, realNets, assetTotals) {
+  function renderGallery(months, realNets, assetTotals, budgetSpends) {
     var at = resolveGalleryAt(months);
     galAtSet(at);
     // 居中那张的下标：月份卡按升序排，末尾再挂一张「新增月份」
@@ -3037,7 +3057,8 @@
     });
     var cards = months.map(function (m, i) {
       return galleryCard(i, ci, billCardData(m, realNets,
-        i > 0 ? nets[i - 1] : null, assetTotals ? assetTotals[m.name] : null));
+        i > 0 ? nets[i - 1] : null, assetTotals ? assetTotals[m.name] : null,
+        budgetSpends ? budgetSpends[m.name] : null));
     });
     cards.push(galleryNewCard(months.length, ci, nextBillMonth()));
     return '<div class="gallery" id="gallery">' + cards.join('') + '</div>';
@@ -3059,6 +3080,7 @@
             r.value + '</i></span>';
         }).join('') + '</div>' +
         (c.assetHtml ? '<div class="gcard-asset">' + c.assetHtml + '</div>' : '') +
+        (c.budgetHtml ? '<div class="gcard-budget">' + c.budgetHtml + '</div>' : '') +
         '<div class="gcard-delta"><b>' + c.deltaLabel + '</b>' +
           '<i class="' + c.deltaCls + '">' + c.deltaText + '</i></div>' +
       '</div>' +
@@ -3069,8 +3091,9 @@
   // 预览每张卡都画一份，滚动时内容不忽增忽减，两侧卡跟着缩放一起变小。
   // 首月没有上个月可读，环比按缺数写「—」占位，各卡结构一致、行高不差。
   // 环比得写明是「净额」的环比：紧跟收入/支出下面，只写「较上月」会被当成收支的变化。
-  // 卡片自带当月总资产（含公积金口径），财产里没这个月就写「—」
-  function billCardData(month, realNets, prevNet, assetTotal) {
+  // 卡片自带当月总资产（含公积金口径），财产里没这个月就写「—」；
+  // 再带一行当月预算花销（娱乐支出 + 特殊一半），预算没铺到这个月也写「—」
+  function billCardData(month, realNets, prevNet, assetTotal, budgetSpend) {
     var income = sum(month.list.filter(function (e) { return e.amount > 0; }));
     var expense = sum(month.list.filter(function (e) { return e.amount < 0; }));
     var real = realNetOf(month.name, realNets);
@@ -3095,6 +3118,9 @@
       assetHtml: assetTotal === null || assetTotal === undefined
         ? '<span>总资产</span><b class="zero">—</b>'
         : '<span>总资产</span><b>' + money(assetTotal) + '</b>',
+      budgetHtml: budgetSpend === null || budgetSpend === undefined || !budgetSpend
+        ? '<span>预算花销</span><b class="zero">—</b>'
+        : '<span>预算花销</span><b class="neg">−' + money(budgetSpend) + '</b>',
       deltaLabel: '净额较上月',
       deltaCls: prevNet === null ? 'zero' : tone(net - prevNet),
       deltaText: prevNet === null ? '—' : signed(net - prevNet)
@@ -4022,22 +4048,14 @@
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
       '[data-asset-form-save],[data-asset-form-cancel],' +
       '[data-adjust-alert],' +
-      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center],' +
-      '[data-budget-month]');
+      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center]');
     if (!target) return;
     var data = target.dataset;
     // 纠偏的归因：提醒胶囊点一下就进编辑；已有归因的话双击文字改（dblclick 里处理）
     if (data.adjustAlert) return startAdjustEdit(data.adjustAlert);
-    // 预算逐月表点月份格，进该月的推导详情；返回键同时收两个域，谁开着就退谁
-    if (data.budgetMonth) {
-      state.budgetOpen = data.budgetMonth;
-      treeEl.scrollTop = 0;
-      return render();
-    }
     // 画廊：点中间那张进详情/新建，点旁边那张把它挪到中间
     if (data.galleryBack) {
       state.monthOpen = null;
-      state.budgetOpen = null;
       treeEl.scrollTop = 0;
       return render();
     }
