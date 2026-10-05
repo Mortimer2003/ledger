@@ -49,10 +49,10 @@
   // 视图白名单，顺序跟顶栏按钮一致。
   // 两个主 tab：月度 / 总览。总览下子 tab 常显，收支/财产/预算各自出对比内容；
   // 月度下先停画廊，点进某个月份才露子 tab，切当月不同维度。
-  // 子 tab 不落盘：主 tab 一切换就回收支
+  // 子 tab 不落盘：主 tab 一切换就回默认（财产）
   var TABS = ['month', 'overview'];
   var SUBS = ['income', 'assets', 'budget'];
-  var DEFAULT_SUB = 'income';
+  var DEFAULT_SUB = 'assets';
   // 旧口径里「财产域」的两个 mode，读数和顶栏计数靠它识别
   var ASSET_VIEWS = ['assetMonth', 'assets'];
   // 主 tab 落盘，刷新后停在同一级；没记过或值不认，就回「月度」
