@@ -742,6 +742,13 @@
   // 空状态提示：各视图文案不同，但都是同一颗 .cmp-hint
   function cmpHint(html) { return '<p class="cmp-hint">' + html + '</p>'; }
 
+  // 对比/财产两张表都有「各月」列头：月份头拼接共用一份，不许各域再复制
+  function cmpMonthHead(months) {
+    return months.map(function (m) {
+      return '<th class="cmp-month">' + monthHead(m) + '</th>';
+    }).join('');
+  }
+
   // 就地编辑浮层：一或多行「标签 + 输入框」，账本/预算/财产三处共用这一份骨架
   function editorPanel(fields) {
     return '<span class="editor">' + fields.map(function (f) {
@@ -927,9 +934,7 @@
     }
 
     var head = '<tr><th class="cmp-item"><span class="cell">项目</span></th>' +
-      data.months.map(function (m) {
-        return '<th class="cmp-month">' + monthHead(m) + '</th>';
-      }).join('') +
+      cmpMonthHead(data.months) +
       '<th class="cmp-total">合计</th></tr>';
 
     var body = data.rows.map(function (cat) {
@@ -1890,21 +1895,25 @@
 
     var head = '<tr>' +
       '<th class="cmp-item"><span class="cell"><span class="name">资产项</span></span></th>' +
-      data.months.map(function (m) {
-        return '<th class="cmp-month">' + monthHead(m) + '</th>';
-      }).join('') +
+      cmpMonthHead(data.months) +
       '</tr>';
 
     var body = data.groups.map(function (g) {
-      var groupRow = '<tr class="cmp-cat">' +
+      // 分组行可折叠，跟收支对比的分类行同一套 data-cmp-toggle 机制；
+      // 键前缀 a: 与对比表的 c: 分开，互不干扰
+      var hasItems = g.items.length > 0;
+      var gkey = 'a:' + g.app;
+      var collapsed = hasItems && !!state.cmpCollapsed[gkey];
+      var groupRow = '<tr class="cmp-cat' + (hasItems ? ' is-toggle' : '') + '"' +
+        (hasItems ? ' data-cmp-toggle="' + esc(gkey) + '"' : '') + '>' +
         '<th class="cmp-item"><span class="cell">' +
-          '<span class="chev ghost"></span>' +
+          '<span class="chev' + (collapsed ? '' : ' open') + (hasItems ? '' : ' ghost') + '"></span>' +
           '<span class="name">' + esc(g.app) + '</span>' +
         '</span></th>' +
         assetMonthCells(g.values) +
       '</tr>';
 
-      var itemRows = g.items.map(function (it) {
+      var itemRows = collapsed ? '' : g.items.map(function (it) {
         return '<tr class="cmp-sub">' +
           '<th class="cmp-item' + (state.assetNoteEdit &&
             state.assetNoteEdit.app === it.app && state.assetNoteEdit.name === it.name
