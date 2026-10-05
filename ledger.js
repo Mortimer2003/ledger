@@ -2643,6 +2643,9 @@
     var searching = !!state.search.trim();
     var mode = derivedMode();
     pendingHint = '';
+    // 按钮高亮和子 tab 显隐跟着每次渲染同步：点卡进详情、返回画廊、搜索态都会改
+    // monthOpen/view/sub，不走 setTab/setSub 的路径也必须刷新这里
+    syncViewButtons();
 
     // 以年为界：年份切换栏、顶部总计、笔数和内容都收在同一年里，数字才不会互相打架
     var years = cmpYears(entries);
