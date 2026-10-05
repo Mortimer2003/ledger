@@ -411,6 +411,28 @@
     } catch (e) { /* 存储写满时忽略，不影响使用 */ }
   }
 
+  // 财产数据缓存：跟账本同套路，刷新时总资产（含娱乐预算构成行）秒出。
+  // 预算期初结余一起缓存——构成行靠它推导，等网络回就晚一拍了
+  function readAssetCache() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(KEY_ASSET_CACHE) || 'null');
+      if (!parsed || !Array.isArray(parsed.assets)) return null;
+      if (parsed.ds !== settings.assetsSourceId) return null;
+      return parsed;
+    } catch (e) { return null; }
+  }
+
+  function writeAssetCache() {
+    try {
+      localStorage.setItem(KEY_ASSET_CACHE, JSON.stringify({
+        ds: settings.assetsSourceId,
+        ts: Date.now(),
+        assets: state.assets,
+        budgetOpening: state.budgetOpening
+      }));
+    } catch (e) { /* 存储写满时忽略，不影响使用 */ }
+  }
+
   // ---------- 分组 ----------
 
   // ===== 分组与筛选 =====
@@ -3259,6 +3281,7 @@
       state.pendingDelete = null;
       render();
       writeCache();
+      writeAssetCache();
       // 标签列表来自 schema，读失败也不影响记账，下拉会自动退回条目里的值
       return fetchSubOptions().catch(function () { return null; });
     }).then(function () {
@@ -4206,7 +4229,7 @@
       fetchBudget().catch(function () { return null; })
         .then(function () { return fetchAssets().catch(function () { return null; }); })
         .then(function () { return fetchAdjust().catch(function () { return null; }); })
-        .then(render);
+        .then(function () { writeAssetCache(); render(); });
     }).catch(function (err) {
       errEl.hidden = false;
       errEl.textContent = err.message;
@@ -4260,8 +4283,13 @@
     syncViewButtons();
     syncLockButton();
     var cached = readCache();
-    if (cached) {
-      state.entries = cached.entries;
+    var cachedAssets = readAssetCache();
+    if (cached || cachedAssets) {
+      if (cached) state.entries = cached.entries;
+      if (cachedAssets) {
+        state.assets = cachedAssets.assets;
+        if (cachedAssets.budgetOpening) state.budgetOpening = cachedAssets.budgetOpening;
+      }
       render();
     }
     if (!settings.token) {
