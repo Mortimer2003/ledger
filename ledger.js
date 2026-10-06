@@ -1865,7 +1865,7 @@
       '</p>';
   }
 
-  function renderAssets(year) {
+  function renderAssets(year, budgetNext) {
     state.assetsYear = year;
     pendingHint = assetsHintText();
     var full = buildAssets(year);
@@ -1926,6 +1926,16 @@
         assetMonthCells(t.values) +
       '</tr>';
     }).join('');
+    // 总资产也拆「娱乐预算」：跟月份卡片构成行同一口径（总资产 − 下月娱乐预算），
+    // 预算推导不出下月时（null）就不加这行
+    if (budgetNext !== null) {
+      sumRows += '<tr class="assets-sum">' +
+        '<th class="cmp-item"><span class="cell"><span class="name">总资产（不含娱乐预算）</span></span></th>' +
+        assetMonthCells(data.totals[0].values.map(function (v) {
+          return v === null ? null : v - budgetNext;
+        })) +
+      '</tr>';
+    }
 
     // 明细和图表并在一屏里：上面铺表，下面两张图跟着同一份月份区间
     var charts = renderAssetCharts(year);
@@ -2000,7 +2010,7 @@
       '</p>';
   }
 
-  function renderAssetMonthDetail(month) {
+  function renderAssetMonthDetail(month, budgetNext) {
     var rows = assetMonthRows(month);
     var locked = monthLocked(month, 'assets');
     var all = assetTotalOf(month, '含公积金');
@@ -2047,6 +2057,16 @@
         assetStaticCell(assetSumOf(t.list, 'start')) + assetStaticCell(assetSumOf(t.list, 'end')) +
       '</tr>';
     }).join('');
+    // 跟总览财产表同一口径：总资产（含公积金）− 下月娱乐预算，预算推导不出时（null）不加
+    if (budgetNext !== null) {
+      var allStart = assetSumOf(rows, 'start');
+      var allEnd = assetSumOf(rows, 'end');
+      sumRows += '<tr class="assets-sum">' +
+        '<th class="cmp-item"><span class="cell"><span class="name">总资产（不含娱乐预算）</span></span></th>' +
+        assetStaticCell(allStart === null ? null : allStart - budgetNext) +
+        assetStaticCell(allEnd === null ? null : allEnd - budgetNext) +
+      '</tr>';
+    }
 
     var parts = apps.map(function (app) {
       return { name: app, value: assetSumOf(rows.filter(function (r) { return r.app === app; }), 'end') };
@@ -2629,7 +2649,7 @@
       treeEl.innerHTML = state.sub === 'income'
         ? renderCompare(scoped, realNets)
         : state.sub === 'assets'
-          ? renderAssets(year)
+          ? renderAssets(year, budgetNext)
           : renderBudget(budgetData, year, yearEntries);
     } else if (!searching && state.monthOpen) {
       var openMonth = null;
@@ -2642,7 +2662,7 @@
         treeEl.innerHTML = state.sub === 'income'
           ? renderMonthDetail(openMonth, realNets)
           : state.sub === 'assets'
-            ? renderAssetMonthDetail(state.monthOpen)
+            ? renderAssetMonthDetail(state.monthOpen, budgetNext)
             : bIdx !== -1
               ? renderBudgetMonth(budgetData, bIdx, yearEntries, '返回画廊')
               : cmpHint('该月没有可推导的娱乐预算。预算自 ' + esc(OPENING_MONTH) +
