@@ -1738,7 +1738,7 @@
       months: months,
       groups: groups,
       totals: [
-        { label: '总资产（含公积金）', values: columnSums(items, months.length) },
+        { label: '总资产', values: columnSums(items, months.length) },
         { label: '总资产（不含公积金）', values: columnSums(items.filter(function (it) {
             return it.app !== ASSET_RESERVED;
           }), months.length) }
@@ -2049,7 +2049,7 @@
     }).join('');
 
     var sumRows = [
-      { label: '总资产（含公积金）', list: rows },
+      { label: '总资产', list: rows },
       { label: '总资产（不含公积金）', list: freeRows }
     ].map(function (t) {
       return '<tr class="assets-sum">' +
@@ -2057,7 +2057,7 @@
         assetStaticCell(assetSumOf(t.list, 'start')) + assetStaticCell(assetSumOf(t.list, 'end')) +
       '</tr>';
     }).join('');
-    // 跟总览财产表同一口径：总资产（含公积金）− 下月娱乐预算，预算推导不出时（null）不加
+    // 跟总览财产表同一口径：总资产 − 下月娱乐预算，预算推导不出时（null）不加
     if (budgetNext !== null) {
       var allStart = assetSumOf(rows, 'start');
       var allEnd = assetSumOf(rows, 'end');
@@ -2077,7 +2077,7 @@
       mdetailHead(month, locked, null,
         '<span class="spacer"></span>' +
         '<span class="mdetail-io"><span>不含公积金 <b>' + money(free) + '</b></span></span>' +
-        '<span class="mdetail-net">含公积金 ' + money(all) + '</span>') +
+        '<span class="mdetail-net">总资产 ' + money(all) + '</span>') +
       '<div class="adetail">' +
         '<table class="cmp assets asset-detail"><thead><tr>' +
           '<th class="cmp-item"><span class="cell"><span class="name">资产项</span></span></th>' +
@@ -2085,7 +2085,7 @@
         '</tr></thead><tbody>' + body + sumRows + '</tbody></table>' +
         '<div class="charts">' +
           chartCard('分布', monthLabel(month) + ' · 按月末余额',
-            donutSvg(parts, '总资产（含公积金）', '这个月还没有余额。')) +
+            donutSvg(parts, '总资产', '这个月还没有余额。')) +
         '</div>' +
       '</div>' +
     '</div>';
@@ -2388,7 +2388,7 @@
       return { name: g.app, value: g.values[at] || 0 };
     }).filter(function (p) { return p.value > 0; })
       .sort(function (a, b) { return b.value - a.value; });
-    return donutSvg(parts, '总资产（含公积金）', '最新一个月还没有余额。');
+    return donutSvg(parts, '总资产', '最新一个月还没有余额。');
   }
 
   // 环形图：财产占比两处共用——对比视图取最后一列，月度详情取当月
@@ -2618,7 +2618,7 @@
         ? buildAssets(year) : sliceAssets(buildAssets(year));
       var at = assetTop.months.length - 1;
       totalsEl.innerHTML = at < 0 ? '' :
-        '<span class="chip"><b>含公积金</b><i>' + money(assetTop.totals[0].values[at]) + '</i></span>' +
+        '<span class="chip"><b>总资产</b><i>' + money(assetTop.totals[0].values[at]) + '</i></span>' +
         '<span class="chip"><b>不含公积金</b><i>' + money(assetTop.totals[1].values[at]) + '</i></span>';
     } else if (isBudgetView) {
       // 预算视图只报下月能花多少：收支读数归收支视图，别在两处重复
