@@ -312,6 +312,20 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .icon-btn:hover { background: var(--hover); color: var(--text); }
 .icon-btn.spin svg { animation: spin .8s linear infinite; }
+/* 月度理财快照导出按钮：跟图标按钮同一套描边风格，但带文字 */
+.mdetail-bar .export-btn {
+  align-self: center;
+  margin-right: 8px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.mdetail-bar .export-btn:hover { background: var(--hover); color: var(--text); }
 /* 锁定开关：锁着时给个浅底，跟旁边两颗纯描边的图标按钮区分开 */
 .icon-btn.active { background: var(--bg-soft); color: var(--text); }
 @keyframes spin { to { transform: rotate(360deg); } }
