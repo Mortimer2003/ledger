@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261007-2127">
+<link rel="stylesheet" href="ledger.css?v=20261007-2138">
 
 </head>
 <body>
@@ -253,7 +253,22 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261007-2127"></script>
+<!-- 导出面板：剪贴板权限拿不到时把 JSON 摊开，手动复制或下载，不假提示 -->
+<div class="export-panel" id="export-panel" hidden>
+  <div class="export-panel-box">
+    <div class="export-panel-head">
+      <span id="export-title">理财快照（JSON）</span>
+      <button type="button" class="btn ghost export-x" id="export-close">关闭</button>
+    </div>
+    <textarea id="export-text" spellcheck="false"></textarea>
+    <div class="export-panel-foot">
+      <button type="button" class="btn ghost" id="export-copy">复制</button>
+      <button type="button" class="btn ghost" id="export-download">下载 .json</button>
+    </div>
+  </div>
+</div>
+
+<script src="ledger.js?v=20261007-2138"></script>
 
 </body>
 </html>
