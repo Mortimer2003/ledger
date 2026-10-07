@@ -2076,6 +2076,8 @@
     return '<div class="mdetail">' +
       mdetailHead(month, locked, null,
         '<span class="spacer"></span>' +
+        '<button type="button" class="export-btn" data-export-month="' + esc(month) + '" ' +
+          'title="导出该月财产与预算（不含收支明细）为 JSON，供 AI 分析">导出 JSON</button>' +
         '<span class="mdetail-io"><span>不含公积金 <b>' + money(free) + '</b></span></span>' +
         '<span class="mdetail-net">总资产 ' + money(all) + '</span>') +
       '<div class="adetail">' +
@@ -2089,6 +2091,73 @@
         '</div>' +
       '</div>' +
     '</div>';
+  }
+
+  // 月度理财快照导出：财产（资产项明细 + 三口径总计）+ 预算（本月预算/花销/结余/
+  // 特殊收入计入/偶发加成/下月预算）+ 收支汇总（只给汇总，不给明细），JSON 供 AI 分析。
+  // 复制到剪贴板优先（粘贴给 AI 最方便），剪贴板不可用就落一个 .json 文件
+  function exportMonthSnapshot(month) {
+    var rows = assetMonthRows(month);
+    var all = assetTotalOf(month, '含公积金');
+    var free = assetTotalOf(month, '不含公积金');
+    var m = /^(\d{4})年/.exec(month);
+    var year = m ? Number(m[1]) : null;
+    var budgetData = year !== null ? buildBudget(scopeToYear(all, year), year) : null;
+    var bRow = null;
+    if (budgetData) budgetData.rows.forEach(function (r) { if (r.month === month) bRow = r; });
+    var budgetNext = nextBudget(budgetData);
+    var mList = state.entries.filter(function (e) { return (e.month || UNSET_MONTH) === month; });
+    var income = sum(mList.filter(function (e) { return e.amount > 0; }));
+    var expense = sum(mList.filter(function (e) { return e.amount < 0; }));
+    var realNets = realNetMap(year);
+    var net = realNetOf(month, realNets);
+    if (net === null || net === undefined) net = income + expense;
+    var data = {
+      类型: '月度理财快照',
+      说明: '不含收支明细；收支仅给汇总。财产与预算为当月数据，金额为原始数字',
+      月份: month,
+      导出时间: new Date().toISOString(),
+      收支汇总: { 收入: income, 支出: expense, 净额: net },
+      财产: {
+        总资产: all,
+        不含公积金: free,
+        不含娱乐预算: budgetNext === null ? null : all - budgetNext,
+        资产项: rows.map(function (r) {
+          return { 应用: r.app, 名称: r.name, 月初: r.start, 月末: r.end, 备注: r.note || null };
+        })
+      },
+      预算: bRow ? {
+        本月预算: bRow.budget,
+        本月花销: bRow.spend.total,
+        本月结余: bRow.remain,
+        特殊收入计入: bRow.cfg.specialIn || 0,
+        偶发加成: bRow.cfg.bonus || 0,
+        下月娱乐预算: budgetNext
+      } : { 下月娱乐预算: budgetNext }
+    };
+    var json = JSON.stringify(data, null, 2);
+    var ok = function () { toast('已导出 ' + month + ' 理财快照', true); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(json).then(ok)
+        .catch(function () { downloadJson(month, json); ok(); });
+    } else {
+      downloadJson(month, json);
+      ok();
+    }
+  }
+
+  function downloadJson(month, text) {
+    try {
+      var blob = new Blob([text], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = month + '-理财快照.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    } catch (e) { /* 复制和下载都不可用时静默，toast 已提示导出 */ }
   }
 
   // 保存进度的悬浮位：只有写 Notion 的过程中短暂出现（资产新增已移除，备注批量写时仍用）
@@ -3891,9 +3960,11 @@
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
       '[data-adjust-alert],' +
-      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center]');
+      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center],[data-export-month]');
     if (!target) return;
     var data = target.dataset;
+    // 月度理财快照导出：复制 JSON 到剪贴板（或下载文件），供 AI 分析
+    if (data.exportMonth) return exportMonthSnapshot(data.exportMonth);
     // 纠偏的归因：提醒胶囊点一下就进编辑；已有归因的话双击文字改（dblclick 里处理）
     if (data.adjustAlert) return startAdjustEdit(data.adjustAlert);
     // 画廊：点中间那张进详情/新建，点旁边那张把它挪到中间
