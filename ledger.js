@@ -2141,7 +2141,7 @@
     var json = JSON.stringify(data, null, 2);
     if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(json).then(function () {
-        toast('已复制 ' + month + ' 理财快照到剪贴板，可直接粘贴给 AI', true);
+        toast('已复制 ' + month + ' 理财快照到剪贴板', true);
       }).catch(function () {
         toast('剪贴板权限不可用，已弹出内容供手动复制', false);
         showExportPanel(month, json);
