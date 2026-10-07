@@ -312,20 +312,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 .icon-btn:hover { background: var(--hover); color: var(--text); }
 .icon-btn.spin svg { animation: spin .8s linear infinite; }
-/* 月度理财快照导出按钮：跟图标按钮同一套描边风格，但带文字 */
-.mdetail-bar .export-btn {
-  align-self: center;
-  margin-right: 8px;
-  padding: 3px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background .12s ease, color .12s ease;
-}
-.mdetail-bar .export-btn:hover { background: var(--hover); color: var(--text); }
 /* 锁定开关：锁着时给个浅底，跟旁边两颗纯描边的图标按钮区分开 */
 .icon-btn.active { background: var(--bg-soft); color: var(--text); }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -1261,6 +1247,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* 一键折叠/展开住在子 tab 右侧：跟说明/标签共用第二行，不与读数抢位 */
 #bar-sub .btn-fold-all { margin-left: 8px; }
 #bar-sub .btn-fold-all[hidden] { display: none; }
+/* 导出按钮跟折叠按钮一排，紧挨其后 */
+#bar-sub .btn-export { margin-left: 8px; }
+#bar-sub .btn-export[hidden] { display: none; }
 
 /* 财产格：平时只显月末，双击展开「月末」输入框，跟预算格一个规矩 */
 .cmp.assets td.cmp-edit {
