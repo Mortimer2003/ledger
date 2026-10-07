@@ -2103,7 +2103,8 @@
     var free = assetTotalOf(month, '不含公积金');
     var m = /^(\d{4})年/.exec(month);
     var year = m ? Number(m[1]) : null;
-    var budgetData = year !== null ? buildBudget(scopeToYear(all, year), year) : null;
+    // 预算推导用的是账本条目（state.entries），不是上面的总资产数字
+    var budgetData = year !== null ? buildBudget(scopeToYear(state.entries, year), year) : null;
     var bRow = null;
     if (budgetData) budgetData.rows.forEach(function (r) { if (r.month === month) bRow = r; });
     var budgetNext = nextBudget(budgetData);
@@ -2138,7 +2139,8 @@
     };
     var json = JSON.stringify(data, null, 2);
     var ok = function () { toast('已导出 ' + month + ' 理财快照', true); };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
+    // 非浏览器环境（测试桩）没有 navigator，先判存在再取剪贴板
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(json).then(ok)
         .catch(function () { downloadJson(month, json); ok(); });
     } else {
