@@ -1598,6 +1598,58 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .toast button:hover { background: rgba(255, 255, 255, .28); }
 .toast button[hidden] { display: none; }
 
+/* 导出面板：剪贴板权限不可用时把 JSON 摊开，手动复制或下载 */
+.export-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, .35);
+}
+.export-panel[hidden] { display: none; }
+.export-panel-box {
+  width: min(680px, 94vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .18);
+}
+.export-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+}
+.export-panel-head .export-x { padding: 2px 10px; font-size: 12px; }
+.export-panel textarea {
+  width: 100%;
+  min-height: 320px;
+  box-sizing: border-box;
+  padding: 10px;
+  border: none;
+  outline: none;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: 12px/1.55 ui-monospace, Consolas, monospace;
+  resize: vertical;
+  white-space: pre;
+}
+.export-panel-foot {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+}
+
 @media (max-width: 620px) {
   .topbar { gap: 6px; }
   .bar { gap: 8px 10px; }
