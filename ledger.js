@@ -2096,7 +2096,8 @@
 
   // 月度理财快照导出：财产（资产项明细 + 三口径总计）+ 预算（本月预算/花销/结余/
   // 特殊收入计入/偶发加成/下月预算）+ 收支汇总（只给汇总，不给明细），JSON 供 AI 分析。
-  // 复制到剪贴板优先（粘贴给 AI 最方便），剪贴板不可用就落一个 .json 文件
+  // 剪贴板能写就写（嵌入 iframe 往往被拒）；写不了就弹面板摊开内容，手动复制或下载。
+  // 提示只讲真实结果：复制成功才说「已复制」，面板弹出就明说剪贴板不可用
   function exportMonthSnapshot(month) {
     var rows = assetMonthRows(month);
     var all = assetTotalOf(month, '含公积金');
@@ -2138,14 +2139,16 @@
       } : { 下月娱乐预算: budgetNext }
     };
     var json = JSON.stringify(data, null, 2);
-    var ok = function () { toast('已导出 ' + month + ' 理财快照', true); };
-    // 非浏览器环境（测试桩）没有 navigator，先判存在再取剪贴板
     if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(json).then(ok)
-        .catch(function () { downloadJson(month, json); ok(); });
+      navigator.clipboard.writeText(json).then(function () {
+        toast('已复制 ' + month + ' 理财快照到剪贴板，可直接粘贴给 AI', true);
+      }).catch(function () {
+        toast('剪贴板权限不可用，已弹出内容供手动复制', false);
+        showExportPanel(month, json);
+      });
     } else {
-      downloadJson(month, json);
-      ok();
+      toast('剪贴板权限不可用，已弹出内容供手动复制', false);
+      showExportPanel(month, json);
     }
   }
 
@@ -2162,6 +2165,44 @@
       setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     } catch (e) { /* 复制和下载都不可用时静默，toast 已提示导出 */ }
   }
+
+  // ---------- 导出面板 ----------
+  var exportPanelEl = document.getElementById('export-panel');
+  var exportTitleEl = document.getElementById('export-title');
+  var exportTextEl = document.getElementById('export-text');
+  var exportCopyEl = document.getElementById('export-copy');
+  var exportDownloadEl = document.getElementById('export-download');
+  var exportCloseEl = document.getElementById('export-close');
+  var exportMonthCache = null;
+  var exportJsonCache = '';
+
+  function showExportPanel(month, json) {
+    exportMonthCache = month;
+    exportJsonCache = json;
+    exportTitleEl.textContent = month + ' 理财快照（JSON）';
+    exportTextEl.value = json;
+    exportPanelEl.hidden = false;
+    try { exportTextEl.select(); } catch (e) {}
+  }
+
+  function closeExportPanel() { exportPanelEl.hidden = true; }
+
+  exportCopyEl.addEventListener('click', function () {
+    exportTextEl.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    if (ok) { toast('已复制到剪贴板', true); closeExportPanel(); }
+    else toast('复制失败：请手动选中文本复制', false);
+  });
+  exportDownloadEl.addEventListener('click', function () {
+    downloadJson(exportMonthCache, exportJsonCache);
+    closeExportPanel();
+    toast('已下载 ' + exportMonthCache + '-理财快照.json', true);
+  });
+  exportCloseEl.addEventListener('click', closeExportPanel);
+  exportPanelEl.addEventListener('click', function (event) {
+    if (event.target === exportPanelEl) closeExportPanel();
+  });
 
   // 保存进度的悬浮位：只有写 Notion 的过程中短暂出现（资产新增已移除，备注批量写时仍用）
   function setAssetProgress(text) {
