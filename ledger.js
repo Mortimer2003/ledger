@@ -152,6 +152,7 @@
   var btnTagsEl = document.getElementById('btn-tags');
   var barSubEl = document.getElementById('bar-sub');
   var btnFoldAllEl = document.getElementById('btn-fold-all');
+  var btnExportEl = document.getElementById('btn-export');
   var modalEl = document.getElementById('modal');
   var setupEl = document.getElementById('setup');
   var tagsEl = document.getElementById('tags');
@@ -1843,6 +1844,8 @@
     btnFoldAllEl.textContent =
       foldScopeKeys.some(function (k) { return !!state.cmpCollapsed[k]; })
         ? '全部展开' : '全部折叠';
+    // 导出按钮：月度详情态（当前月已打开）可用，三个子 tab 都能导当前月的理财快照
+    btnExportEl.hidden = !(state.view === 'month' && state.monthOpen && !state.search.trim());
   }
 
   function assetsHintText() {
@@ -2076,8 +2079,6 @@
     return '<div class="mdetail">' +
       mdetailHead(month, locked, null,
         '<span class="spacer"></span>' +
-        '<button type="button" class="export-btn" data-export-month="' + esc(month) + '" ' +
-          'title="导出该月财产与预算（不含收支明细）为 JSON，供 AI 分析">导出 JSON</button>' +
         '<span class="mdetail-io"><span>不含公积金 <b>' + money(free) + '</b></span></span>' +
         '<span class="mdetail-net">总资产 ' + money(all) + '</span>') +
       '<div class="adetail">' +
@@ -3960,11 +3961,9 @@
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
       '[data-adjust-alert],' +
-      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center],[data-export-month]');
+      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center]');
     if (!target) return;
     var data = target.dataset;
-    // 月度理财快照导出：复制 JSON 到剪贴板（或下载文件），供 AI 分析
-    if (data.exportMonth) return exportMonthSnapshot(data.exportMonth);
     // 纠偏的归因：提醒胶囊点一下就进编辑；已有归因的话双击文字改（dblclick 里处理）
     if (data.adjustAlert) return startAdjustEdit(data.adjustAlert);
     // 画廊：点中间那张进详情/新建，点旁边那张把它挪到中间
@@ -4013,10 +4012,11 @@
     }
   });
 
-  // 一键折叠/展开按钮住在顶栏第二行（子 tab 右侧），不在 #tree 里，单独委托
+  // 一键折叠/展开、导出按钮住在顶栏第二行（子 tab 右侧），不在 #tree 里，单独委托
   barSubEl.addEventListener('click', function (event) {
-    var target = event.target.closest('[data-fold-all]');
+    var target = event.target.closest('[data-fold-all],[data-export-month]');
     if (!target) return;
+    if (target.dataset.exportMonth) return exportMonthSnapshot(state.monthOpen);
     return foldAllToggle();
   });
 
