@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261007-1436">
+<link rel="stylesheet" href="ledger.css?v=20261007-2120">
 
 </head>
 <body>
@@ -74,6 +74,9 @@
       </div>
       <!-- 一键折叠/展开：只服务两张可折叠的表（收支对比 / 财产对比），住在子 tab 右侧 -->
       <button type="button" class="btn ghost btn-fold-all" id="btn-fold-all" data-fold-all="1" hidden>全部折叠</button>
+      <!-- 月度理财快照导出：月度详情态可用（当前打开的月），任何子 tab 都能导 -->
+      <button type="button" class="btn ghost btn-export" id="btn-export" data-export-month="1" hidden
+        title="导出当前月财产与预算（不含收支明细）为 JSON，供 AI 分析">导出 JSON</button>
       <!-- 视图级工具跟在当前主 tab 的子 tab 右侧：说明（每个子视图都有）、标签（只服务收支域的月度视图）。
            说明排在最前，其余按钮一律在它右侧 -->
       <div class="sub-actions">
@@ -250,7 +253,7 @@
   <button type="button" id="toast-action" hidden></button>
 </div>
 
-<script src="ledger.js?v=20261007-1436"></script>
+<script src="ledger.js?v=20261007-2120"></script>
 
 </body>
 </html>
