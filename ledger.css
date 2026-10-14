@@ -1506,6 +1506,23 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .tpl-note { margin: 0 0 10px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
 .tpl-note[hidden] { display: none; }
 
+/* 新建月份面板里的财产块：状态 + 一键复制上月资产项 */
+.tpl-asset {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 9px 10px;
+  margin: 0 0 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+.tpl-asset > label { flex: none; font-weight: 600; font-size: 12.5px; }
+.tpl-asset .tpl-asset-state { flex: 1 1 160px; font-size: 12px; color: var(--text-2); }
+.tpl-asset .btn { flex: none; padding: 3px 12px; font-size: 12.5px; }
+.tpl-asset .btn[hidden] { display: none; }
+
 /* ---------- 子类标签管理 ---------- */
 .tag-list { margin: 2px 0 12px; max-height: 300px; overflow: auto; }
 
