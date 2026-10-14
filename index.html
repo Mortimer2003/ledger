@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261014-2316">
+<link rel="stylesheet" href="ledger.css?v=20261014-2354">
 
 </head>
 <body>
@@ -226,35 +226,6 @@
   </form>
 </div>
 
-<div class="mask" id="month-mask" hidden>
-  <form class="modal" id="month-form">
-    <h2>新增月份账单</h2>
-    <p class="hint">按模板一次建好该月的常规项，金额留空，之后再逐条填。</p>
-
-    <div class="field">
-      <label for="m-month">月份</label>
-      <input id="m-month" list="months" autocomplete="off" placeholder="2026年10月" required>
-    </div>
-
-    <ul class="tpl-list" id="tpl-list"></ul>
-    <p class="tpl-note" id="tpl-note" hidden></p>
-    <p class="saved-hint" id="tpl-progress" hidden></p>
-    <p class="err" id="month-err" hidden></p>
-
-    <!-- 财产：新建月份一并闭环——上月有资产项就能一键复制铺月，金额留空 -->
-    <div class="field tpl-asset" id="tpl-asset">
-      <label>财产</label>
-      <span class="tpl-asset-state" id="tpl-asset-state"></span>
-      <button type="button" class="btn ghost" id="tpl-asset-create" hidden>复制上月资产项</button>
-    </div>
-
-    <div class="modal-actions">
-      <button type="button" class="btn ghost" id="month-cancel">取消</button>
-      <button type="submit" class="btn primary" id="month-create">创建</button>
-    </div>
-  </form>
-</div>
-
 <div class="toast" id="toast">
   <span id="toast-msg"></span>
   <button type="button" id="toast-action" hidden></button>
@@ -275,7 +246,7 @@
   </div>
 </div>
 
-<script src="ledger.js?v=20261014-2316"></script>
+<script src="ledger.js?v=20261014-2354"></script>
 
 </body>
 </html>
