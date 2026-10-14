@@ -172,6 +172,8 @@
   var monthErrEl = document.getElementById('month-err');
   var monthCreateBtn = document.getElementById('month-create');
   var monthCancelBtn = document.getElementById('month-cancel');
+  var tplAssetStateEl = document.getElementById('tpl-asset-state');
+  var tplAssetCreateEl = document.getElementById('tpl-asset-create');
 
   var query = new URLSearchParams(location.search);
   document.documentElement.dataset.theme =
@@ -3694,6 +3696,8 @@
       ? '该月已有 ' + total + ' 条记录，模板里同名的项会自动跳过。'
       : '';
 
+    renderAssetMonthState(label);
+
     if (!billMonth(label)) {
       monthErrEl.hidden = false;
       monthErrEl.textContent = '月份要能认出年月，才能生成「10月工资」这样的名字。请按 2026年10月 的格式填写。';
@@ -3713,11 +3717,68 @@
     tplProgressEl.hidden = true;
     monthCreateBtn.disabled = false;
     renderBillPreview();
+    renderAssetMonthState(monthInputEl.value.trim());
     monthMaskEl.hidden = false;
     setTimeout(function () { monthInputEl.focus(); }, 0);
   }
 
   function closeMonthBill() { monthMaskEl.hidden = true; }
+
+  // 新建月份面板里的财产状态：该月已有资产就是已铺好，没有且上月有就提供一键复制
+  function renderAssetMonthState(label) {
+    var at = billMonth(label);
+    var rows = at ? state.assets.filter(function (a) { return a.month === label && a.name; }) : [];
+    if (rows.length) {
+      tplAssetStateEl.textContent = '已铺好 ' + rows.length + ' 项资产，可直接填余额';
+      tplAssetCreateEl.hidden = true;
+      return;
+    }
+    var prev = at ? prevMonthName(label) : null;
+    var hasPrev = prev && state.assets.some(function (a) {
+      return a.month === prev && a.name && a.app;
+    });
+    tplAssetStateEl.textContent = hasPrev
+      ? '上月（' + prev + '）有资产项，可一键复制铺月'
+      : (at ? '上月（' + prev + '）没有资产项，需先到 Notion 建' : '先填有效月份');
+    tplAssetCreateEl.hidden = !hasPrev;
+  }
+
+  // 一键把上月资产项复制成目标月：月份/应用/类型/备注照抄，月初/月末留空待填。
+  // 幂等：目标月已有资产时不重复铺
+  function addAssetMonth(label) {
+    var at = billMonth(label);
+    if (!at) return;
+    var rows = state.assets.filter(function (a) { return a.month === label && a.name; });
+    if (rows.length) { toast(label + ' 已有资产记录，无需复制', false); renderAssetMonthState(label); return; }
+    var prev = prevMonthName(label);
+    var prevRows = state.assets.filter(function (a) { return a.month === prev && a.name && a.app; });
+    if (!prevRows.length) { toast('上月（' + prev + '）没有资产项，无法复制', false); return; }
+    setLoading(true);
+    eachPage(prevRows, function (r) {
+      return notion('/pages', {
+        method: 'POST',
+        body: JSON.stringify({
+          parent: { type: 'data_source_id', data_source_id: settings.assetsSourceId },
+          properties: {
+            '类型': { title: [{ text: { content: r.name } }] },
+            '月份': { select: { name: label } },
+            '应用': { select: { name: r.app } },
+            '月初': { number: null },
+            '月末': { number: null },
+            '备注': { rich_text: r.note ? [{ text: { content: r.note } }] : [] }
+          }
+        })
+      });
+    }).then(function () {
+      setLoading(false);
+      toast('已复制 ' + prevRows.length + ' 项资产到 ' + label + '（金额留空）', true);
+      closeMonthBill();
+      return refresh();
+    }).catch(function (err) {
+      setLoading(false);
+      toast(err.message, false);
+    });
+  }
 
   function createMonthBill() {
     var label = monthInputEl.value.trim();
@@ -4385,6 +4446,9 @@
   monthInputEl.addEventListener('input', renderBillPreview);
   monthMaskEl.addEventListener('click', function (event) {
     if (event.target === monthMaskEl) closeMonthBill();
+  });
+  tplAssetCreateEl.addEventListener('click', function () {
+    addAssetMonth(monthInputEl.value.trim());
   });
   document.getElementById('month-form').addEventListener('submit', function (event) {
     event.preventDefault();
