@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261007-2147">
+<link rel="stylesheet" href="ledger.css?v=20261014-2316">
 
 </head>
 <body>
@@ -241,6 +241,13 @@
     <p class="saved-hint" id="tpl-progress" hidden></p>
     <p class="err" id="month-err" hidden></p>
 
+    <!-- 财产：新建月份一并闭环——上月有资产项就能一键复制铺月，金额留空 -->
+    <div class="field tpl-asset" id="tpl-asset">
+      <label>财产</label>
+      <span class="tpl-asset-state" id="tpl-asset-state"></span>
+      <button type="button" class="btn ghost" id="tpl-asset-create" hidden>复制上月资产项</button>
+    </div>
+
     <div class="modal-actions">
       <button type="button" class="btn ghost" id="month-cancel">取消</button>
       <button type="submit" class="btn primary" id="month-create">创建</button>
@@ -268,7 +275,7 @@
   </div>
 </div>
 
-<script src="ledger.js?v=20261007-2147"></script>
+<script src="ledger.js?v=20261014-2316"></script>
 
 </body>
 </html>
