@@ -30,6 +30,7 @@
   var KEY_DS = 'ledger.dataSourceId';
   var KEY_CACHE = 'ledger.cache';
   var KEY_GALLERY_AT = 'ledger.galleryAt';
+  var KEY_DRAFT_MONTH = 'ledger.draftMonth';   // 处于「新建编辑中」的月份；完成前一直记忆
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
   var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
@@ -112,6 +113,7 @@
     view: readView(),   // 主 tab：month（月度）/ overview（总览），落盘
     sub: DEFAULT_SUB,   // 子 tab：income / assets / budget，不落盘、主 tab 一切换就回收支
     galleryAt: readGalleryAt(), // 月度画廊里居中的月份；null/失效时用最新一个月
+    draftMonth: localStorage.getItem(KEY_DRAFT_MONTH) || null, // 新建编辑中的月份，完成后清除
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
@@ -164,16 +166,16 @@
   var progressEl = document.getElementById('progress');
   var refreshBtn = document.getElementById('btn-refresh');
   var btnLockEl = document.getElementById('btn-lock');
-  var monthMaskEl = document.getElementById('month-mask');
-  var monthInputEl = document.getElementById('m-month');
-  var tplListEl = document.getElementById('tpl-list');
-  var tplNoteEl = document.getElementById('tpl-note');
-  var tplProgressEl = document.getElementById('tpl-progress');
-  var monthErrEl = document.getElementById('month-err');
-  var monthCreateBtn = document.getElementById('month-create');
-  var monthCancelBtn = document.getElementById('month-cancel');
-  var tplAssetStateEl = document.getElementById('tpl-asset-state');
-  var tplAssetCreateEl = document.getElementById('tpl-asset-create');
+  var monthMaskEl = null;      // 旧「新增月份对话框」已废，改成交互式编辑状态
+  var monthInputEl = null;
+  var tplListEl = null;
+  var tplNoteEl = null;
+  var tplProgressEl = null;
+  var monthErrEl = null;
+  var monthCreateBtn = null;
+  var monthCancelBtn = null;
+  var tplAssetStateEl = null;
+  var tplAssetCreateEl = null;
 
   var query = new URLSearchParams(location.search);
   document.documentElement.dataset.theme =
@@ -540,7 +542,8 @@
   function monthHead(name) {
     var m = /^(\d{4})年(\d{1,2})月$/.exec(name || '');
     if (!m) return '<span class="mo">' + esc(name) + '</span>';
-    return '<span class="yr">' + m[1] + '</span><span class="mo">' + m[2] + '月</span>';
+    return '<span class="yr">' + m[1] + '</span><span class="mo">' + m[2] + '月</span>' +
+      (name === state.draftMonth ? '<em class="draft-tag">编辑中</em>' : '');
   }
 
   // 年界：月份能解析出年份才归到某一年，解析不出的单独一档
@@ -2028,6 +2031,7 @@
     });
     rows.forEach(function (r) { if (apps.indexOf(r.app) === -1) apps.push(r.app); });
 
+    var inDraft = month === state.draftMonth;   // 编辑中的月：复制来未填的项标「待填」
     var body = apps.map(function (app) {
       var list = rows.filter(function (r) { return r.app === app; })
         .sort(function (x, y) {
@@ -2041,8 +2045,10 @@
         assetStaticCell(assetSumOf(list, 'start')) + assetStaticCell(assetSumOf(list, 'end')) +
       '</tr>';
       return head + list.map(function (r) {
-        return '<tr class="cmp-sub">' +
-          '<th class="cmp-item"><span class="cell">' + assetNameCell(r) + '</span></th>' +
+        var pending = inDraft && (r.end === null || r.end === undefined || r.end === '');
+        return '<tr class="cmp-sub' + (pending ? ' draft-pending' : '') + '">' +
+          '<th class="cmp-item"><span class="cell">' + assetNameCell(r) +
+            (pending ? '<em class="draft-tag">待填</em>' : '') + '</span></th>' +
           assetStaticCell(r.start) +
           // 月末格下面那行环比读的就是月初，跟对比表里的「较上月」是同一件事。
           // 只有本月有记录的那一项才可改；只存在于上月的（本月已清掉）没得改，照只读铺
@@ -2774,14 +2780,15 @@
         treeEl.className = 'tree detail';
         pendingHint = state.sub === 'assets' ? assetMonthHintText() : treeHintText();
         var bIdx = budgetMonthIndex(budgetData, state.monthOpen);
-        treeEl.innerHTML = state.sub === 'income'
+        var draftHtml = draftBannerHtml(state.monthOpen);
+        treeEl.innerHTML = draftHtml + (state.sub === 'income'
           ? renderMonthDetail(openMonth, realNets)
           : state.sub === 'assets'
             ? renderAssetMonthDetail(state.monthOpen, budgetNext)
             : bIdx !== -1
               ? renderBudgetMonth(budgetData, bIdx, yearEntries, '返回画廊')
               : cmpHint('该月没有可推导的娱乐预算。预算自 ' + esc(OPENING_MONTH) +
-                ' 的结余起逐月推算。');
+                ' 的结余起逐月推算。'));
       } else {
         state.monthOpen = null;   // 那个月没了（删空/换了年），退回画廊
         treeEl.className = 'tree gal';
@@ -3033,11 +3040,13 @@
   // 排布原则：先「攒下来的」（总资产），再「这个月的」（净额 → 收支），约束挂支出后面
   function galleryCard(i, ci, c) {
     var center = i === ci;
-    return '<article class="gcard' + galleryCls(i, ci) + '"' +
+    return '<article class="gcard' + galleryCls(i, ci) +
+      (c.name === state.draftMonth ? ' is-draft' : '') + '"' +
       ' data-gallery-month="' + esc(c.name) + '"' + (center ? ' data-center="1"' : '') + '>' +
       '<div class="gcard-in">' +
         '<div class="gcard-year">' + esc(c.name.slice(0, 5)) + '</div>' +
         '<div class="gcard-mon">' + esc(c.monthNo) + '<span>月</span></div>' +
+        (c.name === state.draftMonth ? '<span class="gcard-draft">编辑中</span>' : '') +
         (c.assetHtml ? '<div class="gcard-asset">' + c.assetHtml + '</div>' : '') +
         '<div class="gcard-net' + (c.netCls ? ' ' + c.netCls : '') + '">' + c.netHtml + '</div>' +
         '<div class="gcard-io">' + c.readings.map(function (r) {
@@ -3677,169 +3686,110 @@
     return y + '年' + String(mo).padStart(2, '0') + '月';
   }
 
-  function renderBillPreview() {
-    var label = monthInputEl.value.trim();
-    var exist = monthItemKeys(label);
+  // ===== 新建月份编辑状态 =====
+  // 「新增月份」不是弹窗动作：点卡进入该月的编辑中状态，从上月复制财产结构、
+  // 铺好账本模板项，之后一直可改可退；点「完成新建」才定稿转普通月。
+  // 编辑中状态存本地（KEY_DRAFT_MONTH），刷新/关页后回来还能继续。
 
-    tplListEl.innerHTML = billItems(label).map(function (it) {
-      var done = !!exist[it.category + '\u0000' + it.item];
-      return '<li' + (done ? ' class="done"' : '') + '>' +
-        '<span class="cat">' + esc(it.category) + '</span>' +
-        '<span class="name">' + (it.item ? esc(it.item) : '<i class="muted">未命名</i>') + '</span>' +
-        '<span class="tag">' + (done ? '已存在' : '待创建') + '</span>' +
-      '</li>';
-    }).join('');
+  // 详情顶部横幅：只在看的就是编辑中月份时出现，三个子 tab 共用
+  function draftBannerHtml(month) {
+    if (month !== state.draftMonth) return '';
+    return '<div class="draft-banner">' +
+      '<span class="draft-banner-t">' + esc(month) + ' · 新建编辑中</span>' +
+      '<span class="draft-banner-n">财产和账本都铺好了草稿：从上月复制来、还没填余额的项会标「待填」；' +
+      '可随时退出，下次进来继续编辑</span>' +
+      '<button type="button" class="btn primary draft-finish" data-finish-draft="1">完成新建</button>' +
+      '</div>';
+  }
 
-    var total = state.entries.filter(function (e) { return e.month === label; }).length;
-    tplNoteEl.hidden = !total;
-    tplNoteEl.textContent = total
-      ? '该月已有 ' + total + ' 条记录，模板里同名的项会自动跳过。'
-      : '';
+  // 编辑中月份里还没填的财产项数：完成前用来提示还差多少
+  function draftPendingAssetCount(month) {
+    return state.assets.filter(function (a) {
+      return a.month === month && a.name &&
+        (a.end === null || a.end === undefined || a.end === '');
+    }).length;
+  }
 
-    renderAssetMonthState(label);
-
-    if (!billMonth(label)) {
-      monthErrEl.hidden = false;
-      monthErrEl.textContent = '月份要能认出年月，才能生成「10月工资」这样的名字。请按 2026年10月 的格式填写。';
-      monthCreateBtn.textContent = '创建';
-      monthCreateBtn.disabled = true;
-      return;
+  // 进入新月份编辑状态：无草稿月 → 铺财产 + 铺账本模板并设为草稿月；已有草稿月 → 直接续编
+  function enterDraftMonth() {
+    var month = state.draftMonth || nextBillMonth();
+    if (!billMonth(month)) return;
+    var firstTime = !state.draftMonth;
+    if (firstTime) {
+      state.draftMonth = month;
+      localStorage.setItem(KEY_DRAFT_MONTH, month);
     }
-
-    monthErrEl.hidden = true;
-    var todo = billTodo(label);
-    monthCreateBtn.textContent = todo.length ? '创建 ' + todo.length + ' 项' : '无需创建';
-    monthCreateBtn.disabled = !todo.length;
-  }
-
-  function openMonthBill() {
-    monthInputEl.value = nextBillMonth();
-    tplProgressEl.hidden = true;
-    monthCreateBtn.disabled = false;
-    renderBillPreview();
-    renderAssetMonthState(monthInputEl.value.trim());
-    monthMaskEl.hidden = false;
-    setTimeout(function () { monthInputEl.focus(); }, 0);
-  }
-
-  function closeMonthBill() { monthMaskEl.hidden = true; }
-
-  // 新建月份面板里的财产状态：该月已有资产就是已铺好，没有且上月有就提供一键复制
-  function renderAssetMonthState(label) {
-    var at = billMonth(label);
-    var rows = at ? state.assets.filter(function (a) { return a.month === label && a.name; }) : [];
-    if (rows.length) {
-      tplAssetStateEl.textContent = '已铺好 ' + rows.length + ' 项资产，可直接填余额';
-      tplAssetCreateEl.hidden = true;
-      return;
-    }
-    var prev = at ? prevMonthName(label) : null;
-    var hasPrev = prev && state.assets.some(function (a) {
-      return a.month === prev && a.name && a.app;
-    });
-    tplAssetStateEl.textContent = hasPrev
-      ? '上月（' + prev + '）有资产项，可一键复制铺月'
-      : (at ? '上月（' + prev + '）没有资产项，需先到 Notion 建' : '先填有效月份');
-    tplAssetCreateEl.hidden = !hasPrev;
-  }
-
-  // 一键把上月资产项复制成目标月：月份/应用/类型/备注照抄，月初/月末留空待填。
-  // 幂等：目标月已有资产时不重复铺
-  function addAssetMonth(label) {
-    var at = billMonth(label);
-    if (!at) return;
-    var rows = state.assets.filter(function (a) { return a.month === label && a.name; });
-    if (rows.length) { toast(label + ' 已有资产记录，无需复制', false); renderAssetMonthState(label); return; }
-    var prev = prevMonthName(label);
-    var prevRows = state.assets.filter(function (a) { return a.month === prev && a.name && a.app; });
-    if (!prevRows.length) { toast('上月（' + prev + '）没有资产项，无法复制', false); return; }
     setLoading(true);
-    eachPage(prevRows, function (r) {
-      return notion('/pages', {
+    var jobs = [];
+    // 财产：该月还没有资产项且上月有，就照上月铺一份（类型/应用/备注照抄，月初/月末留空）
+    var hasAssets = state.assets.some(function (a) { return a.month === month && a.name; });
+    if (!hasAssets) {
+      var prev = prevMonthName(month);
+      state.assets.forEach(function (r) {
+        if (r.month !== prev || !r.name || !r.app) return;
+        jobs.push(notion('/pages', {
+          method: 'POST',
+          body: JSON.stringify({
+            parent: { type: 'data_source_id', data_source_id: settings.assetsSourceId },
+            properties: {
+              '类型': { title: [{ text: { content: r.name } }] },
+              '月份': { select: { name: month } },
+              '应用': { select: { name: r.app } },
+              '月初': { number: null },
+              '月末': { number: null },
+              '备注': { rich_text: r.note ? [{ text: { content: r.note } }] : [] }
+            }
+          })
+        }));
+      });
+    }
+    // 账本模板：缺哪项铺哪项，金额留空
+    billTodo(month).forEach(function (it) {
+      jobs.push(notion('/pages', {
         method: 'POST',
         body: JSON.stringify({
-          parent: { type: 'data_source_id', data_source_id: settings.assetsSourceId },
-          properties: {
-            '类型': { title: [{ text: { content: r.name } }] },
-            '月份': { select: { name: label } },
-            '应用': { select: { name: r.app } },
-            '月初': { number: null },
-            '月末': { number: null },
-            '备注': { rich_text: r.note ? [{ text: { content: r.note } }] : [] }
-          }
+          parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
+          properties: buildProps({
+            item: it.item, amount: null, category: it.category, sub: null, month: month
+          })
         })
-      });
-    }).then(function () {
+      }));
+    });
+    eachPage(jobs, function (job) { return job; }).then(function () {
       setLoading(false);
-      toast('已复制 ' + prevRows.length + ' 项资产到 ' + label + '（金额留空）', true);
-      closeMonthBill();
       return refresh();
+    }).then(function () {
+      state.monthOpen = month;
+      state.view = 'month';
+      state.sub = 'assets';   // 编辑中的主战场是财产：进去先看哪些待填
+      if (firstTime) {
+        toast('已进入 ' + month + ' 编辑中：财产与账本已铺好，填好余额后点「完成新建」', true);
+      } else {
+        toast(month + ' 仍在编辑中，继续编辑', false);
+      }
+      render();
     }).catch(function (err) {
       setLoading(false);
       toast(err.message, false);
     });
   }
 
-  function createMonthBill() {
-    var label = monthInputEl.value.trim();
-    if (!billMonth(label)) return renderBillPreview();
-    var todo = billTodo(label);
-    if (!todo.length) { toast('该月的模板项都已存在'); return; }
-
-    monthErrEl.hidden = true;
-    monthCreateBtn.disabled = true;
-    monthCancelBtn.disabled = true;
-    setLoading(true);
-
-    var created = [];
-    var failed = null;
-
-    function step(i) {
-      if (i >= todo.length) return Promise.resolve();
-      tplProgressEl.hidden = false;
-      tplProgressEl.textContent = '正在创建 ' + (i + 1) + '/' + todo.length + ' 项…';
-      return notion('/pages', {
-        method: 'POST',
-        body: JSON.stringify({
-          parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
-          // 金额留空：不传 number，之后自己填
-          properties: buildProps({
-            item: todo[i].item, amount: null, category: todo[i].category, sub: null, month: label
-          })
-        })
-      }).then(function (page) {
-        created.push(normalize(page));
-        return step(i + 1);
-      }).catch(function (err) { failed = err; });
+  // 完成新建：还有财产项没填余额就先提示（再点一次确认完成）；没有就直接定稿
+  var draftConfirmTimer = null;
+  function finishDraft() {
+    var month = state.draftMonth;
+    if (!month) return;
+    var pending = draftPendingAssetCount(month);
+    if (pending > 0 && !draftConfirmTimer) {
+      toast(month + ' 还有 ' + pending + ' 项资产待填。确认完成请再点一次「完成新建」', false);
+      draftConfirmTimer = setTimeout(function () { draftConfirmTimer = null; }, 3000);
+      return;
     }
-
-    step(0).then(function () {
-      created.forEach(function (entry) { state.entries.push(entry); expandPath(entry); });
-      if (created.length) {
-        // 建完就把画廊挪到新月份上，一眼看到刚铺的那张卡
-        if (state.view === 'month' && !state.monthOpen) {
-          state.galleryAt = label;
-          localStorage.setItem(KEY_GALLERY_AT, label);
-        }
-        writeCache();
-        render();
-      }
-      setLoading(false);
-      monthCancelBtn.disabled = false;
-      tplProgressEl.hidden = true;
-
-      if (failed) {
-        // 先重画预览（它会清掉错误行），再写失败提示
-        // 已建好的会按名字被认成「已存在」，所以再点一次只会补剩下的，不会重复
-        renderBillPreview();
-        monthErrEl.hidden = false;
-        monthErrEl.textContent = '创建失败：' + failed.message +
-          (created.length ? '（已成功 ' + created.length + ' 项，再点一次「创建」可补齐剩下的）' : '');
-        return;
-      }
-      closeMonthBill();
-      toast('已建好 ' + label + ' 的账单，共 ' + created.length + ' 项，金额留空待填');
-    });
+    draftConfirmTimer = null;
+    state.draftMonth = null;
+    localStorage.removeItem(KEY_DRAFT_MONTH);
+    toast(month + ' 已完成新建，转为普通月份', true);
+    render();
   }
 
   // ---------- 设置 ----------
@@ -4065,7 +4015,7 @@
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
       '[data-adjust-alert],' +
-      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center]');
+      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center],[data-finish-draft]');
     if (!target) return;
     var data = target.dataset;
     // 纠偏的归因：提醒胶囊点一下就进编辑；已有归因的话双击文字改（dblclick 里处理）
@@ -4087,9 +4037,10 @@
       return galleryGoTo(data.galleryMonth);
     }
     if (data.galleryNew) {
-      if (data.center) return openMonthBill();
+      if (data.center) return enterDraftMonth();
       return galleryGoTo(NEW_MONTH);
     }
+    if (data.finishDraft) return finishDraft();
     if (data.cmpToggle) {
       if (state.cmpCollapsed[data.cmpToggle]) delete state.cmpCollapsed[data.cmpToggle];
       else state.cmpCollapsed[data.cmpToggle] = true;
@@ -4442,23 +4393,9 @@
     if (event.target === modalEl) closeEditor();
   });
 
-  monthCancelBtn.addEventListener('click', closeMonthBill);
-  monthInputEl.addEventListener('input', renderBillPreview);
-  monthMaskEl.addEventListener('click', function (event) {
-    if (event.target === monthMaskEl) closeMonthBill();
-  });
-  tplAssetCreateEl.addEventListener('click', function () {
-    addAssetMonth(monthInputEl.value.trim());
-  });
-  document.getElementById('month-form').addEventListener('submit', function (event) {
-    event.preventDefault();
-    createMonthBill();
-  });
-
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
       if (!modalEl.hidden) closeEditor();
-      else if (!monthMaskEl.hidden) closeMonthBill();
       else if (!tagsEl.hidden) closeTags();
       else if (!setupEl.hidden) closeSetup();
       else if (state.rangeOpen) closeRange();
