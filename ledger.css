@@ -539,6 +539,58 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .gcard-new-label { font-size: clamp(8px, calc(var(--gc) * 3.8), 14px); color: var(--text-2); margin-top: calc(var(--gc) * 2.4); }
 .gcard-new-month { font-size: clamp(7px, calc(var(--gc) * 3.5), 13px); color: var(--text-3); }
 
+/* 新建编辑中：月份卡右上角徽标 */
+.gcard-draft {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: var(--loss);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.gcard.is-draft { box-shadow: 0 0 0 2px var(--loss-soft, rgba(122, 180, 74, .25)); }
+
+/* 详情顶部「新建编辑中」横幅：三个子 tab 共用 */
+.draft-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border: 1px dashed var(--line-strong);
+  border-left: 3px solid var(--loss);
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+.draft-banner-t { font-weight: 600; font-size: 13px; }
+.draft-banner-n { flex: 1 1 220px; font-size: 12px; color: var(--text-2); }
+.draft-banner .draft-finish { flex: none; padding: 3px 14px; font-size: 12.5px; }
+
+/* 「待填」标签：月份列头与财产项上共用，编辑中的月才出现 */
+.draft-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--loss-soft, rgba(122, 180, 74, .15));
+  color: var(--loss);
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 600;
+  vertical-align: .12em;
+}
+th .draft-tag { margin-left: 4px; font-size: 9.5px; }
+
+/* 编辑中财产表：复制来还没填余额的项整行淡黄提醒 */
+.cmp-sub.draft-pending { background: var(--loss-soft, rgba(122, 180, 74, .08)); }
+.cmp-sub.draft-pending .cell { position: relative; }
+.cmp-sub.draft-pending:hover { background: var(--loss-soft, rgba(122, 180, 74, .12)); }
+
 /* 详情页顶栏：返回 + 月份 + 收支/净额，往上滚时吸住 */
 .mdetail-bar {
   position: sticky;
