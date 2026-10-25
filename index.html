@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261025-2218">
+<link rel="stylesheet" href="ledger.css?v=20261025-2242">
 
 </head>
 <body>
@@ -247,7 +247,21 @@
   </div>
 </div>
 
-<script src="ledger.js?v=20261025-2218"></script>
+<!-- 右键改子类菜单：常驻结构，打开时填充选项、定位到鼠标处 -->
+<div class="sub-menu-wrap" id="sub-menu-wrap" hidden>
+  <div class="sub-menu" id="sub-menu">
+    <div class="sub-menu-h">
+      <span class="sub-menu-item" id="sub-menu-item"></span>
+      <span class="sub-menu-now" id="sub-menu-now"></span>
+    </div>
+    <div class="sub-menu-opts" id="sub-menu-opts"></div>
+    <div class="sub-menu-new">
+      <input id="sub-menu-input" class="ie" placeholder="新建子类，回车保存" autocomplete="off">
+    </div>
+  </div>
+</div>
+
+<script src="ledger.js?v=20261025-2242"></script>
 
 </body>
 </html>
