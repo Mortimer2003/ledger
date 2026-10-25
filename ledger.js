@@ -3324,10 +3324,15 @@
     var blanks = category.list.filter(function (e) { return !e.item; });
     var rest = category.list.filter(function (e) { return e.item; });
     var hasSub = rest.some(function (e) { return e.sub; });
+    // 无子类的条目（含空行）始终在分类顶层直接可填；只有带子类的条目才按子类分组——
+    // 否则新增的无子类条目会被 groupBySub 归进「未分子类」组，看起来像"新增不了"。
+    // 这也顺带消除了「未分子类」这个没法改只能删的残缺组。
+    var noSub = rest.filter(function (e) { return !e.sub; });
     var body = blanks.map(function (e) { return renderLeaf(e, false); }).join('') +
+      noSub.slice().sort(byAmount).map(function (e) { return renderLeaf(e, false); }).join('') +
       (hasSub
-        ? groupBySub(rest).map(function (s) { return renderSub(monthName, category.name, s); }).join('')
-        : rest.slice().sort(byAmount).map(function (e) { return renderLeaf(e, false); }).join(''));
+        ? groupBySub(rest.filter(function (e) { return e.sub; })).map(function (s) { return renderSub(monthName, category.name, s); }).join('')
+        : '');
     return '' +
       '<div class="node">' +
         '<div class="row lv2" data-toggle="' + esc(key) + '">' +
