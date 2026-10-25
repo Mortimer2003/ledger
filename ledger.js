@@ -266,16 +266,26 @@
 
 
   // ===== Notion API =====
+  // POST 幂等键：Notion 对同一 key 的重复请求不重复创建（重试时复用，防止
+  // 「创建成功但响应丢失 → 重试 → 同一条目建两份」）。只在 POST 时启用。
   function notion(path, options, attempt) {
     options = options || {};
     attempt = attempt || 0;
+    var headers = {
+      'Authorization': 'Bearer ' + settings.token,
+      'Notion-Version': NOTION_VERSION,
+      'Content-Type': 'application/json'
+    };
+    if ((options.method || 'GET') === 'POST') {
+      if (!options.idempotencyKey) {
+        options.idempotencyKey = 'lg' + Date.now().toString(36) +
+          '-' + Math.random().toString(36).slice(2, 12);
+      }
+      headers['Notion-Idempotency-Key'] = options.idempotencyKey;
+    }
     return fetch(API + path, {
       method: options.method || 'GET',
-      headers: {
-        'Authorization': 'Bearer ' + settings.token,
-        'Notion-Version': NOTION_VERSION,
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: options.body
     }).then(function (res) {
       return res.text().then(function (text) {
@@ -3734,68 +3744,86 @@
     }).length;
   }
 
+  // 正在进入编辑状态（铺草稿/续编）的标志：防止连点把同一批模板铺两遍
+  var draftEntering = false;
   // 进入新月份编辑状态：无草稿月 → 铺财产 + 铺账本模板并设为草稿月；已有草稿月 → 直接续编
   function enterDraftMonth() {
-    var month = state.draftMonth || nextBillMonth();
-    if (!billMonth(month)) return;
-    var firstTime = !state.draftMonth;
-    if (firstTime) {
-      state.draftMonth = month;
-      localStorage.setItem(KEY_DRAFT_MONTH, month);
-    }
-    // 每次进入编辑状态都刷新「最近编辑」时间：铺草稿算编辑、续编也算编辑
-    state.draftMonthAt = Date.now();
-    localStorage.setItem(KEY_DRAFT_AT, String(state.draftMonthAt));
+    if (draftEntering) return;
+    draftEntering = true;
     setLoading(true);
-    var jobs = [];
-    // 财产：该月还没有资产项且上月有，就照上月铺一份（类型/应用/备注照抄，月初/月末留空）
-    var hasAssets = state.assets.some(function (a) { return a.month === month && a.name; });
-    if (!hasAssets) {
-      var prev = prevMonthName(month);
-      state.assets.forEach(function (r) {
-        if (r.month !== prev || !r.name || !r.app) return;
+    // 幂等判断（下个月是哪月、该月缺哪些项）必须基于 Notion 真实数据，
+    // 不能用启动时的旧缓存：先拉一遍账本+财产再决定铺什么，也避免「新建成上个月」
+    return fetchAll().then(function (entries) {
+      state.entries = entries;
+      return fetchAssets();
+    }).then(function (assets) {
+      state.assets = assets;
+      var month = state.draftMonth || nextBillMonth();
+      if (!billMonth(month)) {
+        draftEntering = false;
+        setLoading(false);
+        return;
+      }
+      var firstTime = !state.draftMonth;
+      if (firstTime) {
+        state.draftMonth = month;
+        localStorage.setItem(KEY_DRAFT_MONTH, month);
+      }
+      // 每次进入编辑状态都刷新「最近编辑」时间：铺草稿算编辑、续编也算编辑
+      state.draftMonthAt = Date.now();
+      localStorage.setItem(KEY_DRAFT_AT, String(state.draftMonthAt));
+      var jobs = [];
+      // 财产：该月还没有资产项且上月有，就照上月铺一份（类型/应用/备注照抄，月初/月末留空）
+      var hasAssets = state.assets.some(function (a) { return a.month === month && a.name; });
+      if (!hasAssets) {
+        var prev = prevMonthName(month);
+        state.assets.forEach(function (r) {
+          if (r.month !== prev || !r.name || !r.app) return;
+          jobs.push(notion('/pages', {
+            method: 'POST',
+            body: JSON.stringify({
+              parent: { type: 'data_source_id', data_source_id: settings.assetsSourceId },
+              properties: {
+                '类型': { title: [{ text: { content: r.name } }] },
+                '月份': { select: { name: month } },
+                '应用': { select: { name: r.app } },
+                '月初': { number: null },
+                '月末': { number: null },
+                '备注': { rich_text: r.note ? [{ text: { content: r.note } }] : [] }
+              }
+            })
+          }));
+        });
+      }
+      // 账本模板：缺哪项铺哪项，金额留空
+      billTodo(month).forEach(function (it) {
         jobs.push(notion('/pages', {
           method: 'POST',
           body: JSON.stringify({
-            parent: { type: 'data_source_id', data_source_id: settings.assetsSourceId },
-            properties: {
-              '类型': { title: [{ text: { content: r.name } }] },
-              '月份': { select: { name: month } },
-              '应用': { select: { name: r.app } },
-              '月初': { number: null },
-              '月末': { number: null },
-              '备注': { rich_text: r.note ? [{ text: { content: r.note } }] : [] }
-            }
+            parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
+            properties: buildProps({
+              item: it.item, amount: null, category: it.category, sub: null, month: month
+            })
           })
         }));
       });
-    }
-    // 账本模板：缺哪项铺哪项，金额留空
-    billTodo(month).forEach(function (it) {
-      jobs.push(notion('/pages', {
-        method: 'POST',
-        body: JSON.stringify({
-          parent: { type: 'data_source_id', data_source_id: settings.dataSourceId },
-          properties: buildProps({
-            item: it.item, amount: null, category: it.category, sub: null, month: month
-          })
-        })
-      }));
-    });
-    eachPage(jobs, function (job) { return job; }).then(function () {
-      setLoading(false);
-      return refresh();
-    }).then(function () {
-      state.monthOpen = month;
-      state.view = 'month';
-      state.sub = 'assets';   // 编辑中的主战场是财产：进去先看哪些待填
-      if (firstTime) {
-        toast('已进入 ' + month + ' 编辑中：财产与账本已铺好，填好余额后点「完成新建」', true);
-      } else {
-        toast(month + ' 仍在编辑中，继续编辑', false);
-      }
-      render();
+      return eachPage(jobs, function (job) { return job; }).then(function () {
+        setLoading(false);
+        return refresh();
+      }).then(function () {
+        state.monthOpen = month;
+        state.view = 'month';
+        state.sub = 'assets';   // 编辑中的主战场是财产：进去先看哪些待填
+        if (firstTime) {
+          toast('已进入 ' + month + ' 编辑中：财产与账本已铺好，填好余额后点「完成新建」', true);
+        } else {
+          toast(month + ' 仍在编辑中，继续编辑', false);
+        }
+        render();
+        draftEntering = false;
+      });
     }).catch(function (err) {
+      draftEntering = false;
       setLoading(false);
       toast(err.message, false);
     });
