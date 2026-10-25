@@ -1953,6 +1953,14 @@ th .draft-tag { margin-left: 4px; font-size: 9.5px; }
   border: none; border-radius: 5px; background: none; color: var(--text); cursor: pointer;
 }
 .sub-menu-opt:hover { background: var(--hover); }
-.sub-menu-opt.cur { color: var(--gain); font-weight: 600; }
+/* 当前选中用主题色 + 对勾标记；不能用 --gain（红=警示/删除语义，会误读成出错） */
+.sub-menu-opt.cur { color: var(--accent); font-weight: 600; }
+.sub-menu-opt.cur::before { content: '✓ '; }
+.sub-menu-more {
+  display: block; width: 100%; margin-top: 4px; padding: 4px 8px;
+  border: 1px dashed var(--line-strong); border-radius: 5px;
+  background: none; color: var(--text-3); cursor: pointer; font-size: 12px; text-align: center;
+}
+.sub-menu-more:hover { color: var(--accent); border-color: var(--accent); }
 .sub-menu-new { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
 .sub-menu-new .ie { width: 100%; box-sizing: border-box; }
