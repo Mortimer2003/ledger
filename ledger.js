@@ -3638,11 +3638,12 @@
   }
 
   function submitForm() {
+    var saveBtn = document.getElementById('btn-save');
+    if (saveBtn.disabled) return;   // 上一笔还在保存中，回车连击别重复提交
     var payload = readForm();
     if (!payload.item) { toast('明细项不能为空', false); return; }
     if (!payload.month) { toast('请填写月份', false); return; }
 
-    var saveBtn = document.getElementById('btn-save');
     saveBtn.disabled = true;
     setLoading(true);
 
@@ -4478,6 +4479,16 @@
 
   modalEl.addEventListener('click', function (event) {
     if (event.target === modalEl) closeEditor();
+  });
+
+  // 连续录入：明细项/金额/月份框里直接回车保存，保存后焦点回明细项继续下一笔
+  ['f-item', 'f-amount', 'f-month'].forEach(function (id) {
+    document.getElementById(id).addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && !modalEl.hidden) {
+        event.preventDefault();
+        submitForm();
+      }
+    });
   });
 
   document.addEventListener('keydown', function (event) {
