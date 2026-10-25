@@ -3376,6 +3376,12 @@
           '<button type="button" class="op danger" data-del-confirm="' + esc(entry.id) + '">是</button>' +
           '<button type="button" class="op" data-del-cancel="1">否</button>'
         : '<button type="button" class="op" data-del="' + esc(entry.id) + '">删除</button>';
+    // 行内子类胶囊：有子类的常显标识归属、无子类的悬停出现「+ 子类」入口；
+    // 点击弹出子类选择器（改归属/清成不分子类/新建），替代原来的右键弹全部标签
+    var subTag = (locked || confirming) ? ''
+      : '<button type="button" class="sub-tag' + (entry.sub ? ' has-sub' : ' sub-none') + '"' +
+        ' data-sub-open="' + esc(entry.id) + '" title="改子类">' +
+        (entry.sub ? esc(entry.sub) : '+ 子类') + '</button>';
 
     var nameCell = field === 'item'
       ? '<input class="ie" id="ie-item" autocomplete="off" placeholder="名称，可加 ±金额" value="' + esc(entry.item || '') + '">'
@@ -3392,7 +3398,9 @@
         nameCell +
         (field === 'item' ? '' : '<span class="spacer"></span>') +
         amountCell +
-        '<span class="tail"><span class="ops ' + (confirming ? 'pinned' : '') + '">' + ops + '</span></span>' +
+        '<span class="tail">' + subTag +
+          '<span class="ops ' + (confirming ? 'pinned' : '') + '">' + ops + '</span>' +
+        '</span>' +
       '</div>';
   }
 
@@ -3508,11 +3516,11 @@
 
   // ---------- 右键改子类 ----------
 
-  // 任何条目都可以右键改子类（无论之前有没有子类）：弹出子类菜单，
+  // 任何条目都可以改子类（无论之前有没有子类）：点条目行内的子类胶囊弹出选择器，
   // 可挑现有标签、清成「不分子类」、或直接输新子类回车保存。
-  // 菜单是常驻 HTML 结构，这里只填内容、定位并显示；选项点击/输入框回车
+  // 菜单是常驻 HTML 结构，这里只填内容、锚定并显示；选项点击/输入框回车
   // 由启动时的委托统一处理（避免动态建元素，也保持 check_dom 的委托扫描稳定）
-  function openSubMenu(entry, x, y) {
+  function openSubMenu(entry, anchor) {
     closeSubMenu();
     state.subMenu = { id: entry.id };
     var opts = subTagNames();
@@ -3523,10 +3531,18 @@
       opts.map(function (n) {
         return '<button type="button" class="sub-menu-opt' + (entry.sub === n ? ' cur' : '') + '" data-sub-set="' + esc(n) + '">' + esc(n) + '</button>';
       }).join('');
+    var wrap = document.getElementById('sub-menu-wrap');
     var menu = document.getElementById('sub-menu');
-    menu.style.left = Number(x) + 'px';
-    menu.style.top = Number(y) + 'px';
-    document.getElementById('sub-menu-wrap').hidden = false;
+    wrap.hidden = false;
+    // 锚定到胶囊下方；贴边或超出视口时翻转/收拢
+    var mw = menu.offsetWidth || 190;
+    var mh = menu.offsetHeight || 200;
+    var x = anchor ? anchor.left : Math.round((window.innerWidth - mw) / 2);
+    var y = anchor ? anchor.bottom + 4 : Math.round((window.innerHeight - mh) / 2);
+    if (x + mw > window.innerWidth - 8) x = Math.max(8, window.innerWidth - mw - 8);
+    if (y + mh > window.innerHeight - 8) y = Math.max(8, (anchor ? anchor.top : y) - mh - 4);
+    menu.style.left = Math.round(x) + 'px';
+    menu.style.top = Math.round(y) + 'px';
     setTimeout(function () { document.getElementById('sub-menu-input').focus(); }, 0);
   }
 
@@ -3775,7 +3791,8 @@
 
   function readForm() {
     var subSel = document.getElementById('f-sub');
-    var sub = subSel.value === NEW_SUB
+    var subNew = subSel.value === NEW_SUB;
+    var sub = subNew
       ? (document.getElementById('f-sub-new').value.trim() || null)
       : (subSel.value || null);
     var sign = state.sign || -1;
@@ -3793,7 +3810,8 @@
       sub: sub,
       item: split.item,
       amount: amount,
-      amountEmpty: split.amount === null && !amountInput
+      amountEmpty: split.amount === null && !amountInput,
+      subNewEmpty: subNew && !sub
     };
   }
 
@@ -3802,6 +3820,7 @@
     if (saveBtn.disabled) return;   // 上一笔还在保存中，回车连击别重复提交
     var payload = readForm();
     if (!payload.item) { toast('明细项不能为空', false); return; }
+    if (payload.subNewEmpty) { toast('请填写子类名称', false); return; }
     if (!payload.month) { toast('请填写月份', false); return; }
     if (payload.amountEmpty) { toast('请填写金额', false); return; }
     if (!billMonth(payload.month)) { toast('月份格式应为如 2026年10月', false); return; }
@@ -3877,7 +3896,15 @@
   function billTodo(label) {
     var exist = monthItemKeys(label);
     var skip = (state.draftSkip || {})[label] || {};
+    // 空行模板项（娱乐支出/特殊收入/特殊支出预铺的待填占位）按分类判断：该分类下已有
+    // 任意条目就不再补占位——否则空行被双击改名（消费）后，每次续编都当「缺项」再铺
+    // 一个空行，草稿月里越积越多；删掉空行的 skip 仍然生效，不会补回来
+    var cats = {};
+    state.entries.forEach(function (e) {
+      if (e.month === label && e.category) cats[e.category] = true;
+    });
     return billItems(label).filter(function (it) {
+      if (!it.item) return !cats[it.category] && !skip[it.category + '\u0000'];
       var key = it.category + '\u0000' + it.item;
       return !exist[key] && !skip[key];
     });
@@ -4296,7 +4323,7 @@
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
       '[data-adjust-alert],' +
       '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center],[data-finish-draft],' +
-      '[data-draft-check]');
+      '[data-draft-check],[data-sub-open]');
     if (!target) return;
     var data = target.dataset;
     // 纠偏的归因：提醒胶囊点一下就进编辑；已有归因的话双击文字改（dblclick 里处理）
@@ -4355,6 +4382,13 @@
       if (monthLocked(entryMonthOf(data.delConfirm), 'ledger')) return lockedToast();
       return removeEntry(data.delConfirm);
     }
+    if (data.subOpen) {
+      // 行内子类胶囊：点开选择器（改子类/清空/新建），锁定月不弹
+      var subEntry = state.entries.filter(function (e) { return e.id === data.subOpen; })[0];
+      if (!subEntry) return;
+      if (monthLocked(subEntry.month || UNSET_MONTH, 'ledger')) return lockedToast();
+      return openSubMenu(subEntry, target.getBoundingClientRect());
+    }
   });
 
   // 一键折叠/展开、导出按钮住在顶栏第二行（子 tab 右侧），不在 #tree 里，单独委托
@@ -4383,17 +4417,6 @@
     galleryLock = now + 420;
     galleryStep(d > 0 ? 1 : -1);
   }, { passive: false });
-
-  // 右键明细行 → 改子类菜单：任何条目都可以（无论之前有没有子类），锁定月不弹
-  treeEl.addEventListener('contextmenu', function (event) {
-    var leaf = event.target.closest('[data-id]');
-    if (!leaf) return;
-    var entry = state.entries.filter(function (e) { return e.id === leaf.dataset.id; })[0];
-    if (!entry) return;
-    event.preventDefault();
-    if (monthLocked(entry.month || UNSET_MONTH, 'ledger')) return lockedToast();
-    openSubMenu(entry, event.clientX, event.clientY);
-  });
 
   // 双击明细行的标题或金额，就地变成输入框；预算格、财产格同样双击才进编辑
   treeEl.addEventListener('dblclick', function (event) {
