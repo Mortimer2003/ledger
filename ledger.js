@@ -2724,31 +2724,10 @@
     if (budgetData) budgetData.rows.forEach(function (r) { budgetSpends[r.month] = r.spend.total; });
 
     if (state.view === 'month' && state.monthOpen && !searching) {
-      // 月度详情态：header 跟随当前月，三个核心数（净额/总资产/预算花销+结余），不随子 tab 变。
-      // 画廊态不放信息——三个维度的概要都在月份卡片上（总资产置顶、净额主读、收支+预算花销）。
-      // 搜索态铺的是账本单域，仍走下方收支分支
-      var mn = state.monthOpen;
-      var mList = scoped.filter(function (e) { return (e.month || UNSET_MONTH) === mn; });
-      var mIncome = sum(mList.filter(function (e) { return e.amount > 0; }));
-      var mExpense = sum(mList.filter(function (e) { return e.amount < 0; }));
-      var mNet = realNetOf(mn, realNets);
-      var mAsset = assetTotals[mn];
-      var mBRow = null;
-      if (budgetData) budgetData.rows.forEach(function (r) { if (r.month === mn) mBRow = r; });
-      var mnNet = mNet === null ? mIncome + mExpense : mNet;
-      totalsEl.hidden = false;
-      totalsEl.innerHTML =
-        '<span class="chip"><b>净额</b><i class="' + tone(mnNet) + '">' + signed(mnNet) + '</i></span>' +
-        (mAsset !== null && mAsset !== undefined
-          ? '<span class="chip"><b>总资产</b><i>' + money(mAsset) + '</i></span>'
-          : '') +
-        (mBRow
-          ? '<span class="chip budget"><b>预算</b>' +
-            (mBRow.spend.total
-              ? '<i class="neg">花销 −' + money(mBRow.spend.total) + '</i>'
-              : '<i>花销 —</i>') +
-            '<i>结余 ' + money(mBRow.remain) + '</i></span>'
-          : '');
+      // 月度详情态：各维度的读数都在详情页自己的标题栏（收支/财产/预算各自口径），
+      // 第二行不再重复贴一份——既不占宽度，也不会和详情标题栏的读数打架
+      totalsEl.hidden = true;
+      totalsEl.innerHTML = '';
     } else if (ASSET_VIEWS.indexOf(mode) !== -1) {
       // 财产视图不看收支，顶栏换成最新一个月的两个口径总资产。
       // 只有对比受月份区间裁剪；月度画廊整年铺，读数也跟着整年，别跟画廊对不上
