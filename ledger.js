@@ -13,7 +13,8 @@
 
   // 「新增月份账单」的模板：每月都要有的壳子。
   // 常规项名字里的月号按目标月份生成，房租记的是下个月（9月账单里放「10月房租」），所以用 {下月}。
-  // 特殊收入/特殊支出/娱乐支出的明细项每月都不一样，只建空行，名字留着自己填。
+  // 特殊收入/特殊支出/娱乐支出每月明细不一样，预铺一个空行方便直接填（双击改名字/金额），
+  // 不另加子类；渲染时空行固定在分类顶层，不会落进「未分子类」组
   var MONTH_TEMPLATE = [
     { category: '常规收入', item: '{本月}工资' },
     { category: '常规收入', item: '{本月}公积金' },
@@ -3272,11 +3273,16 @@
     var key = 'c:' + monthName + '|' + category.name;
     var open = isOpen(key);
     var total = sum(category.list);
-    var hasSub = category.list.some(function (e) { return e.sub; });
     var locked = monthLocked(monthName, 'ledger');
-    var body = hasSub
-      ? groupBySub(category.list).map(function (s) { return renderSub(monthName, category.name, s); }).join('')
-      : category.list.slice().sort(byAmount).map(function (e) { return renderLeaf(e, false); }).join('');
+    // 空行（明细项还没填的模板占位）固定在分类顶层直接可填，不参与子类分组——
+    // 否则会落进「未分子类」组，看起来像残缺项；填好名字后按正常数据走
+    var blanks = category.list.filter(function (e) { return !e.item; });
+    var rest = category.list.filter(function (e) { return e.item; });
+    var hasSub = rest.some(function (e) { return e.sub; });
+    var body = blanks.map(function (e) { return renderLeaf(e, false); }).join('') +
+      (hasSub
+        ? groupBySub(rest).map(function (s) { return renderSub(monthName, category.name, s); }).join('')
+        : rest.slice().sort(byAmount).map(function (e) { return renderLeaf(e, false); }).join(''));
     return '' +
       '<div class="node">' +
         '<div class="row lv2" data-toggle="' + esc(key) + '">' +
