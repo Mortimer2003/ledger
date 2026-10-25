@@ -101,8 +101,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 #range-bar { flex: none; display: flex; align-items: center; }
 #range-bar[hidden] { display: none; }
 
-/* 第二行：子视图（月度/对比/预算）贴左，读数贴右 */
-.bar-sub > .metrics { justify-content: flex-end; flex-wrap: wrap; }
+/* 第二行：子视图（月度/对比/预算）贴左，读数贴右。
+   保持单行：宽度不够时读数区横向滚动，不让整行折成两行 */
+.bar-sub { flex-wrap: nowrap; }
+.bar-sub > .metrics {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
 
 /* 年份下拉：打头放在最左，跟视图切换一起组成「看哪一年、看什么」的导航区 */
 .year-select {
