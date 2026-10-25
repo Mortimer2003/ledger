@@ -1906,3 +1906,33 @@ th .draft-tag { margin-left: 4px; font-size: 9.5px; }
   .chart-sub { display: none; }
   .donut-wrap { gap: 12px; }
 }
+
+/* 右键改子类菜单 */
+.sub-menu {
+  position: fixed;
+  z-index: 130;
+  min-width: 190px;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-soft);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+  font-size: 13px;
+}
+.sub-menu-h {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 2px 6px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px;
+  color: var(--text); opacity: .72;
+}
+.sub-menu-item { max-width: 65%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub-menu-opts { display: flex; flex-direction: column; gap: 2px; }
+.sub-menu-opt {
+  display: block; width: 100%; text-align: left; padding: 5px 8px;
+  border: none; border-radius: 5px; background: none; color: var(--text); cursor: pointer;
+}
+.sub-menu-opt:hover { background: var(--hover); }
+.sub-menu-opt.cur { color: var(--gain); font-weight: 600; }
+.sub-menu-new { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.sub-menu-new .ie { width: 100%; box-sizing: border-box; }
