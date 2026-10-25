@@ -568,6 +568,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   background: var(--bg-soft);
 }
 .draft-banner-t { font-weight: 600; font-size: 13px; }
+.draft-banner-at { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--bg-soft);
+  color: var(--text-2); font-size: 11.5px; white-space: nowrap; }
 .draft-banner-n { flex: 1 1 220px; font-size: 12px; color: var(--text-2); }
 .draft-banner .draft-finish { flex: none; padding: 3px 14px; font-size: 12.5px; }
 
