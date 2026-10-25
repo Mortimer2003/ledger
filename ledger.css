@@ -1450,6 +1450,14 @@ th .draft-tag { margin-left: 4px; font-size: 9.5px; }
 }
 
 .modal h2 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+/* 入口已锁定月份/分类/子类时，标题下显示一行「在哪录入」的上下文 */
+.editor-ctx {
+  margin: -4px 0 12px;
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.editor-ctx[hidden] { display: none; }
 .hint { margin: 0 0 14px; font-size: 12px; line-height: 1.6; color: var(--text-3); }
 .err { margin: 10px 0 0; font-size: 12px; color: var(--danger); word-break: break-all; }
 .err[hidden] { display: none; }
