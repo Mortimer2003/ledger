@@ -3523,17 +3523,23 @@
   // 可挑现有标签、清成「不分子类」、或直接输新子类回车保存。
   // 菜单是常驻 HTML 结构，这里只填内容、锚定并显示；选项点击/输入框回车
   // 由启动时的委托统一处理（避免动态建元素，也保持 check_dom 的委托扫描稳定）
+  // 子类选择器：默认只列「当前子类 + 最近常用的几个」（避免把全部历史标签平铺成“雷霆大展开”），
+  // 需要更多时点「显示全部 N 个」展开；菜单打开后页面滚动即关闭（菜单不跟随也不悬挂在原地）
+  var SUB_MENU_SHORT = 5;
+
+  // 按条目里实际使用频次给子类排序（高频在前，同频按拼音），供「常用」列表取数
+  function subFreqRank() {
+    var freq = {};
+    state.entries.forEach(function (e) { if (e.sub) freq[e.sub] = (freq[e.sub] || 0) + 1; });
+    return Object.keys(freq).sort(function (a, b) {
+      return (freq[b] - freq[a]) || a.localeCompare(b, 'zh-CN');
+    });
+  }
+
   function openSubMenu(entry, anchor) {
     closeSubMenu();
-    state.subMenu = { id: entry.id };
-    var opts = subTagNames();
-    document.getElementById('sub-menu-item').textContent = entry.item || '(未命名)';
-    document.getElementById('sub-menu-now').textContent = entry.sub || '无子类';
-    document.getElementById('sub-menu-opts').innerHTML =
-      '<button type="button" class="sub-menu-opt' + (entry.sub ? '' : ' cur') + '" data-sub-set="">不分子类</button>' +
-      opts.map(function (n) {
-        return '<button type="button" class="sub-menu-opt' + (entry.sub === n ? ' cur' : '') + '" data-sub-set="' + esc(n) + '">' + esc(n) + '</button>';
-      }).join('');
+    state.subMenu = { id: entry.id, showAll: false };
+    fillSubMenu(entry);
     var wrap = document.getElementById('sub-menu-wrap');
     var menu = document.getElementById('sub-menu');
     wrap.hidden = false;
@@ -3547,12 +3553,54 @@
     menu.style.left = Math.round(x) + 'px';
     menu.style.top = Math.round(y) + 'px';
     setTimeout(function () { document.getElementById('sub-menu-input').focus(); }, 0);
+    // 打开期间：页面/容器滚动即收起（用捕获阶段能收到所有容器的 scroll）；
+    // 菜单自身内部滚动（子类多时的兜底滚动）除外
+    if (document.addEventListener && !state.subScrollBound) {
+      document.addEventListener('scroll', onAnyScroll, true);
+      state.subScrollBound = true;
+    }
+  }
+
+  function fillSubMenu(entry) {
+    var all = subTagNames();
+    var ranked = subFreqRank();
+    var shown = state.subMenu.showAll ? all.slice() : ranked.slice(0, SUB_MENU_SHORT);
+    // 当前子类一定可见：在常用列表里就置顶，不在就插到最前
+    if (entry.sub) {
+      shown = shown.filter(function (n) { return n !== entry.sub; });
+      shown.unshift(entry.sub);
+    }
+    var more = all.filter(function (n) { return shown.indexOf(n) === -1; });
+    document.getElementById('sub-menu-item').textContent = entry.item || '(未命名)';
+    document.getElementById('sub-menu-now').textContent = entry.sub || '无子类';
+    document.getElementById('sub-menu-opts').innerHTML =
+      '<button type="button" class="sub-menu-opt' + (entry.sub ? '' : ' cur') + '" data-sub-set="">不分子类</button>' +
+      shown.map(function (n) {
+        return '<button type="button" class="sub-menu-opt' + (entry.sub === n ? ' cur' : '') + '" data-sub-set="' + esc(n) + '">' + esc(n) + '</button>';
+      }).join('') +
+      (more.length
+        ? '<button type="button" class="sub-menu-more" data-sub-more="1">显示全部 ' + all.length + ' 个</button>'
+        : (state.subMenu.showAll && all.length > SUB_MENU_SHORT
+          ? '<button type="button" class="sub-menu-more" data-sub-more="0">收起</button>' : ''));
   }
 
   function closeSubMenu() {
     state.subMenu = null;
+    if (document.removeEventListener && state.subScrollBound) {
+      document.removeEventListener('scroll', onAnyScroll, true);
+      state.subScrollBound = false;
+    }
     document.getElementById('sub-menu-wrap').hidden = true;
     document.getElementById('sub-menu-opts').innerHTML = '';
+  }
+
+  // 菜单打开期间任意容器滚动：菜单内部滚动忽略，其余一律收起
+  function onAnyScroll(event) {
+    if (!state.subMenu) return;
+    var el = event.target;
+    var wrap = document.getElementById('sub-menu-wrap');
+    if (el && el.nodeType === 1 && wrap && wrap.contains && wrap.contains(el)) return;
+    closeSubMenu();
   }
 
   function saveSubFromMenu(sub) {
@@ -4780,8 +4828,16 @@
     closeSubMenu();
   });
 
-  // 子类菜单选项：点「不分子类」或某个标签直接保存
+  // 子类菜单选项：点「显示全部/收起」切换列表，点「不分子类」或某个标签直接保存
   document.getElementById('sub-menu-wrap').addEventListener('click', function (event) {
+    var more = event.target.closest ? event.target.closest('[data-sub-more]') : null;
+    if (more) {
+      if (!state.subMenu) return;
+      state.subMenu.showAll = more.dataset.subMore === '1';
+      var entry = state.entries.filter(function (e) { return e.id === state.subMenu.id; })[0];
+      if (entry) fillSubMenu(entry);
+      return;
+    }
     var opt = event.target.closest ? event.target.closest('[data-sub-set]') : null;
     if (opt) saveSubFromMenu(opt.dataset.subSet);
   });
