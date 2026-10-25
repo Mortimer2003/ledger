@@ -1853,14 +1853,6 @@
       shown + line + '</td>';
   }
 
-  // 编辑中的月份：月末格直接就是输入框，不用先双击；回车保存并顺到下一行
-  function assetDraftCell(item) {
-    var v = item.end === null || item.end === undefined ? '' : esc(String(item.end));
-    return '<td class="cmp-edit editing draft-input">' +
-      '<input data-asset-num="end" data-asset-id="' + esc(item.id) + '" type="number" step="1" ' +
-      'placeholder="0" value="' + v + '"></td>';
-  }
-
   // 资产项的名字：备注是这一项维度的，所以虚线和气泡都挂在名字上，
   // 双击名字进编辑，写一次就同步到它在各月的记录
   function assetNameCell(item) {
@@ -2091,9 +2083,9 @@
           assetStaticCell(r.start) +
           // 月末格下面那行环比读的就是月初，跟对比表里的「较上月」是同一件事。
           // 只有本月有记录的那一项才可改；只存在于上月的（本月已清掉）没得改，照只读铺。
-          // 编辑中的月份月末格直接是输入框（assetDraftCell），回车保存顺到下一行
+          // 草稿月双击月末格进编辑、回车保存后自动接续下一格（与收支录入对齐）
           (r.id
-            ? (inDraft ? assetDraftCell(r) : assetCell({ id: r.id, end: r.end }, { end: r.start }, false, locked))
+            ? assetCell({ id: r.id, end: r.end }, { end: r.start }, false, locked)
             : assetStaticCell(r.end)) +
         '</tr>';
       }).join('');
@@ -2276,7 +2268,7 @@
     input.select();
   }
 
-  function commitAssetEditor() {
+  function commitAssetEditor(advance) {
     var edit = state.assetsEdit;
     if (!edit) return;
     state.assetsEdit = null;
@@ -2293,44 +2285,20 @@
     var props = {};
     if (end !== row.end) props['月末'] = { number: end };
     if (!Object.keys(props).length) return render();
-    saveAsset(edit.id, props);
+    saveAsset(edit.id, props, advance);
   }
 
-  // 编辑中的月份：财产输入框即录即存——只更新本地并 PATCH，不整页重画，
-  // 免得表格重建打断连续录入；回车顺到下一行的月末输入框。
-  // Esc 在 keydown 里恢复原值；输入框之间的切换不算离开（focusout 不存）
-  function commitDraftAssetBox(input, advance) {
-    var id = input.dataset ? input.dataset.assetId : null;
-    var row = id ? state.assets.filter(function (a) { return a.id === id; })[0] : null;
-    if (!row) return;
-    var s = String(input.value == null ? '' : input.value).trim();
-    var n = s === '' ? null : Number(s);
-    if (!isFinite(n)) return;
-    var props = {};
-    if (n !== row.end) props['月末'] = { number: n };
-    var before = state.assets;
-    if (Object.keys(props).length) {
-      state.assets = state.assets.map(function (a) {
-        return a.id === id ? Object.assign({}, a, { end: props['月末'].number }) : a;
-      });
-      setLoading(true);
-      notion('/pages/' + id, { method: 'PATCH', body: JSON.stringify({ properties: props }) })
-        .then(function (page) {
-          var saved = normalizeAsset(page);
-          state.assets = state.assets.map(function (a) { return a.id === saved.id ? saved : a; });
-        })
-        .catch(function (err) {
-          state.assets = before;
-          toast(err.message, false);
-        })
-        .then(function () { setLoading(false); });
+  // 回车保存后的接续目标：按表格当前顺序找下一个可编辑格（DOM 顺序 = 表格行序）；
+  // 桩环境没有真实 DOM 时退回该月记录顺序，保证测试可断言
+  function nextAssetEditId(id) {
+    if (typeof treeEl.querySelectorAll === 'function') {
+      var cells = Array.prototype.slice.call(treeEl.querySelectorAll('[data-asset-open]'));
+      var i = cells.findIndex(function (c) { return c.getAttribute('data-asset-open') === id; });
+      if (i >= 0 && i < cells.length - 1) return cells[i + 1].getAttribute('data-asset-open');
     }
-    if (advance && typeof treeEl.querySelectorAll === 'function') {
-      var boxes = Array.prototype.slice.call(treeEl.querySelectorAll('input[data-asset-num]'));
-      var i = boxes.indexOf(input);
-      var nextBox = i >= 0 && i < boxes.length - 1 ? boxes[i + 1] : null;
-      if (nextBox) { nextBox.focus(); nextBox.select(); }
-    }
+    var rows = state.assets.filter(function (a) { return (a.month || UNSET_MONTH) === state.draftMonth; });
+    var j = rows.findIndex(function (r) { return r.id === id; });
+    return j >= 0 && j < rows.length - 1 ? rows[j + 1].id : null;
   }
 
   // 双击资产项的名字改备注。备注是项目维度的，改一次要写回它在各月的所有记录，
@@ -2387,7 +2355,7 @@
     });
   }
 
-  function saveAsset(id, props) {
+  function saveAsset(id, props, advance) {
     var before = state.assets;
     // 先落本地再发请求，免得往返期间闪回旧值；失败整体回滚
     state.assets = state.assets.map(function (a) {
@@ -2408,6 +2376,11 @@
         var saved = normalizeAsset(page);
         state.assets = state.assets.map(function (a) { return a.id === saved.id ? saved : a; });
         render();
+        // 编辑中的月份：回车保存后自动接续下一格进编辑（与收支录入对齐）
+        if (advance && state.draftMonth) {
+          var nextId = nextAssetEditId(id);
+          if (nextId) startAssetEdit(nextId);
+        }
       })
       .catch(function (err) {
         state.assets = before;
@@ -4334,13 +4307,7 @@
     var cell = event.target.closest('td.cmp-edit.editing');
     if (!cell) return;
     if (next && typeof next.closest === 'function' && next.closest('td.cmp-edit.editing') === cell) return;
-    // 编辑中的月份：资产输入框失焦即存；切到另一个资产输入框不算离开
-    var draftBox = event.target.closest('input[data-asset-num]');
-    if (draftBox && state.draftMonth) {
-      if (next && typeof next.closest === 'function' && next.closest('input[data-asset-num]')) return;
-      return commitDraftAssetBox(draftBox, false);
-    }
-    if (state.assetsEdit) return commitAssetEditor();
+    if (state.assetsEdit) return commitAssetEditor(false);
     if (state.budgetEdit) return commitBudgetEditor();
   });
 
@@ -4377,28 +4344,10 @@
         render();
       } else if (event.key === 'Enter') {
         event.preventDefault();
-        commitAssetEditor();
+        // 回车保存后接续下一格（草稿月），失焦保存不接续
+        commitAssetEditor(true);
       }
       return;
-    }
-    // 编辑中的月份：财产输入框直接就地处理（不挂 state.assetsEdit）
-    if (state.draftMonth) {
-      var draftBox = event.target.closest('input[data-asset-num]');
-      if (draftBox) {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          var drow = draftBox.dataset && draftBox.dataset.assetId
-            ? state.assets.filter(function (a) { return a.id === draftBox.dataset.assetId; })[0]
-            : null;
-          draftBox.value = drow && drow.end !== null && drow.end !== undefined
-            ? String(drow.end) : '';
-          if (typeof draftBox.focus === 'function') draftBox.focus();
-        } else if (event.key === 'Enter') {
-          event.preventDefault();
-          commitDraftAssetBox(draftBox, true);
-        }
-        return;
-      }
     }
     if (event.target.closest('input[data-asset-num]')) return;
     if (event.target.closest('input[data-adjust-note]')) return;
