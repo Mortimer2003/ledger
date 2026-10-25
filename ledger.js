@@ -698,12 +698,6 @@
     return raw && isFinite(n) ? n : null;   // null = 跟随最新年份
   }
 
-  function readCmpYear() {
-    var raw = localStorage.getItem(KEY_CMP_YEAR);
-    var n = parseInt(raw, 10);
-    return raw && isFinite(n) ? n : null;   // null = 跟随最新年份
-  }
-
   // 画廊里居中的月份：记着上次停在哪一张，重开还在那儿。
   // 统一后只有月度主 tab 一个画廊，记忆只留一份
   function galAt() { return state.galleryAt; }
@@ -3425,6 +3419,7 @@
     }
 
     input.addEventListener('keydown', function (event) {
+      if (event.isComposing || event.keyCode === 229) return;   // 输入法选词回车不算提交
       if (event.key === 'Enter') { event.preventDefault(); finish(true, true); }
       else if (event.key === 'Escape') { event.preventDefault(); finish(false); }
     });
@@ -3655,7 +3650,8 @@
     var rest = (parts[1] || '').split('|');
     if (type === 'm') return { month: rest[0] };
     if (type === 'c') return { month: rest[0], category: rest[1] };
-    return { month: rest[0], category: rest[1], sub: rest[2] };
+    // 子类名可能自带「|」（如「餐饮|外卖」），从第 3 段起整体还原，不能只取一段
+    return { month: rest[0], category: rest[1], sub: rest.slice(2).join('|') };
   }
 
   function signForCategory(name) {
@@ -3786,15 +3782,18 @@
     // 明细项后带「空格 + ±金额」时拆出金额；金额框也填了就以金额框为准
     var split = splitItemAmount(document.getElementById('f-item').value);
     var amountInput = String(document.getElementById('f-amount').value).trim();
+    // 分类符号锁定时，名称里的 ± 只当便捷填数用，方向仍以分类为准——
+    // 否则「支出」分类下写「+50」会存成正数，与界面锁形提示矛盾
     var amount = (split.amount !== null && !amountInput)
-      ? split.sign * split.amount
+      ? (state.signLocked ? sign * split.amount : split.sign * split.amount)
       : sign * Math.abs(Number(amountInput || 0));
     return {
       month: document.getElementById('f-month').value.trim(),
       category: document.getElementById('f-category').value,
       sub: sub,
       item: split.item,
-      amount: amount
+      amount: amount,
+      amountEmpty: split.amount === null && !amountInput
     };
   }
 
@@ -3804,6 +3803,8 @@
     var payload = readForm();
     if (!payload.item) { toast('明细项不能为空', false); return; }
     if (!payload.month) { toast('请填写月份', false); return; }
+    if (payload.amountEmpty) { toast('请填写金额', false); return; }
+    if (!billMonth(payload.month)) { toast('月份格式应为如 2026年10月', false); return; }
 
     saveBtn.disabled = true;
     setLoading(true);
@@ -4172,6 +4173,7 @@
     input.focus();
     input.select();
     input.addEventListener('keydown', function (event) {
+      if (event.isComposing || event.keyCode === 229) return;   // 输入法选词回车不算提交
       if (event.key === 'Enter') { event.preventDefault(); submitTagRename(); }
       else if (event.key === 'Escape') {
         event.preventDefault();
@@ -4459,6 +4461,7 @@
   });
 
   treeEl.addEventListener('keydown', function (event) {
+    if (event.isComposing || event.keyCode === 229) return;   // 输入法选词回车不算提交
     if (state.adjustEdit) {
       if (!event.target.closest('input[data-adjust-note]')) return;
       if (event.key === 'Escape') {
@@ -4640,6 +4643,7 @@
   document.getElementById('tag-close').addEventListener('click', closeTags);
   document.getElementById('tag-create').addEventListener('click', createSubTag);
   document.getElementById('tag-new').addEventListener('keydown', function (event) {
+    if (event.isComposing || event.keyCode === 229) return;   // 输入法选词回车不算提交
     if (event.key === 'Enter') { event.preventDefault(); createSubTag(); }
   });
 
@@ -4709,6 +4713,7 @@
   // 连续录入：明细项/金额/月份框里直接回车保存，保存后焦点回明细项继续下一笔
   ['f-item', 'f-amount', 'f-month'].forEach(function (id) {
     document.getElementById(id).addEventListener('keydown', function (event) {
+      if (event.isComposing || event.keyCode === 229) return;   // 输入法选词回车不算提交
       if (event.key === 'Enter' && !modalEl.hidden) {
         event.preventDefault();
         submitForm();
@@ -4754,6 +4759,7 @@
 
   // 子类菜单新建：输入框回车保存（草稿月接续同一模式），Esc 收起
   document.getElementById('sub-menu-input').addEventListener('keydown', function (event) {
+    if (event.isComposing || event.keyCode === 229) return;   // 输入法选词回车不算提交
     if (event.key === 'Enter') {
       event.preventDefault();
       saveSubFromMenu(document.getElementById('sub-menu-input').value);
