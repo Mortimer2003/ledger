@@ -632,8 +632,11 @@
   function monthLocked(month, domain) {
     if (!state.locked) return false;
     // 新建编辑中的月份不受历史锁约束：它比所有真实月都新，本来就不是「历史」，
-    // 而且编辑中的主战场就是要往里增删改（删模板项、填余额都在这一步）
-    if (state.draftMonth && monthKey(month) === monthKey(state.draftMonth)) return false;
+    // 而且编辑中的主战场就是要往里增删改（删模板项、填余额都在这一步）。
+    // 字符串相等先兜底：localStorage 里万一存了解析不了的月名，月份键比较会落空，
+    // 但用户打开的月与草稿月同名时照样放行，别让坏值把编辑中的月误判成历史月
+    if (state.draftMonth &&
+        (month === state.draftMonth || monthKey(month) === monthKey(state.draftMonth))) return false;
     var latest = domain === 'assets' ? latestAssetMonth()
       : domain === 'budget' ? latestBudgetMonth()
       : latestEntryMonth();
