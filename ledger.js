@@ -3511,6 +3511,73 @@
       .then(function () { setLoading(false); });
   }
 
+  // ---------- 右键改子类 ----------
+
+  // 任何条目都可以右键改子类（无论之前有没有子类）：弹出子类菜单，
+  // 可挑现有标签、清成「不分子类」、或直接输新子类回车保存。
+  // 菜单是常驻 HTML 结构，这里只填内容、定位并显示；选项点击/输入框回车
+  // 由启动时的委托统一处理（避免动态建元素，也保持 check_dom 的委托扫描稳定）
+  function openSubMenu(entry, x, y) {
+    closeSubMenu();
+    state.subMenu = { id: entry.id };
+    var opts = subTagNames();
+    document.getElementById('sub-menu-item').textContent = entry.item || '(未命名)';
+    document.getElementById('sub-menu-now').textContent = entry.sub || '无子类';
+    document.getElementById('sub-menu-opts').innerHTML =
+      '<button type="button" class="sub-menu-opt' + (entry.sub ? '' : ' cur') + '" data-sub-set="">不分子类</button>' +
+      opts.map(function (n) {
+        return '<button type="button" class="sub-menu-opt' + (entry.sub === n ? ' cur' : '') + '" data-sub-set="' + esc(n) + '">' + esc(n) + '</button>';
+      }).join('');
+    var menu = document.getElementById('sub-menu');
+    menu.style.left = Number(x) + 'px';
+    menu.style.top = Number(y) + 'px';
+    document.getElementById('sub-menu-wrap').hidden = false;
+    setTimeout(function () { document.getElementById('sub-menu-input').focus(); }, 0);
+  }
+
+  function closeSubMenu() {
+    state.subMenu = null;
+    document.getElementById('sub-menu-wrap').hidden = true;
+    document.getElementById('sub-menu-opts').innerHTML = '';
+  }
+
+  function saveSubFromMenu(sub) {
+    if (!state.subMenu) return;
+    var id = state.subMenu.id;
+    closeSubMenu();
+    saveSub(id, String(sub || '').trim() || null);
+  }
+
+  function saveSub(id, sub) {
+    var entry = state.entries.filter(function (e) { return e.id === id; })[0];
+    if (!entry) return;
+    var next = sub || null;
+    if ((entry.sub || null) === next) { render(); return; }
+    var props = next
+      ? { '子类': { select: { name: next } } }
+      : { '子类': { select: null } };
+    // 先改本地再发请求，失败整体回滚（与 saveInline 同一模式）
+    var previous = state.entries;
+    state.entries = state.entries.map(function (e) {
+      return e.id === id ? Object.assign({}, e, { sub: next }) : e;
+    });
+    render();
+    setLoading(true);
+    notion('/pages/' + id, { method: 'PATCH', body: JSON.stringify({ properties: props }) })
+      .then(function (page) {
+        var saved = normalize(page);
+        state.entries = state.entries.map(function (e) { return e.id === saved.id ? saved : e; });
+        render();
+        writeCache();
+      })
+      .catch(function (err) {
+        state.entries = previous;
+        render();
+        toast(err.message, false);
+      })
+      .then(function () { setLoading(false); });
+  }
+
   // ---------- 数据操作 ----------
 
   // ===== 刷新与增删 =====
@@ -4315,6 +4382,17 @@
     galleryStep(d > 0 ? 1 : -1);
   }, { passive: false });
 
+  // 右键明细行 → 改子类菜单：任何条目都可以（无论之前有没有子类），锁定月不弹
+  treeEl.addEventListener('contextmenu', function (event) {
+    var leaf = event.target.closest('[data-id]');
+    if (!leaf) return;
+    var entry = state.entries.filter(function (e) { return e.id === leaf.dataset.id; })[0];
+    if (!entry) return;
+    event.preventDefault();
+    if (monthLocked(entry.month || UNSET_MONTH, 'ledger')) return lockedToast();
+    openSubMenu(entry, event.clientX, event.clientY);
+  });
+
   // 双击明细行的标题或金额，就地变成输入框；预算格、财产格同样双击才进编辑
   treeEl.addEventListener('dblclick', function (event) {
     var adj = event.target.closest('[data-adjust-open]');
@@ -4640,7 +4718,8 @@
 
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
-      if (!modalEl.hidden) closeEditor();
+      if (state.subMenu) { closeSubMenu(); }
+      else if (!modalEl.hidden) closeEditor();
       else if (!tagsEl.hidden) closeTags();
       else if (!setupEl.hidden) closeSetup();
       else if (state.rangeOpen) closeRange();
@@ -4657,6 +4736,30 @@
       event.preventDefault();
       searchEl.focus();
       searchEl.select();
+    }
+  });
+
+  // 子类菜单：点菜单外面的任意位置收起（菜单内的点击由下面的委托处理）
+  document.addEventListener('click', function (event) {
+    if (!state.subMenu) return;
+    if (event.target.closest && event.target.closest('#sub-menu')) return;
+    closeSubMenu();
+  });
+
+  // 子类菜单选项：点「不分子类」或某个标签直接保存
+  document.getElementById('sub-menu-wrap').addEventListener('click', function (event) {
+    var opt = event.target.closest ? event.target.closest('[data-sub-set]') : null;
+    if (opt) saveSubFromMenu(opt.dataset.subSet);
+  });
+
+  // 子类菜单新建：输入框回车保存（草稿月接续同一模式），Esc 收起
+  document.getElementById('sub-menu-input').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      saveSubFromMenu(document.getElementById('sub-menu-input').value);
+    } else if (event.key === 'Escape') {
+      event.stopPropagation();
+      closeSubMenu();
     }
   });
 
