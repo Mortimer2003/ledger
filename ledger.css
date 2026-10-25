@@ -580,6 +580,45 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .draft-banner-n { flex: 1 1 220px; font-size: 12px; color: var(--text-2); }
 .draft-banner .draft-finish { flex: none; padding: 3px 14px; font-size: 12.5px; }
 
+/* 编辑中月份收支页的录入检查清单：渠道勾选卡片，只服务草稿月、不影响任何数据 */
+.draft-check {
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-soft);
+  padding: 8px 12px 10px;
+}
+.draft-check-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.draft-check-h b { font-size: 13px; color: var(--text); }
+.draft-check-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.draft-check-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+.draft-check-item input { margin: 0; accent-color: var(--gain); cursor: pointer; }
+.draft-check-item.done { border-color: var(--gain); color: var(--gain); background: var(--bg-soft); }
+.draft-check-item.done span { text-decoration: line-through; text-decoration-color: var(--gain); }
+
 /* 「待填」标签：月份列头与财产项上共用，编辑中的月才出现 */
 .draft-tag {
   display: inline-block;
