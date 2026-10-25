@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>收支明细</title>
-<link rel="stylesheet" href="ledger.css?v=20261025-2013">
+<link rel="stylesheet" href="ledger.css?v=20261025-2021">
 
 </head>
 <body>
@@ -180,19 +180,20 @@
 <div class="mask" id="modal" hidden>
   <form class="modal" id="form">
     <h2 id="modal-title">新增一笔</h2>
+    <p class="editor-ctx" id="editor-ctx" hidden></p>
 
-    <div class="field">
+    <div class="field" id="f-month-wrap">
       <label for="f-month">月份</label>
       <input id="f-month" list="months" autocomplete="off" placeholder="2026年09月" required>
       <datalist id="months"></datalist>
     </div>
 
-    <div class="field">
+    <div class="field" id="f-category-wrap">
       <label for="f-category">分类</label>
       <select id="f-category"></select>
     </div>
 
-    <div class="field">
+    <div class="field" id="f-sub-wrap">
       <label for="f-sub">子类 <span class="opt">可选</span></label>
       <div class="sub-row">
         <select id="f-sub"></select>
@@ -246,7 +247,7 @@
   </div>
 </div>
 
-<script src="ledger.js?v=20261025-2013"></script>
+<script src="ledger.js?v=20261025-2021"></script>
 
 </body>
 </html>
