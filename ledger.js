@@ -4218,7 +4218,8 @@
     var target = event.target.closest(
       '[data-toggle],[data-add],[data-del],[data-del-confirm],[data-del-cancel],[data-cmp-toggle],' +
       '[data-adjust-alert],' +
-      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center],[data-finish-draft]');
+      '[data-gallery-month],[data-gallery-new],[data-gallery-back],[data-center],[data-finish-draft],' +
+      '[data-draft-check]');
     if (!target) return;
     var data = target.dataset;
     // 纠偏的归因：提醒胶囊点一下就进编辑；已有归因的话双击文字改（dblclick 里处理）
