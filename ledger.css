@@ -970,6 +970,26 @@ th .draft-tag { margin-left: 4px; font-size: 9.5px; }
 .leaf:hover .ops,
 .ops.pinned { opacity: 1; }
 
+/* 行内子类胶囊：有子类常显标识归属，无子类悬停出现「+ 子类」入口；点击弹选择器 */
+.sub-tag {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--text-2);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease, border-color .12s ease, color .12s ease;
+}
+.sub-tag.has-sub { opacity: 1; }
+.leaf:hover .sub-tag { opacity: 1; }
+.sub-tag:hover { border-color: var(--accent); color: var(--text); }
+.sub-tag.sub-none { border-style: dashed; color: var(--text-3); }
+
 .op {
   font: inherit;
   font-size: 12px;
@@ -1907,7 +1927,7 @@ th .draft-tag { margin-left: 4px; font-size: 9.5px; }
   .donut-wrap { gap: 12px; }
 }
 
-/* 右键改子类菜单 */
+/* 子类选择器菜单（点条目上的子类胶囊弹出） */
 .sub-menu {
   position: fixed;
   z-index: 130;
