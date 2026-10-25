@@ -32,6 +32,7 @@
   var KEY_GALLERY_AT = 'ledger.galleryAt';
   var KEY_DRAFT_MONTH = 'ledger.draftMonth';   // 处于「新建编辑中」的月份；完成前一直记忆
   var KEY_DRAFT_AT = 'ledger.draftMonthAt';    // 该草稿最近一次编辑的时间戳（ms），随草稿月一起记忆/清除
+  var KEY_DRAFT_SKIP = 'ledger.draftSkip';     // 草稿月里用户删掉的模板项（分类\u0000名字），补铺模板时跳过
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
   var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
@@ -116,6 +117,7 @@
     galleryAt: readGalleryAt(), // 月度画廊里居中的月份；null/失效时用最新一个月
     draftMonth: localStorage.getItem(KEY_DRAFT_MONTH) || null, // 新建编辑中的月份，完成后清除
     draftMonthAt: readDraftAt(),   // 草稿最近一次编辑的时间戳（ms），随草稿月记忆
+    draftSkip: readDraftSkip(),    // 草稿月里用户删掉的模板项：{ 月份: { '分类\u0000名字': true } }
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
@@ -615,6 +617,9 @@
   // 三个域各看各的最新月：账本、财产、预算的进度不一样，不能用一个全局的最新月去卡
   function monthLocked(month, domain) {
     if (!state.locked) return false;
+    // 新建编辑中的月份不受历史锁约束：它比所有真实月都新，本来就不是「历史」，
+    // 而且编辑中的主战场就是要往里增删改（删模板项、填余额都在这一步）
+    if (state.draftMonth && monthKey(month) === monthKey(state.draftMonth)) return false;
     var latest = domain === 'assets' ? latestAssetMonth()
       : domain === 'budget' ? latestBudgetMonth()
       : latestEntryMonth();
@@ -696,6 +701,14 @@
   function readDraftAt() {
     var n = Number(localStorage.getItem(KEY_DRAFT_AT));
     return isFinite(n) && n > 0 ? n : null;
+  }
+  // 草稿里用户删掉的模板项：坏 JSON 就当作没有，不阻断
+  function readDraftSkip() {
+    try { return JSON.parse(localStorage.getItem(KEY_DRAFT_SKIP)) || {}; }
+    catch (e) { return {}; }
+  }
+  function saveDraftSkip() {
+    localStorage.setItem(KEY_DRAFT_SKIP, JSON.stringify(state.draftSkip || {}));
   }
 
 
@@ -3460,6 +3473,13 @@
   function removeEntry(id) {
     var entry = state.entries.filter(function (e) { return e.id === id; })[0];
     if (!entry) return;
+    // 草稿月里删掉模板项要记住：否则下次进编辑状态，补铺模板会把它当「缺项」又建回来
+    if (state.draftMonth && entry.month === state.draftMonth) {
+      var key = (entry.category || '') + '\u0000' + (entry.item || '');
+      state.draftSkip[state.draftMonth] = state.draftSkip[state.draftMonth] || {};
+      state.draftSkip[state.draftMonth][key] = true;
+      saveDraftSkip();
+    }
     setLoading(true);
     notion('/pages/' + id, { method: 'PATCH', body: JSON.stringify({ archived: true }) })
       .then(function () {
@@ -3690,8 +3710,10 @@
 
   function billTodo(label) {
     var exist = monthItemKeys(label);
+    var skip = (state.draftSkip || {})[label] || {};
     return billItems(label).filter(function (it) {
-      return !exist[it.category + '\u0000' + it.item];
+      var key = it.category + '\u0000' + it.item;
+      return !exist[key] && !skip[key];
     });
   }
 
@@ -3851,6 +3873,8 @@
     localStorage.removeItem(KEY_DRAFT_MONTH);
     state.draftMonthAt = null;
     localStorage.removeItem(KEY_DRAFT_AT);
+    state.draftSkip = {};
+    localStorage.removeItem(KEY_DRAFT_SKIP);
     toast(month + ' 已完成新建，转为普通月份', true);
     render();
   }
