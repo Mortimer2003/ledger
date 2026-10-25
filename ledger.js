@@ -3336,7 +3336,7 @@
         : '<button type="button" class="op" data-del="' + esc(entry.id) + '">删除</button>';
 
     var nameCell = field === 'item'
-      ? '<input class="ie" id="ie-item" autocomplete="off" value="' + esc(entry.item || '') + '">'
+      ? '<input class="ie" id="ie-item" autocomplete="off" placeholder="名称，可加 ±金额" value="' + esc(entry.item || '') + '">'
       : '<span class="name">' + (entry.item ? highlight(entry.item) : '<i class="muted">未命名</i>') + '</span>';
 
     var amountCell = field === 'amount'
@@ -3383,17 +3383,38 @@
     input.addEventListener('blur', function () { finish(true); });
   }
 
+  // 「明细项 + 空格 + ±金额」一次输入：名字结尾的空格后跟着带符号数字时，
+  // 拆出名字与金额（+ 收入 / - 支出）。只认显式写了 +/- 的，没写符号保持整串为名字。
+  function splitItemAmount(raw) {
+    var m = /^(.*?)\s+([+-])\s*([\d,]+(?:\.\d+)?)\s*$/.exec(raw);
+    if (!m) return { item: String(raw).trim(), amount: null };
+    var value = Number(m[3].replace(/,/g, ''));
+    if (!Number.isFinite(value)) return { item: String(raw).trim(), amount: null };
+    return { item: m[1].trim(), amount: value, sign: m[2] === '+' ? 1 : -1 };
+  }
+
   function saveInline(id, field, raw) {
     var entry = state.entries.filter(function (e) { return e.id === id; })[0];
     if (!entry) { render(); return; }
 
-    var props, patch;
+    var props = {}, patch = {};
     if (field === 'item') {
-      var item = String(raw).trim();
+      var split = splitItemAmount(raw);
+      var item = split.item;
       if (!item) { toast('明细项不能为空', false); render(); return; }
-      if (item === entry.item) { render(); return; }
-      props = { '明细项': { title: [{ text: { content: item } }] } };
-      patch = { item: item };
+      if (item !== entry.item) {
+        props['明细项'] = { title: [{ text: { content: item } }] };
+        patch.item = item;
+      }
+      if (split.amount !== null) {
+        // 名字后带的 ± 金额：+ 收入 / - 支出，以用户写的符号为准（覆盖分类方向）
+        var amount = split.sign * split.amount;
+        if (amount !== entry.amount) {
+          props['金额'] = { number: amount };
+          patch.amount = amount;
+        }
+      }
+      if (!Object.keys(props).length) { render(); return; }
     } else {
       if (!String(raw).trim()) { render(); return; }
       var value = Number(raw);
@@ -3602,12 +3623,18 @@
       ? (document.getElementById('f-sub-new').value.trim() || null)
       : (subSel.value || null);
     var sign = state.sign || -1;
+    // 明细项后带「空格 + ±金额」时拆出金额；金额框也填了就以金额框为准
+    var split = splitItemAmount(document.getElementById('f-item').value);
+    var amountInput = String(document.getElementById('f-amount').value).trim();
+    var amount = (split.amount !== null && !amountInput)
+      ? split.sign * split.amount
+      : sign * Math.abs(Number(amountInput || 0));
     return {
       month: document.getElementById('f-month').value.trim(),
       category: document.getElementById('f-category').value,
       sub: sub,
-      item: document.getElementById('f-item').value.trim(),
-      amount: sign * Math.abs(Number(document.getElementById('f-amount').value || 0))
+      item: split.item,
+      amount: amount
     };
   }
 
