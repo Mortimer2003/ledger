@@ -3366,19 +3366,19 @@
     input.select();
 
     var done = false;
-    function finish(save) {
+    function finish(save, advance) {
       if (done) return;
       done = true;
       state.editing = null;
-      if (save) saveInline(id, field, input.value);
+      if (save) saveInline(id, field, input.value, advance);
       else render();
     }
 
     input.addEventListener('keydown', function (event) {
-      if (event.key === 'Enter') { event.preventDefault(); finish(true); }
+      if (event.key === 'Enter') { event.preventDefault(); finish(true, true); }
       else if (event.key === 'Escape') { event.preventDefault(); finish(false); }
     });
-    input.addEventListener('blur', function () { finish(true); });
+    input.addEventListener('blur', function () { finish(true, false); });
   }
 
   // 「明细项 + 空格 + ±金额」一次输入：名字结尾的空格后跟着带符号数字时，
@@ -3391,7 +3391,15 @@
     return { item: m[1].trim(), amount: value, sign: m[2] === '+' ? 1 : -1 };
   }
 
-  function saveInline(id, field, raw) {
+  // 就地编辑的接续目标：编辑中的月份里按该月条目的当前顺序找下一条；
+  // 到最后一条就不再跳（接续只服务草稿月的连续填充）
+  function nextInlineTarget(id, month) {
+    var list = state.entries.filter(function (e) { return (e.month || UNSET_MONTH) === month; });
+    var i = list.findIndex(function (e) { return e.id === id; });
+    return i === -1 || i >= list.length - 1 ? null : list[i + 1];
+  }
+
+  function saveInline(id, field, raw, advance) {
     var entry = state.entries.filter(function (e) { return e.id === id; })[0];
     if (!entry) { render(); return; }
 
@@ -3437,6 +3445,13 @@
         state.entries = state.entries.map(function (e) { return e.id === saved.id ? saved : e; });
         render();
         writeCache();
+        // 编辑中的月份：回车保存后自动聚焦同月下一条、进入同字段编辑，
+        // 模板（工资→公积金→房租→空行）一口气顺填，不用每行双击；
+        // 复用 startEdit 保证新的输入框照样绑上 Enter/Esc/blur
+        if (advance && state.draftMonth && entry.month === state.draftMonth) {
+          var next = nextInlineTarget(id, entry.month);
+          if (next) startEdit(next.id, field);
+        }
       })
       .catch(function (err) {
         state.entries = previous;
