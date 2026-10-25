@@ -34,6 +34,17 @@
   var KEY_DRAFT_MONTH = 'ledger.draftMonth';   // 处于「新建编辑中」的月份；完成前一直记忆
   var KEY_DRAFT_AT = 'ledger.draftMonthAt';    // 该草稿最近一次编辑的时间戳（ms），随草稿月一起记忆/清除
   var KEY_DRAFT_SKIP = 'ledger.draftSkip';     // 草稿月里用户删掉的模板项（分类\u0000名字），补铺模板时跳过
+  var KEY_DRAFT_CHECK = 'ledger.draftCheck';   // 草稿月收支录入检查清单（勾选状态，只存本地，不进 Notion）
+  // 录入检查清单的渠道：用户月度花销来源，勾掉一个 = 该渠道这个月已核对录完
+  var DRAFT_CHECK_SOURCES = [
+    { id: 'wechat', label: '微信账单' },
+    { id: 'alipay', label: '支付宝账单' },
+    { id: 'meituan', label: '美团' },
+    { id: 'taobao', label: '淘宝' },
+    { id: 'pdd', label: '拼多多' },
+    { id: 'douyin', label: '抖音' },
+    { id: 'cmb', label: '招商银行账单' }
+  ];
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
   var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
@@ -117,6 +128,7 @@
     sub: DEFAULT_SUB,   // 子 tab：income / assets / budget，不落盘、主 tab 一切换就回收支
     galleryAt: readGalleryAt(), // 月度画廊里居中的月份；null/失效时用最新一个月
     draftMonth: localStorage.getItem(KEY_DRAFT_MONTH) || null, // 新建编辑中的月份，完成后清除
+    draftCheck: readDraftCheck(),   // 各草稿月的收支录入检查勾选表（本地）
     draftMonthAt: readDraftAt(),   // 草稿最近一次编辑的时间戳（ms），随草稿月记忆
     draftSkip: readDraftSkip(),    // 草稿月里用户删掉的模板项：{ 月份: { '分类\u0000名字': true } }
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
@@ -711,6 +723,14 @@
   }
   function saveDraftSkip() {
     localStorage.setItem(KEY_DRAFT_SKIP, JSON.stringify(state.draftSkip || {}));
+  }
+  // 录入检查清单（按月份存的勾选表）：坏 JSON 当空表，勾选只存本地、不进 Notion
+  function readDraftCheck() {
+    try { return JSON.parse(localStorage.getItem(KEY_DRAFT_CHECK)) || {}; }
+    catch (e) { return {}; }
+  }
+  function saveDraftCheck() {
+    localStorage.setItem(KEY_DRAFT_CHECK, JSON.stringify(state.draftCheck || {}));
   }
 
 
@@ -2813,7 +2833,7 @@
         pendingHint = state.sub === 'assets' ? assetMonthHintText() : treeHintText();
         var bIdx = budgetMonthIndex(budgetData, state.monthOpen);
         var draftHtml = draftBannerHtml(state.monthOpen);
-        treeEl.innerHTML = draftHtml + (state.sub === 'income'
+        treeEl.innerHTML = draftHtml + draftCheckHtml(state.monthOpen) + (state.sub === 'income'
           ? renderMonthDetail(openMonth, realNets)
           : state.sub === 'assets'
             ? renderAssetMonthDetail(state.monthOpen, budgetNext)
@@ -3834,6 +3854,29 @@
       '</div>';
   }
 
+  // 编辑中月份收支页的录入检查清单：各花销渠道一个勾选框，勾掉 = 该渠道这个月已核对。
+  // 独立于任何记账数据：只存本地勾选状态，不写 Notion、不参与统计
+  function draftCheckHtml(month) {
+    if (month !== state.draftMonth || state.sub !== 'income') return '';
+    var checks = (state.draftCheck && state.draftCheck[month]) || {};
+    var done = DRAFT_CHECK_SOURCES.filter(function (s) { return checks[s.id]; }).length;
+    return '<section class="draft-check">' +
+      '<div class="draft-check-h">' +
+        '<b>录入检查</b>' +
+        '<span>' + done + ' / ' + DRAFT_CHECK_SOURCES.length + ' 已核对</span>' +
+      '</div>' +
+      '<div class="draft-check-list">' +
+        DRAFT_CHECK_SOURCES.map(function (s) {
+          return '<label class="draft-check-item' + (checks[s.id] ? ' done' : '') + '"' +
+            ' data-draft-check="' + s.id + '">' +
+            '<input type="checkbox"' + (checks[s.id] ? ' checked' : '') + '>' +
+            '<span>' + esc(s.label) + '</span>' +
+          '</label>';
+        }).join('') +
+      '</div>' +
+    '</section>';
+  }
+
   // 编辑中月份里还没填的财产项数：完成前用来提示还差多少
   function draftPendingAssetCount(month) {
     return state.assets.filter(function (a) {
@@ -3945,6 +3988,9 @@
     localStorage.removeItem(KEY_DRAFT_AT);
     state.draftSkip = {};
     localStorage.removeItem(KEY_DRAFT_SKIP);
+    // 录入检查清单只服务编辑中的月份：定稿后当月勾选清掉
+    if (state.draftCheck) delete state.draftCheck[month];
+    saveDraftCheck();
     toast(month + ' 已完成新建，转为普通月份', true);
     render();
   }
@@ -4206,6 +4252,15 @@
     if (data.toggle) {
       if (state.expanded[data.toggle]) delete state.expanded[data.toggle];
       else state.expanded[data.toggle] = true;
+      return render();
+    }
+    if (data.draftCheck) {
+      // 录入检查清单：纯本地勾选，不碰任何数据
+      var checkMonth = state.monthOpen;
+      if (!state.draftCheck[checkMonth]) state.draftCheck[checkMonth] = {};
+      if (state.draftCheck[checkMonth][data.draftCheck]) delete state.draftCheck[checkMonth][data.draftCheck];
+      else state.draftCheck[checkMonth][data.draftCheck] = true;
+      saveDraftCheck();
       return render();
     }
     if (data.add) {
