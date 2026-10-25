@@ -3396,9 +3396,12 @@
       '<div class="leaf ' + (inSub ? 'leaf-sub' : 'leaf-cat') + '" data-id="' + esc(entry.id) + '">' +
         '<span class="bullet"></span>' +
         nameCell +
+        // 胶囊在名字后、弹性 spacer 之前：金额列位置只由「容器宽 − 金额−操作位固定宽」决定，
+        // 与胶囊是否出现、是否常显无关——放进右侧 .tail 会顶偏金额列，这里绝不能放
+        subTag +
         (field === 'item' ? '' : '<span class="spacer"></span>') +
         amountCell +
-        '<span class="tail">' + subTag +
+        '<span class="tail">' +
           '<span class="ops ' + (confirming ? 'pinned' : '') + '">' + ops + '</span>' +
         '</span>' +
       '</div>';
