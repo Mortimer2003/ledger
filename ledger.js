@@ -4390,6 +4390,9 @@
       var subEntry = state.entries.filter(function (e) { return e.id === data.subOpen; })[0];
       if (!subEntry) return;
       if (monthLocked(subEntry.month || UNSET_MONTH, 'ledger')) return lockedToast();
+      // 必须停住这个 click 的冒泡：否则它继续传到 document 的「点外部收起」，
+      // 菜单刚打开就被同一个 click 关掉（旧版右键不触发 click，没有这个问题）
+      event.stopPropagation();
       return openSubMenu(subEntry, target.getBoundingClientRect());
     }
   });
