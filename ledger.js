@@ -3585,6 +3585,27 @@
   }
 
   function openEditor(prefill) {
+    // 入口即意图：从哪个月/分类/子类的「＋」打开，这些维度就已定死。
+    // 定死的输入行隐藏，只留明细项/金额；被隐藏的维度在标题下显示一行上下文
+    var lockedMonth = !!prefill.month;
+    var lockedCategory = !!prefill.category;
+    var lockedSub = !!prefill.sub;
+    state.editorLocked = { category: lockedCategory, sub: lockedSub };
+    document.getElementById('f-month-wrap').hidden = lockedMonth;
+    document.getElementById('f-category-wrap').hidden = lockedCategory;
+    document.getElementById('f-sub-wrap').hidden = lockedSub;
+    var ctx = [];
+    if (lockedMonth) ctx.push(prefill.month);
+    if (lockedCategory) ctx.push(prefill.category);
+    if (lockedSub) ctx.push(prefill.sub);
+    var ctxEl = document.getElementById('editor-ctx');
+    if (ctx.length) {
+      ctxEl.hidden = false;
+      ctxEl.textContent = ctx.join(' · ');
+    } else {
+      ctxEl.hidden = true;
+    }
+
     var categories = CATEGORY_ORDER.slice();
     state.entries.forEach(function (e) {
       if (e.category && categories.indexOf(e.category) === -1) categories.push(e.category);
@@ -3664,7 +3685,10 @@
       document.getElementById('f-amount').value = '';
       var hint = document.getElementById('saved-hint');
       hint.hidden = false;
-      hint.textContent = '已保存，月份、分类、子类已保留，可继续录入';
+      hint.textContent = (state.editorLocked && (state.editorLocked.category || state.editorLocked.sub))
+        ? '已保存，可继续录入（仍在 ' +
+          document.getElementById('editor-ctx').textContent + '）'
+        : '已保存，月份、分类、子类已保留，可继续录入';
       document.getElementById('f-item').focus();
     }).catch(function (err) {
       toast(err.message, false);
