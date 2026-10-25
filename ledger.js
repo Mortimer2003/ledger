@@ -120,6 +120,7 @@
     draftMonthAt: readDraftAt(),   // 草稿最近一次编辑的时间戳（ms），随草稿月记忆
     draftSkip: readDraftSkip(),    // 草稿月里用户删掉的模板项：{ 月份: { '分类\u0000名字': true } }
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
+    editorOpen: false,          // 新增弹窗是否开着（快捷键防重开）
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
     budgetEdit: null,    // 正在就地编辑的预算格：{ month, field }
@@ -1841,7 +1842,9 @@
   // 但加 .locked 把「可编辑」的悬停线索撤掉，看起来就知道动不了
   function assetCell(cell, prev, isFirst, locked) {
     if (!cell) return '<td><span class="zero">—</span></td>';
-    var line = assetDeltaLine(cell.end, prev ? prev.end : null, isFirst);
+    // 月末没填时差额也别占位：上面已是一条横杠，下面再叠一条太丑
+    var line = (cell.end === null || cell.end === undefined)
+      ? '' : assetDeltaLine(cell.end, prev ? prev.end : null, isFirst);
     var shown = '<span class="v">' + assetNum(cell.end) + '</span>';
     if (state.assetsEdit && state.assetsEdit.id === cell.id) {
       // 双击后单元格原地变输入框，不再在下面浮面板
@@ -3625,6 +3628,7 @@
   }
 
   function openEditor(prefill) {
+    state.editorOpen = true;
     // 入口即意图：从哪个月/分类/子类的「＋」打开，这些维度就已定死。
     // 定死的输入行隐藏，只留明细项/金额；被隐藏的维度在标题下显示一行上下文
     var lockedMonth = !!prefill.month;
@@ -3674,6 +3678,7 @@
   }
 
   function closeEditor() {
+    state.editorOpen = false;
     modalEl.hidden = true;
   }
 
@@ -4405,6 +4410,19 @@
     if (state.rangeAnchor === null || state.rangeHover === null) return;
     state.rangeHover = null;
     paintRange();
+  });
+
+  // 收支视图快捷新增：非输入状态下按 n 直接弹「新增一笔」。
+  // 月度详情态锁当前月（跟分类行「＋」一个思路）；画廊/对比态不锁，默认当前日历月
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'n' && event.key !== 'N') return;
+    var t = event.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+              t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (state.editorOpen) return;
+    if (state.sub !== 'income') return;
+    event.preventDefault();
+    openEditor(state.monthOpen ? { month: state.monthOpen } : {});
   });
 
   // 顶栏那把锁：点一下在「锁定历史月份 / 全部可编辑」之间切
