@@ -31,6 +31,7 @@
   var KEY_CACHE = 'ledger.cache';
   var KEY_GALLERY_AT = 'ledger.galleryAt';
   var KEY_DRAFT_MONTH = 'ledger.draftMonth';   // 处于「新建编辑中」的月份；完成前一直记忆
+  var KEY_DRAFT_AT = 'ledger.draftMonthAt';    // 该草稿最近一次编辑的时间戳（ms），随草稿月一起记忆/清除
   var KEY_CMP_YEAR = 'ledger.cmpYear';
   var KEY_BUDGET_DS = 'ledger.budgetSourceId';
   var DEFAULT_BUDGET_DS = '6a5dce49-5e88-4713-8cda-19925a5cc3fb';
@@ -114,6 +115,7 @@
     sub: DEFAULT_SUB,   // 子 tab：income / assets / budget，不落盘、主 tab 一切换就回收支
     galleryAt: readGalleryAt(), // 月度画廊里居中的月份；null/失效时用最新一个月
     draftMonth: localStorage.getItem(KEY_DRAFT_MONTH) || null, // 新建编辑中的月份，完成后清除
+    draftMonthAt: readDraftAt(),   // 草稿最近一次编辑的时间戳（ms），随草稿月记忆
     monthOpen: null,            // 月度详情页在看哪个月；null = 停在画廊
     budget: {},          // 月份 -> { id, specialIn, bonus }
     budgetOpening: { id: null, amount: 0 },
@@ -679,6 +681,11 @@
   }
   function readGalleryAt() {
     return localStorage.getItem(KEY_GALLERY_AT) || null;
+  }
+  // 草稿最近编辑时间戳：坏值/缺值返回 null，不显示
+  function readDraftAt() {
+    var n = Number(localStorage.getItem(KEY_DRAFT_AT));
+    return isFinite(n) && n > 0 ? n : null;
   }
 
 
@@ -3046,7 +3053,8 @@
       '<div class="gcard-in">' +
         '<div class="gcard-year">' + esc(c.name.slice(0, 5)) + '</div>' +
         '<div class="gcard-mon">' + esc(c.monthNo) + '<span>月</span></div>' +
-        (c.name === state.draftMonth ? '<span class="gcard-draft">编辑中</span>' : '') +
+        (c.name === state.draftMonth ? '<span class="gcard-draft">编辑中' +
+        (state.draftMonthAt ? ' · ' + esc(draftDateLabel(state.draftMonthAt, false)) : '') + '</span>' : '') +
         (c.assetHtml ? '<div class="gcard-asset">' + c.assetHtml + '</div>' : '') +
         '<div class="gcard-net' + (c.netCls ? ' ' + c.netCls : '') + '">' + c.netHtml + '</div>' +
         '<div class="gcard-io">' + c.readings.map(function (r) {
@@ -3691,11 +3699,27 @@
   // 铺好账本模板项，之后一直可改可退；点「完成新建」才定稿转普通月。
   // 编辑中状态存本地（KEY_DRAFT_MONTH），刷新/关页后回来还能继续。
 
+  // 草稿最近编辑时间：同年只报月日，跨年报年月；带时间时补上 HH:mm
+  function draftDateLabel(at, withTime) {
+    if (!at) return '';
+    var d = new Date(at);
+    var now = new Date();
+    var md = (d.getMonth() + 1) + '月' + d.getDate() + '日';
+    var date = d.getFullYear() === now.getFullYear() ? md : d.getFullYear() + '年' + md;
+    if (!withTime) return date;
+    var hh = (d.getHours() < 10 ? '0' : '') + d.getHours();
+    var mm = (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+    return date + ' ' + hh + ':' + mm;
+  }
+
   // 详情顶部横幅：只在看的就是编辑中月份时出现，三个子 tab 共用
   function draftBannerHtml(month) {
     if (month !== state.draftMonth) return '';
     return '<div class="draft-banner">' +
       '<span class="draft-banner-t">' + esc(month) + ' · 新建编辑中</span>' +
+      (state.draftMonthAt
+        ? '<span class="draft-banner-at">最近编辑 ' + esc(draftDateLabel(state.draftMonthAt, true)) + '</span>'
+        : '') +
       '<span class="draft-banner-n">财产和账本都铺好了草稿：从上月复制来、还没填余额的项会标「待填」；' +
       '可随时退出，下次进来继续编辑</span>' +
       '<button type="button" class="btn primary draft-finish" data-finish-draft="1">完成新建</button>' +
@@ -3719,6 +3743,9 @@
       state.draftMonth = month;
       localStorage.setItem(KEY_DRAFT_MONTH, month);
     }
+    // 每次进入编辑状态都刷新「最近编辑」时间：铺草稿算编辑、续编也算编辑
+    state.draftMonthAt = Date.now();
+    localStorage.setItem(KEY_DRAFT_AT, String(state.draftMonthAt));
     setLoading(true);
     var jobs = [];
     // 财产：该月还没有资产项且上月有，就照上月铺一份（类型/应用/备注照抄，月初/月末留空）
@@ -3788,6 +3815,8 @@
     draftConfirmTimer = null;
     state.draftMonth = null;
     localStorage.removeItem(KEY_DRAFT_MONTH);
+    state.draftMonthAt = null;
+    localStorage.removeItem(KEY_DRAFT_AT);
     toast(month + ' 已完成新建，转为普通月份', true);
     render();
   }
